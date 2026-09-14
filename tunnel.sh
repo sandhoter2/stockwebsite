@@ -19,4 +19,4 @@ if ! ngrok config check >/dev/null 2>&1; then
 fi
 echo "→ opening ngrok tunnel to http://127.0.0.1:8000"
 echo "  public URL appears below (and in ngrok.log); Ctrl-C stops the tunnel only."
-ngrok http 8000 --log=ngrok.log --log-format=text
+ngrok http 8000 --log=ngrok.log --log-format=json

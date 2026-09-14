@@ -888,6 +888,35 @@ class PaperEngineTests(TestCase):
         self.assertEqual(pt.status, 'Closed')
         self.assertGreater(pt.realized_pct, 0)
 
+    def test_profit_target_closes_before_trailing(self):
+        # A jump straight past the 50% profit target closes immediately,
+        # even though the trailing stop (20%, default) hasn't been touched
+        # yet (price is still rising, no pullback from peak).
+        pt = PaperTrade.open_for_user(self.user, 'X', 'stock', 'BUY', 100.0)
+        self.assertEqual(pt.profit_target_pct, 50.0)
+        self.assertTrue(pt.mark(151.0))
+        pt.refresh_from_db()
+        self.assertEqual(pt.status, 'Closed')
+        self.assertIn('profit-target', pt.notes)
+        self.assertGreaterEqual(pt.realized_pct, 50.0)
+
+    def test_stop_loss_takes_priority_over_profit_target(self):
+        # A custom pref combo where the two thresholds could both look
+        # "reached" on the same mark must still resolve loss-cap first.
+        pt = PaperTrade.open_for_user(self.user, 'X', 'stock', 'BUY', 100.0)
+        pt.profit_target_pct = 5.0
+        pt.stop_loss_pct = 5.0
+        pt.save(update_fields=['profit_target_pct', 'stop_loss_pct'])
+        self.assertTrue(pt.mark(94.0))
+        pt.refresh_from_db()
+        self.assertIn('stop-loss', pt.notes)
+
+    def test_open_uses_pref_profit_target(self):
+        self.pref.profit_target_pct = 35.0
+        self.pref.save(update_fields=['profit_target_pct'])
+        pt = PaperTrade.open_for_user(self.user, 'X', 'stock', 'BUY', 100.0)
+        self.assertEqual(pt.profit_target_pct, 35.0)
+
     def test_sell_side_profits_when_price_falls(self):
         pt = PaperTrade.open_for_user(self.user, 'X', 'stock', 'SELL', 100.0)
         self.assertFalse(pt.mark(90.0))

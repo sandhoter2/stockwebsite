@@ -344,6 +344,8 @@ class UserPreference(models.Model):
         help_text="Fixed ₹ notional per paper trade")
     stop_loss_pct = models.FloatField(default=20.0)
     trailing_pct = models.FloatField(default=20.0)
+    profit_target_pct = models.FloatField(default=50.0,
+        help_text="Close a paper trade outright once unrealized profit reaches this %")
     auto_consumers = models.ManyToManyField(
         Channel, blank=True, related_name='auto_pref_users',
         help_text="Consumers whose signals auto-open paper trades (top-10 default)")
@@ -426,6 +428,8 @@ class PaperTrade(models.Model):
     lowest_price = models.FloatField(null=True, blank=True)
     stop_loss_pct = models.FloatField(default=20.0)
     trailing_pct = models.FloatField(default=20.0)
+    profit_target_pct = models.FloatField(default=50.0,
+        help_text="Close outright once unrealized profit reaches this %")
     status = models.CharField(max_length=8, choices=STATUS_CHOICES,
                               default='Open', db_index=True)
     opened_at = models.DateTimeField(auto_now_add=True)
@@ -466,7 +470,10 @@ class PaperTrade(models.Model):
         return round(self.notional_inr * self.unrealized_pct(price) / 100.0, 2)
 
     def mark(self, price, now=None):
-        """Update to market price; close on SL or trailing drawdown.
+        """Update to market price; close on SL hit, profit target reached, or
+        trailing drawdown, in that priority order (cap the loss first, then
+        lock in a win that already cleared the target, then let a smaller
+        win ride until it pulls back from its peak).
         Returns True if the trade was closed by this mark."""
         from django.utils import timezone as tz
         if price is None:
@@ -480,6 +487,8 @@ class PaperTrade(models.Model):
         reason = None
         if pct <= -abs(self.stop_loss_pct):
             closed, reason = True, 'stop-loss'
+        elif self.profit_target_pct and pct >= abs(self.profit_target_pct):
+            closed, reason = True, 'profit-target'
         elif self.trailing_pct and self._trail_hit():
             closed, reason = True, 'trailing'
         if closed:
@@ -527,6 +536,7 @@ class PaperTrade(models.Model):
             price_source=source, current_price=price,
             highest_price=price, lowest_price=price,
             stop_loss_pct=pref.stop_loss_pct, trailing_pct=pref.trailing_pct,
+            profit_target_pct=pref.profit_target_pct,
             source_trade=source_trade, consumer_claimed_pct=consumer_claimed_pct)
 
 

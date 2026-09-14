@@ -107,6 +107,16 @@
     .trust-card { border:0; border-radius:.75rem; box-shadow:0 1px 3px rgba(0,0,0,.08); }
     .trust-card .label { font-size:.7rem; text-transform:uppercase; letter-spacing:.04em; color:#64748b; font-weight:700; }
     .trust-card .pill { font-size:.75rem; }
+    .feed-list { background:#fff; border-radius:.55rem; box-shadow:var(--tt-shadow); overflow:hidden; }
+    .feed-row { padding:.5rem .85rem; border-bottom:1px solid #eef1f8; font-size:.85rem; line-height:1.35;
+                transition:background-color .12s var(--tt-ease); }
+    .feed-row:last-child { border-bottom:0; }
+    .feed-row:hover { background:#f8fafc; }
+    .feed-row a { color:#334155; }
+    .dropdown-menu { box-shadow:var(--tt-shadow-hover); border:0; border-radius:.6rem; padding:.35rem; }
+    .dropdown-item { border-radius:.4rem; font-size:.85rem; padding:.4rem .7rem; }
+    .dropdown-item.active, .dropdown-item:active { background:var(--tt-indigo); }
+    .nav-tabs .dropdown-toggle.active { color:#fff; background:linear-gradient(90deg,var(--tt-indigo),var(--tt-blue)); }
   </style>
 </head>
 <body>
@@ -791,6 +801,223 @@
       </div>);
     }
 
+    /* ---------- Market Intel: Congress trades, Institutional reports, News, Super investors ----------
+       All four are terse, scannable one-line-per-item feeds (not dense tables) — the backend
+       pre-formats the dominant text (summary_line / short_summary+title / headline_line /
+       change_summary_line); secondary metadata stays small and muted beside it. */
+
+    function CongressTab() {
+      const [rows, setRows] = useState(null);
+      const [err, setErr] = useState('');
+      const [days, setDays] = useState(60);
+      const [party, setParty] = useState('');
+      const [politician, setPolitician] = useState('');
+
+      const load = useCallback(async () => {
+        setErr('');
+        try {
+          const params = ['days=' + days, 'limit=40'];
+          if (party) params.push('party=' + party);
+          if (politician) params.push('politician=' + encodeURIComponent(politician));
+          const d = await api('/api/congress/trades/notable/?' + params.join('&'));
+          setRows(d.results);
+        } catch (e) { setErr(e.message); setRows([]); }
+      }, [days, party, politician]);
+      useEffect(() => { load(); }, [load]);
+
+      const opts = [[30,'30d'],[60,'60d'],[90,'90d'],[180,'180d']];
+      return (
+        <div>
+          <div className="d-flex flex-wrap align-items-center gap-2 mb-2">
+            <div className="btn-group btn-group-sm">
+              {opts.map(([d,l]) => (
+                <button key={d} className={'btn '+(days===d?'btn-primary':'btn-outline-primary')} onClick={()=>setDays(d)}>{l}</button>))}
+            </div>
+            <div className="btn-group btn-group-sm">
+              {[['','All'],['D','Dem'],['R','Rep']].map(([v,l]) => (
+                <button key={v} className={'btn '+(party===v?'btn-dark':'btn-outline-dark')} onClick={()=>setParty(v)}>{l}</button>))}
+            </div>
+            <input className="form-control form-control-sm" style={{maxWidth:200}} placeholder="🔍 Search politician…"
+                   aria-label="Search politician" value={politician} onChange={e=>setPolitician(e.target.value)} />
+            <button className="btn btn-sm btn-outline-secondary" onClick={load}>⟳ Refresh</button>
+            <span className="text-muted small">Largest disclosed House trades · Senate data not yet available</span>
+          </div>
+          {err && <div className="alert alert-danger py-2">{err}</div>}
+          {rows === null && <div className="text-muted p-3">Loading trades…</div>}
+          {rows !== null && rows.length === 0 &&
+            <div className="alert alert-light border">No notable trades in this window.</div>}
+          {rows !== null && rows.length > 0 &&
+            <div className="feed-list">
+              {rows.map(r => (
+                <div key={r.id} className="feed-row d-flex justify-content-between align-items-center gap-2">
+                  <span>{r.summary_line}</span>
+                  <a className="small text-muted text-nowrap" href={r.filing_url} target="_blank" rel="noreferrer" title="View filing">source ↗</a>
+                </div>))}
+            </div>}
+        </div>);
+    }
+
+    function InstitutionalTab() {
+      const [rows, setRows] = useState(null);
+      const [err, setErr] = useState('');
+      const [firm, setFirm] = useState('');
+      const [page, setPage] = useState(1);
+
+      const load = useCallback(async () => {
+        setErr('');
+        try {
+          const params = ['days=90'];
+          if (firm) params.push('firm=' + firm);
+          const data = await fetchAllPages('/api/institutional/reports/?' + params.join('&'));
+          setRows(data);
+        } catch (e) { setErr(e.message); setRows([]); }
+      }, [firm]);
+      useEffect(() => { load(); setPage(1); }, [load]);
+
+      const pageRows = rows ? rows.slice((page-1)*PAGE_SIZE, page*PAGE_SIZE) : [];
+      return (
+        <div>
+          <div className="d-flex flex-wrap align-items-center gap-2 mb-2">
+            <div className="btn-group btn-group-sm">
+              {[['','All'],['blackrock','BlackRock'],['jpmorgan','JPMorgan']].map(([v,l]) => (
+                <button key={v} className={'btn '+(firm===v?'btn-primary':'btn-outline-primary')} onClick={()=>setFirm(v)}>{l}</button>))}
+            </div>
+            <button className="btn btn-sm btn-outline-secondary" onClick={load}>⟳ Refresh</button>
+            <span className="text-muted small">Last 90 days, most recent first</span>
+          </div>
+          {err && <div className="alert alert-danger py-2">{err}</div>}
+          {rows === null && <div className="text-muted p-3">Loading reports…</div>}
+          {rows !== null && rows.length === 0 &&
+            <div className="alert alert-light border">No reports in this window.</div>}
+          {rows !== null && rows.length > 0 && <>
+            <div className="feed-list">
+              {pageRows.map(r => (
+                <div key={r.id} className="feed-row">
+                  <div className="d-flex justify-content-between align-items-start gap-2">
+                    <a href={r.source_url} target="_blank" rel="noreferrer" className="fw-semibold text-decoration-none">
+                      <span className="badge text-bg-secondary me-1" style={{fontSize:'.65rem'}}>{r.firm_display}</span>{r.title}
+                    </a>
+                    <span className="text-muted small text-nowrap">{r.published_date}</span>
+                  </div>
+                  <div className="small text-muted mt-1">{r.short_summary}</div>
+                </div>))}
+            </div>
+            <div className="d-flex justify-content-center pt-2">
+              <Pagination page={page} setPage={setPage} total={rows.length} pageSize={PAGE_SIZE} />
+            </div>
+          </>}
+        </div>);
+    }
+
+    const SENTIMENT_BADGE = { bullish:'text-bg-success', bearish:'text-bg-danger', neutral:'text-bg-secondary' };
+    function NewsTab() {
+      const [rows, setRows] = useState(null);
+      const [err, setErr] = useState('');
+      const [ticker, setTicker] = useState('');
+      const [days, setDays] = useState(3);
+
+      const load = useCallback(async () => {
+        setErr('');
+        try {
+          const params = ['days=' + days, 'limit=50'];
+          if (ticker) params.push('ticker=' + encodeURIComponent(ticker.trim().toUpperCase()));
+          const d = await api('/api/news/feed/?' + params.join('&'));
+          setRows(d.results);
+        } catch (e) { setErr(e.message); setRows([]); }
+      }, [ticker, days]);
+      useEffect(() => { load(); }, [load]);
+
+      const opts = [[1,'24h'],[3,'3 days'],[7,'7 days'],[30,'30 days']];
+      return (
+        <div>
+          <div className="d-flex flex-wrap align-items-center gap-2 mb-2">
+            <div className="btn-group btn-group-sm">
+              {opts.map(([d,l]) => (
+                <button key={d} className={'btn '+(days===d?'btn-primary':'btn-outline-primary')} onClick={()=>setDays(d)}>{l}</button>))}
+            </div>
+            <input className="form-control form-control-sm" style={{maxWidth:140}} placeholder="Ticker e.g. AMD"
+                   aria-label="Filter by ticker" value={ticker} onChange={e=>setTicker(e.target.value)} />
+            <button className="btn btn-sm btn-outline-secondary" onClick={load}>⟳ Refresh</button>
+          </div>
+          {err && <div className="alert alert-danger py-2">{err}</div>}
+          {rows === null && <div className="text-muted p-3">Loading news…</div>}
+          {rows !== null && rows.length === 0 &&
+            <div className="alert alert-light border">No news imported yet — needs an Alpha Vantage API key configured on the server.</div>}
+          {rows !== null && rows.length > 0 &&
+            <div className="feed-list">
+              {rows.map(r => (
+                <div key={r.id} className="feed-row d-flex justify-content-between align-items-center gap-2">
+                  <span>{r.headline_line}
+                    <span className={'badge ms-2 '+(SENTIMENT_BADGE[r.sentiment]||'text-bg-secondary')} style={{fontSize:'.65rem'}}>{r.sentiment}</span>
+                  </span>
+                  <a className="small text-muted text-nowrap" href={r.source_url} target="_blank" rel="noreferrer">{r.source} ↗</a>
+                </div>))}
+            </div>}
+        </div>);
+    }
+
+    const CHANGE_BADGE = { new:'text-bg-success', increased:'text-bg-primary', decreased:'text-bg-warning', closed:'text-bg-danger' };
+    function SuperInvestorsTab() {
+      const [rows, setRows] = useState(null);
+      const [err, setErr] = useState('');
+      const [investors, setInvestors] = useState([]);
+      const [investor, setInvestor] = useState('');
+      const [quarters, setQuarters] = useState(2);
+
+      useEffect(() => {
+        api('/api/super-investors/investors/').then(d => setInvestors(d.results || [])).catch(() => {});
+      }, []);
+
+      const load = useCallback(async () => {
+        setErr('');
+        try {
+          const params = ['quarters=' + quarters, 'limit=60'];
+          if (investor) params.push('investor=' + investor);
+          const d = await api('/api/super-investors/moves/?' + params.join('&'));
+          setRows(d.results);
+        } catch (e) { setErr(e.message); setRows([]); }
+      }, [investor, quarters]);
+      useEffect(() => { load(); }, [load]);
+
+      return (
+        <div>
+          <div className="d-flex flex-wrap align-items-center gap-2 mb-2">
+            <select className="form-select form-select-sm" style={{maxWidth:220}} aria-label="Filter by investor"
+                    value={investor} onChange={e=>setInvestor(e.target.value)}>
+              <option value="">All tracked investors</option>
+              {investors.map(i => <option key={i.id} value={i.id}>{i.short_label}</option>)}
+            </select>
+            <div className="btn-group btn-group-sm">
+              {[[1,'Latest Q'],[2,'2 Qs'],[4,'4 Qs']].map(([q,l]) => (
+                <button key={q} className={'btn '+(quarters===q?'btn-primary':'btn-outline-primary')} onClick={()=>setQuarters(q)}>{l}</button>))}
+            </div>
+            <button className="btn btn-sm btn-outline-secondary" onClick={load}>⟳ Refresh</button>
+            <span className="text-muted small">New positions &amp; biggest changes first, across 8 tracked filers</span>
+          </div>
+          {err && <div className="alert alert-danger py-2">{err}</div>}
+          {rows === null && <div className="text-muted p-3">Loading moves…</div>}
+          {rows !== null && rows.length === 0 &&
+            <div className="alert alert-light border">No notable moves in this window.</div>}
+          {rows !== null && rows.length > 0 &&
+            <div className="feed-list">
+              {rows.map((r,i) => (
+                <div key={r.investor+'-'+r.cusip+'-'+r.filing_quarter} className="feed-row d-flex justify-content-between align-items-center gap-2">
+                  <span>{r.change_summary_line}</span>
+                  <span className="d-flex align-items-center gap-2 text-nowrap">
+                    <span className={'badge '+(CHANGE_BADGE[r.change_kind]||'text-bg-secondary')} style={{fontSize:'.65rem'}}>{r.change_kind}</span>
+                    <span className="text-muted small">{r.filed_date}</span>
+                  </span>
+                </div>))}
+            </div>}
+        </div>);
+    }
+
+    const MARKET_INTEL_TABS = [
+      ['congress', 'Congress Trades'], ['institutional', 'Institutional Reports'],
+      ['news', 'Market News'], ['superinvestors', 'Super Investors'],
+    ];
+    const MARKET_INTEL_KEYS = MARKET_INTEL_TABS.map(([k]) => k);
+
     function App() {
       const [user, setUser] = useState(null);
       const [summary, setSummary] = useState(null);
@@ -942,6 +1169,12 @@
       const tabs = active===null ? [['overview','Overview'],['calls',"Today's calls"],['board','Leaderboard'],['picks','Favorite picks'],['paper','Paper trading'],['trades','Trades']]
                                  : [['overview','Overview'],['picks','Favorite picks'],['paper','Paper trading'],['trades','Trades']];
       const effTab = ((tab==='board' || tab==='calls') && active!==null) ? 'overview' : tab;
+      const MARKET_INTEL_TITLE = {
+        congress: 'Congress Trades · largest disclosed House trades',
+        institutional: 'Institutional Reports · BlackRock & JPMorgan outlook',
+        news: 'Market News · terse, causal one-liners',
+        superinvestors: 'Super Investors · 13F holding changes',
+      };
 
       return (
         <div className="container-fluid px-3">
@@ -989,6 +1222,15 @@
               <ul className="nav nav-tabs mb-3" role="tablist">
                 {tabs.map(([k,l])=>(<li className="nav-item" key={l}><button className={'nav-link '+(effTab===k?'active':'')}
                   role="tab" aria-selected={effTab===k} onClick={()=>setTab(k)}>{l}</button></li>))}
+                <li className="nav-item dropdown">
+                  <button className={'nav-link dropdown-toggle '+(MARKET_INTEL_KEYS.includes(effTab)?'active':'')}
+                          data-bs-toggle="dropdown" aria-expanded="false" role="tab"
+                          aria-selected={MARKET_INTEL_KEYS.includes(effTab)}>Market Intel</button>
+                  <ul className="dropdown-menu">
+                    {MARKET_INTEL_TABS.map(([k,l]) => (
+                      <li key={k}><button className={'dropdown-item '+(effTab===k?'active':'')} onClick={()=>setTab(k)}>{l}</button></li>))}
+                  </ul>
+                </li>
               </ul>
 
               {effTab==="overview" && active===null &&
@@ -1013,6 +1255,22 @@
               {effTab==='paper' &&
                 <Section title={'Paper trading · '+(user?user.username:'you')} open={true}>
                   <PaperTrading /></Section>}
+
+              {effTab==='congress' &&
+                <Section title={MARKET_INTEL_TITLE.congress} open={true}>
+                  <CongressTab /></Section>}
+
+              {effTab==='institutional' &&
+                <Section title={MARKET_INTEL_TITLE.institutional} open={true}>
+                  <InstitutionalTab /></Section>}
+
+              {effTab==='news' &&
+                <Section title={MARKET_INTEL_TITLE.news} open={true}>
+                  <NewsTab /></Section>}
+
+              {effTab==='superinvestors' &&
+                <Section title={MARKET_INTEL_TITLE.superinvestors} open={true}>
+                  <SuperInvestorsTab /></Section>}
 
               {effTab==='trades' &&
                 <Section title={'Individual trades'} open={openTrades} onToggle={()=>setOpenTrades(!openTrades)}

@@ -1087,14 +1087,14 @@
     // 13F market values are reported in USD (SEC filings), unlike the rest
     // of the dashboard's ₹ trade figures -- a dedicated formatter here
     // keeps that honest instead of mislabeling the currency.
-    const USD = v => v == null ? '—' : (v < 0 ? '-$' : '$') + Math.abs(Number(v)).toLocaleString('en-US', {maximumFractionDigits: 0});
+    const SI_USD = v => v == null ? '—' : (v < 0 ? '-$' : '$') + Math.abs(Number(v)).toLocaleString('en-US', {maximumFractionDigits: 0});
     const PROFIT_TIP = 'Estimate only: 13F filings report share counts + quarter-end market value, not trade prices, so this isolates the price-driven value change on shares held across both quarters. New positions and full exits have no comparable prior basis, so profit is left blank rather than guessed.';
 
-    function ProfitCell({ estimate, isEstimated }) {
+    function SIProfitCell({ estimate, isEstimated }) {
       if (estimate == null) return <span className="text-muted" title={PROFIT_TIP}>n/a</span>;
       return (
         <span className={cls(estimate)} title={PROFIT_TIP}>
-          {estimate > 0 ? '+' : ''}{USD(estimate)}
+          {estimate > 0 ? '+' : ''}{SI_USD(estimate)}
           {isEstimated && <span className="text-muted fw-normal small"> est.</span>}
         </span>);
     }
@@ -1126,7 +1126,7 @@
                   </td>
                   <td className="text-muted small d-none d-md-table-cell">{r.filing_quarter}</td>
                   <td className={'text-end d-none d-lg-table-cell '+cls(r.change_pct)}>{r.change_pct!=null?r.change_pct+'%':'—'}</td>
-                  <td className="text-end"><ProfitCell estimate={r.profit_estimate} isEstimated={r.profit_is_estimated} /></td>
+                  <td className="text-end"><SIProfitCell estimate={r.profit_estimate} isEstimated={r.profit_is_estimated} /></td>
                 </tr>))}
             </tbody>
           </table>
@@ -1171,7 +1171,7 @@
               <div className="col-md-6">
                 <div className="card pulse-card h-100" style={{'--accent':'#4f46e5'}}><div className="card-body py-2 px-3">
                   <div className="label">Total estimated profit</div>
-                  <div className="value"><ProfitCell estimate={profile.total_estimated_profit} isEstimated={true} /></div>
+                  <div className="value"><SIProfitCell estimate={profile.total_estimated_profit} isEstimated={true} /></div>
                   <div className="text-muted small">across {profile.profit_positions_count} position-quarters with a comparable prior basis</div>
                 </div></div>
               </div>

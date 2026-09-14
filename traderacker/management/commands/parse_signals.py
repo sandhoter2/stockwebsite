@@ -5,12 +5,34 @@ never reopened by a later re-post. Running profit is tracked via peak_profit;
 an explicit exit (SAFE BOOK / TARGET HIT / …) or a trailing drawdown ≥30%
 below the peak closes the trade at the best booked profit.
 
+A stated profit figure with no directly-touched trade is attributed to the
+Open trade whose FULL symbol string (root + strike/right, e.g. "NIFTY 23650
+PE") appears verbatim in the message -- never a loose single-word substring
+match ("NIFTY" alone), which would silently misattribute the same figure to
+whichever neighbouring leg of that index happens to still be Open once the
+real one is Closed.
+
+Every profit/exit-price message is recorded in ProcessedProfitEvent once
+considered, whether or not it found a target -- this replay processes the
+full message history in chronological order every run, creating Trade rows
+lazily as their entry message is reached, so a message whose OWN timestamp
+precedes its target's entry message legitimately finds nothing on a run that
+starts from an empty Trade table. Without a durable "already considered"
+record, a second run (against a Trade table that wasn't cleared -- the
+normal way this command gets re-run) would find some *other* trade that only
+exists because it was created later in THIS SAME earlier run, and wrongly
+attach the stale message to it. See ProcessedProfitEvent's docstring and
+docs/AGENT_HANDOFF.md §7.
+
   manage.py parse_signals [--channel ID]
 """
+import datetime as dt
+import re
+
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
-from traderacker.models import TelegramMessage, Trade
+from traderacker.models import ProcessedProfitEvent, TelegramMessage, Trade
 from traderacker.signals import (parse_message, parse_profit, parse_exit,
                                  parse_exit_price)
 
@@ -39,9 +61,41 @@ class Command(BaseCommand):
             self.stdout.write(self.style.SUCCESS(f'Reclassified {n} trades'))
             if opts.get('channel') is None and not Trade.objects.exists():
                 return
-        msgs = TelegramMessage.objects.select_related('channel').order_by('ts')
+        # 'mid' as a tiebreaker makes the order fully deterministic: 2,510+
+        # groups of messages share an identical 'ts' (up to 23 messages at
+        # the same second), and ORDER BY on 'ts' alone has no guaranteed
+        # stable order for ties. mid is monotonically assigned by Telegram,
+        # so it's a safe, meaningful secondary sort, not an arbitrary one.
+        msgs = TelegramMessage.objects.select_related('channel').order_by('ts', 'mid')
         if opts['channel']:
             msgs = msgs.filter(channel_id=opts['channel'])
+
+        # peak_profit is DERIVED state -- reconstructed by replaying every
+        # message for this trade's channel(s) in chronological order below --
+        # not something to carry forward from a prior invocation. Left as-is,
+        # a second run would start from last run's final (highest) peak, so
+        # an early/lower-profit message this time immediately looks like a
+        # trailing-stop breach against a peak it hasn't actually reached yet
+        # in this pass, closing the trade prematurely. Reset before replaying
+        # so every run reconstructs the same trajectory from the same inputs.
+        reset_scope = Trade.objects.all()
+        event_scope = ProcessedProfitEvent.objects.all()
+        if opts['channel']:
+            reset_scope = reset_scope.filter(channel_id=opts['channel'])
+            event_scope = event_scope.filter(channel_id=opts['channel'])
+        reset_scope.update(peak_profit=None)
+
+        # preload which (channel, mid, kind) events have already been
+        # considered in a prior run, and collect new ones to write in bulk
+        # at the end rather than one row per message.
+        processed = set(event_scope.values_list('channel_id', 'mid', 'kind'))
+        new_events = []
+
+        def mark_processed(channel_id, mid, kind):
+            key = (channel_id, mid, kind)
+            if key not in processed:
+                processed.add(key)
+                new_events.append(ProcessedProfitEvent(channel_id=channel_id, mid=mid, kind=kind))
 
         created = updated = closed = closed_at_price = 0
 
@@ -114,7 +168,9 @@ class Command(BaseCommand):
                 exiting = parse_exit(msg.text)
                 exit_price = parse_exit_price(msg.text)
                 if exit_price is not None:
-                    close_at_price(msg.channel, exit_price[0], exit_price[1])
+                    if (msg.channel_id, msg.mid, 'exit_price') not in processed:
+                        close_at_price(msg.channel, exit_price[0], exit_price[1])
+                        mark_processed(msg.channel_id, msg.mid, 'exit_price')
                 if not signals and profit is None:
                     continue
 
@@ -160,19 +216,39 @@ class Command(BaseCommand):
                         touched.append(t)
 
                 # profit booking: prefer a trade touched by this message,
-                # else the newest OPEN trade whose symbol appears in the text
-                target = next((t for t in touched if t.status == 'Open'), None)
-                if target is None and profit is not None:
-                    words = sorted(
-                        {w.strip('.,:;()[]#™®️') for w in msg.text.upper().split()
-                         if len(w) >= 3 and any(c.isalpha() for c in w)},
-                        key=len, reverse=True)
-                    cand = Trade.objects.filter(channel=msg.channel, status='Open')
-                    for w in words:
-                        target = cand.filter(trade__icontains=w).order_by('-date').first()
-                        if target:
-                            break
-                book(target, profit, exiting)
+                # else the OPEN trade whose FULL symbol string is stated in
+                # the text (never a loose single-word substring like "NIFTY"
+                # alone, which would match every leg of that index and
+                # misattribute the figure once the real leg is Closed).
+                # Gated on (channel, mid) regardless of which path finds the
+                # target: book() mutates peak_profit/status based on this
+                # message's profit figure, so re-running it a second time
+                # against a trade whose peak_profit was just reset to None
+                # would replay the same trailing-stop trajectory from
+                # scratch and can land on a different outcome mid-replay.
+                if profit is not None and (msg.channel_id, msg.mid, 'profit') not in processed:
+                    target = next((t for t in touched if t.status == 'Open'), None)
+                    if target is None:
+                        msg_norm = re.sub(r'\s+', ' ', msg.text.upper())
+                        cand = Trade.objects.filter(channel=msg.channel, status='Open',
+                                                    trade__isnull=False).exclude(trade='')
+                        if msg.ts:
+                            cand = cand.filter(date__lte=msg.ts.date())
+                        matches = list(cand.order_by('id'))
+                        matches = [c for c in matches
+                                  if re.sub(r'\s+', ' ', c.trade.upper()) in msg_norm]
+                        # prefer the most specific (longest) symbol string, then
+                        # the most recently opened, then insertion order (id) as
+                        # a final deterministic tiebreaker -- .sort() is stable,
+                        # and the queryset above is now explicitly ordered, so
+                        # ties resolve the same way on every run.
+                        matches.sort(key=lambda c: (len(c.trade), c.date or dt.date.min),
+                                    reverse=True)
+                        target = matches[0] if matches else None
+                    mark_processed(msg.channel_id, msg.mid, 'profit')
+                    book(target, profit, exiting)
+
+            ProcessedProfitEvent.objects.bulk_create(new_events, ignore_conflicts=True)
 
         self.stdout.write(self.style.SUCCESS(
             f'Signals: {created} new · {updated} updated · {closed} closed (exit/trailing) '

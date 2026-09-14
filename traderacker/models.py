@@ -334,6 +334,36 @@ class Trade(models.Model):
         return None
 
 
+class ProcessedProfitEvent(models.Model):
+    """Marks a TelegramMessage as already considered for profit-booking /
+    exit-price closing by parse_signals, regardless of whether it actually
+    found a trade to close.
+
+    Why this exists: parse_signals replays the full message history in
+    chronological order every run, creating Trade rows lazily as their entry
+    message is reached. A profit/exit message whose OWN timestamp precedes
+    its target trade's entry message (a real, observed data pattern -- e.g.
+    a stale "booked @ price" post about an earlier, already-closed position)
+    correctly finds no candidate on a run that starts from an empty Trade
+    table. But if the Trade table isn't cleared between runs (the normal way
+    this command is actually re-run -- see docs/AGENT_HANDOFF.md §7), a
+    later run finds that some *other*, unrelated trade created later in the
+    replay now happens to be sitting Open, and wrongly attaches the stale
+    message's profit/price to it. Recording every considered message here --
+    on a miss as well as a hit -- makes a second run skip it outright instead
+    of re-evaluating it against a Trade table that has since changed."""
+    channel = models.ForeignKey(Channel, on_delete=models.CASCADE, related_name='+')
+    mid = models.BigIntegerField(help_text="Telegram message id")
+    kind = models.CharField(max_length=16, choices=[('profit', 'Profit'),
+                                                     ('exit_price', 'Exit price')])
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['channel', 'mid', 'kind'],
+                                    name='uniq_processed_profit_event'),
+        ]
+
+
 class UserPreference(models.Model):
     """Per-user paper-trading preferences (requirement 2/3)."""
     user = models.OneToOneField('auth.User', on_delete=models.CASCADE,

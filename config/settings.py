@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.1/ref/settings/
 """
 
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -20,13 +21,30 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/6.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-db3v3g8y7h-sm*mhv$&!grz5f89%xn3q3n&%jq&5dj0e4)7z&v'
+# Reads from the DJANGO_SECRET_KEY env var when set (e.g. before exposing the
+# app via ngrok); falls back to a fixed dev-only value so local `runserver`
+# keeps working with zero extra setup. Never reuse the fallback in anything
+# reachable outside localhost.
+SECRET_KEY = os.environ.get(
+    'DJANGO_SECRET_KEY',
+    'django-insecure-db3v3g8y7h-sm*mhv$&!grz5f89%xn3q3n&%jq&5dj0e4)7z&v',
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# Defaults to on so local `runserver` keeps working (debug pages, auto-served
+# static files) with zero extra setup. Export DJANGO_DEBUG=0 before running
+# ./tunnel.sh (or any time this is reachable via the public ngrok URL) so
+# stack traces, settings and installed apps aren't exposed to the internet.
+DEBUG = os.environ.get('DJANGO_DEBUG', '1') == '1'
 
-# '*' so ngrok (and any) public hostnames work; fine for local dev.
-ALLOWED_HOSTS = ['*']
+# '*' so ngrok (and any) public hostnames work by default for this local/demo
+# tool. Set DJANGO_ALLOWED_HOSTS (comma-separated) to restrict this once the
+# app is exposed beyond a quick personal tunnel.
+_allowed_hosts_env = os.environ.get('DJANGO_ALLOWED_HOSTS')
+ALLOWED_HOSTS = (
+    [h.strip() for h in _allowed_hosts_env.split(',') if h.strip()]
+    if _allowed_hosts_env else ['*']
+)
 
 # Allow CSRF POSTs coming through ngrok public URLs.
 CSRF_TRUSTED_ORIGINS = [

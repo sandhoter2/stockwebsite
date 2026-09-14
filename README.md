@@ -51,7 +51,11 @@ ngrok config add-authtoken <TOKEN>   # free token: https://dashboard.ngrok.com/g
 `ALLOWED_HOSTS` and `CSRF_TRUSTED_ORIGINS` already accept ngrok domains.
 
 > Security: the admin account ships with a placeholder password that must be
-> rotated before the ngrok URL is shared with anyone — a public tunnel with a
+> rotated **before** the ngrok URL is shared with anyone — a public tunnel with a
 > known/weak admin password gives full read/write access to all data and the
-> Django admin panel to anyone with the link.
-> `./.venv/bin/python manage.py changepassword admin`
+> Django admin panel to anyone with the link. Set your own admin password now:
+> ```
+> ./.venv/bin/python manage.py changepassword admin
+> ```
+> Store the new password in your own password manager / local secrets — never
+> commit it to this repo or paste it into README.md, chat, or any tracked file.

@@ -1,0 +1,938 @@
+<!doctype html>
+{% load static %}
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Telegram Trade Tracker</title>
+  <meta name="csrf-token" content="{{ csrf_token }}">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    :root {
+      --tt-indigo:#4f46e5; --tt-blue:#2563eb; --tt-green:#059669;
+      --tt-red:#dc2626; --tt-amber:#d97706; --tt-purple:#7c3aed;
+      --tt-teal:#0d9488; --tt-slate:#475569;
+      --tt-radius:.85rem; --tt-radius-sm:.55rem;
+      --tt-shadow:0 1px 2px rgba(15,23,42,.06), 0 2px 8px rgba(15,23,42,.06);
+      --tt-shadow-hover:0 4px 10px rgba(15,23,42,.08), 0 8px 24px rgba(15,23,42,.1);
+      --tt-ease:cubic-bezier(.2,.8,.2,1);
+    }
+    * { box-sizing:border-box; }
+    body {
+      background:linear-gradient(180deg,#eef1f8 0%,#f6f7fb 240px);
+      font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+      -webkit-font-smoothing:antialiased; color:#1c1e21;
+    }
+    a { transition:color .15s var(--tt-ease); }
+    .navbar-tt { background:linear-gradient(90deg,#1e1b4b 0%,#312e81 55%,#1d4ed8 100%); }
+    .navbar-tt .container-fluid { flex-wrap:wrap; row-gap:.5rem; }
+    @media (max-width: 575.98px) {
+      .navbar-tt .navbar-brand small { display:none; }
+      .navbar-tt .navbar-brand { font-size:1.05rem; }
+    }
+    .sidebar { max-height: calc(100vh - 150px); overflow-y:auto; }
+    .list-group-item { cursor:pointer; border-radius:.5rem!important; margin-bottom:2px; border-color:transparent!important;
+                        transition:background-color .15s var(--tt-ease), transform .15s var(--tt-ease); }
+    .list-group-item:hover { background:#f1f3fb; transform:translateX(2px); }
+    .list-group-item.active { background:var(--tt-indigo); border-color:var(--tt-indigo)!important; box-shadow:0 2px 8px rgba(79,70,229,.35); }
+    .table td, .table th { font-size:.85rem; white-space:nowrap; }
+    .table-hover>tbody>tr { transition:background-color .12s var(--tt-ease); }
+    .pos { color:var(--tt-green)!important; font-weight:600; }
+    .neg { color:var(--tt-red)!important; font-weight:600; }
+    .badge-open { background:#fef3c7; color:#92400e; }
+    .badge-closed { background:#d1fae5; color:#065f46; }
+    .nav-tabs .nav-link { border:0; color:var(--tt-slate); font-weight:600; border-radius:.6rem .6rem 0 0; padding:.55rem 1.4rem;
+                           transition:color .15s var(--tt-ease), background-color .15s var(--tt-ease); }
+    .nav-tabs .nav-link:not(.active):hover { color:#1e1b4b; background:#eef1fb; }
+    .nav-tabs .nav-link.active { color:#fff; background:linear-gradient(90deg,var(--tt-indigo),var(--tt-blue)); }
+    .nav-tabs { border-bottom:2px solid #e2e8f0; }
+    .pill { border:1px solid #cbd5e1; background:#fff; color:#334155; border-radius:2rem;
+            padding:.18rem .7rem; font-size:.78rem; font-weight:600; cursor:pointer;
+            transition:transform .12s var(--tt-ease), box-shadow .12s var(--tt-ease), background-color .12s var(--tt-ease); }
+    .pill:hover { transform:translateY(-1px); box-shadow:0 2px 6px rgba(15,23,42,.12); }
+    .pill.active { color:#fff; border-color:transparent; }
+    .range-btn { border:1px solid #cbd5e1; background:#fff; color:#334155; border-radius:2rem;
+                 padding:.2rem .8rem; font-size:.8rem; font-weight:600;
+                 transition:transform .12s var(--tt-ease), box-shadow .12s var(--tt-ease); }
+    .range-btn:hover { transform:translateY(-1px); box-shadow:0 2px 6px rgba(15,23,42,.12); }
+    .range-btn.active { background:var(--tt-indigo); border-color:var(--tt-indigo); color:#fff; }
+    .pulse-card { border:0; border-left:4px solid var(--accent,#94a3b8); border-radius:var(--tt-radius-sm);
+                  box-shadow:var(--tt-shadow); height:100%; background:var(--tint,#fff);
+                  transition:box-shadow .18s var(--tt-ease), transform .18s var(--tt-ease); }
+    .pulse-card:hover { box-shadow:var(--tt-shadow-hover); transform:translateY(-1px); }
+    .pulse-card .label { font-size:.7rem; text-transform:uppercase; letter-spacing:.04em; color:#64748b; font-weight:700; }
+    .pulse-card .value { font-size:1.25rem; font-weight:700; color:#0f172a; }
+    .success-bar { height:10px; border-radius:5px; overflow:hidden; display:flex; background:#e2e8f0; }
+    .avatar { width:32px; height:32px; border-radius:50%; background:linear-gradient(135deg,#818cf8,#38bdf8);
+              color:#fff; display:inline-flex; align-items:center; justify-content:center; font-size:.8rem; font-weight:700; flex:none; }
+    .spark { width:100%; height:70px; }
+    .section-head { display:flex; align-items:center; justify-content:space-between; background:#fff;
+                    border-radius:.5rem; padding:.4rem .75rem; box-shadow:var(--tt-shadow); margin-bottom:.5rem; }
+    .section-head h6 { margin:0; text-transform:uppercase; letter-spacing:.05em; font-size:.75rem; color:#334155; }
+    .min-btn { border:0; background:#f1f5f9; border-radius:.35rem; width:26px; height:26px; font-size:.9rem;
+               line-height:1; color:#334155; cursor:pointer; transition:background-color .15s var(--tt-ease), transform .1s var(--tt-ease); }
+    .min-btn:hover { background:#e2e8f0; } .min-btn:active { transform:scale(.92); }
+    .board-scroll { overflow-y:auto; }
+    .board tr.ch-row { cursor:pointer; transition:background-color .12s var(--tt-ease); } .board tr.ch-row:hover { background:#eef2ff; }
+    .th-sort { cursor:pointer; user-select:none; transition:background-color .12s var(--tt-ease); } .th-sort:hover { background:#e2e8f0; }
+    .rank-1 { background:#fef9c3; } .rank-2 { background:#f1f5f9; } .rank-3 { background:#fff7ed; }
+    .card { border:0; box-shadow:var(--tt-shadow); border-radius:var(--tt-radius-sm); }
+    .pick-bar { height:8px; border-radius:4px; background:#e2e8f0; overflow:hidden; display:flex; min-width:80px; }
+    .sector-badge { font-size:.68rem; font-weight:700; padding:.15rem .55rem; border-radius:1rem; white-space:nowrap; }
+    .tier-badge { font-size:.68rem; font-weight:700; padding:.15rem .5rem; border-radius:1rem; white-space:nowrap; }
+    .tier-top { background:#dcfce7; color:#166534; }
+    .tier-solid { background:#e0f2fe; color:#075985; }
+    .tier-watch { background:#fee2e2; color:#991b1b; }
+    .tier-building { background:#f1f5f9; color:#475569; }
+    .btn { transition:transform .1s var(--tt-ease), box-shadow .15s var(--tt-ease), background-color .15s var(--tt-ease); }
+    .btn:hover { box-shadow:0 2px 8px rgba(15,23,42,.1); }
+    .btn:active { transform:scale(.97); }
+    .btn-outline-danger:hover { transform:scale(1.08); }
+    .page-btn { border:1px solid #cbd5e1; background:#fff; color:#334155; border-radius:.5rem; min-width:2rem;
+                padding:.25rem .5rem; font-size:.8rem; font-weight:600; line-height:1.2;
+                transition:background-color .12s var(--tt-ease), box-shadow .12s var(--tt-ease), transform .1s var(--tt-ease); }
+    .page-btn:hover:not(:disabled) { background:#eef1fb; box-shadow:0 2px 6px rgba(15,23,42,.1); }
+    .page-btn:active:not(:disabled) { transform:scale(.94); }
+    .page-btn.active { background:var(--tt-indigo); border-color:var(--tt-indigo); color:#fff; }
+    .page-btn:disabled { opacity:.4; cursor:default; }
+    .trust-card { border:0; border-radius:.75rem; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+    .trust-card .label { font-size:.7rem; text-transform:uppercase; letter-spacing:.04em; color:#64748b; font-weight:700; }
+    .trust-card .pill { font-size:.75rem; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.24.7/babel.min.js"></script>
+  <script type="text/babel">
+  {% verbatim %}
+    const { useState, useEffect, useMemo, useCallback } = React;
+
+    const SECTORS = [
+      ['stock','Stocks','#2563eb'], ['option','Options','#7c3aed'],
+      ['index','Index','#0891b2'], ['crypto','Crypto','#ea580c'],
+      ['metal','Metals','#ca8a04'], ['commodity','Oil & Commodities','#16a34a'],
+      ['forex','Forex','#db2777'], ['other','Other','#64748b'],
+    ];
+    const SECTOR_COLOR = Object.fromEntries(SECTORS.map(([k,l,c]) => [k,c]));
+    const SECTOR_LABEL = Object.fromEntries(SECTORS.map(([k,l]) => [k,l]));
+    // softer pastel tag treatment (bg/fg) for the same sector hues, used on
+    // in-row tags where 8 saturated colors side by side got noisy
+    const SECTOR_TAG = {
+      stock:['#dbeafe','#1d4ed8'], option:['#ede9fe','#6d28d9'], index:['#cffafe','#0e7490'],
+      crypto:['#ffedd5','#c2410c'], metal:['#fef9c3','#a16207'], commodity:['#dcfce7','#15803d'],
+      forex:['#fce7f3','#be185d'], other:['#e2e8f0','#475569'],
+    };
+    function SectorTag({ ac }) {
+      const [bg, fg] = SECTOR_TAG[ac] || SECTOR_TAG.other;
+      return <span className="sector-badge" style={{background:bg, color:fg}}>{SECTOR_LABEL[ac]||ac}</span>;
+    }
+
+    function Pagination({ page, setPage, total, pageSize }) {
+      const pages = Math.max(1, Math.ceil(total / pageSize));
+      if (pages <= 1) return null;
+      const nums = [];
+      const add = n => { if (n >= 1 && n <= pages && !nums.includes(n)) nums.push(n); };
+      add(1); add(pages);
+      for (let d = -1; d <= 1; d++) add(page + d);
+      nums.sort((a,b)=>a-b);
+      const rows = [];
+      let prev = 0;
+      for (const n of nums) { if (n - prev > 1) rows.push('…'); rows.push(n); prev = n; }
+      return (
+        <nav className="d-flex align-items-center gap-1 flex-wrap" aria-label="Pagination">
+          <button className="page-btn" disabled={page===1} onClick={()=>setPage(page-1)} aria-label="Previous page">‹</button>
+          {rows.map((n,i) => n === '…'
+            ? <span key={'e'+i} className="px-1 text-muted small">…</span>
+            : <button key={n} className={'page-btn '+(n===page?'active':'')} aria-current={n===page?'page':undefined}
+                      onClick={()=>setPage(n)}>{n}</button>)}
+          <button className="page-btn" disabled={page===pages} onClick={()=>setPage(page+1)} aria-label="Next page">›</button>
+        </nav>
+      );
+    }
+
+    const INR = v => v == null ? '—' : '₹' + Number(v).toLocaleString('en-IN', {maximumFractionDigits: 1});
+    const PCT = v => v == null ? '—' : v + '%';
+    const cls = v => v == null ? '' : (v >= 0 ? 'pos' : 'neg');
+    const IST = s => !s ? null : new Date(s).toLocaleString('en-IN',
+      {timeZone:'Asia/Kolkata', day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit', hour12:false});
+
+    const TIER_LABEL = { top:'Top tier', solid:'Solid', watch:'Watch', building:'Building track record' };
+    const TIER_HINT = {
+      top: 'Verified strong: ≥65% hit rate on 10+ closed/validated calls.',
+      solid: 'Net positive so far, but not yet enough volume or margin to call it proven.',
+      watch: 'Under 50% on a real sample — track record says be cautious here.',
+      building: 'Fewer than 5 closed/validated calls — a streak either way isn\'t a track record yet.',
+    };
+    function TierBadge({ tier }) {
+      if (!tier) return null;
+      return <span className={'tier-badge tier-'+tier} title={TIER_HINT[tier]}>{TIER_LABEL[tier]||tier}</span>;
+    }
+
+    async function api(url) {
+      const r = await fetch(url, { credentials: 'same-origin' });
+      if (r.status === 401 || r.status === 403) { window.location.href = '/login/'; throw new Error('auth'); }
+      if (!r.ok) { const b = await r.json().catch(() => ({})); throw new Error(b.detail || JSON.stringify(b) || (url + ' → ' + r.status)); }
+      return r.json();
+    }
+    function csrfToken() {
+      const m = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
+      if (m) return m[1];
+      const meta = document.querySelector('meta[name="csrf-token"]');
+      return meta ? meta.content : '';
+    }
+    async function apiMutate(method, url, body) {
+      const opts = { method, credentials: 'same-origin',
+        headers: { 'X-CSRFToken': csrfToken() } };
+      if (body !== undefined) {
+        opts.headers['Content-Type'] = 'application/json';
+        opts.body = JSON.stringify(body);
+      }
+      const r = await fetch(url, opts);
+      if (r.status === 401 || r.status === 403) { window.location.href = '/login/'; throw new Error('auth'); }
+      if (r.status === 204) return null;
+      if (!r.ok) { const b = await r.json().catch(() => ({})); throw new Error(b.detail || JSON.stringify(b) || (r.status + ' ' + url)); }
+      return r.json();
+    }
+    async function fetchAllPages(base) {
+      let out = [], offset = 0;
+      for (;;) {
+        const page = await api(base + (base.includes('?') ? '&' : '?') + 'limit=500&offset=' + offset);
+        out = out.concat(page.results);
+        if (!page.next) break;
+        offset += 500;
+      }
+      return out;
+    }
+
+    const iso = d => d.toISOString().slice(0, 10);
+    function rangeDates(key, custom) {
+      const now = Date.now();
+      if (key === '7d')  return { from: iso(new Date(now - 7*864e5)), to: null };
+      if (key === '30d') return { from: iso(new Date(now - 30*864e5)), to: null };
+      if (key === '90d') return { from: iso(new Date(now - 90*864e5)), to: null };
+      if (key === 'custom') return { from: custom.from || null, to: custom.to || null };
+      return { from: null, to: null };
+    }
+    function qs(range, sectors, extra) {
+      const p = [];
+      if (range.from) p.push('date_from=' + range.from);
+      if (range.to) p.push('date_to=' + range.to);
+      if (sectors && sectors.length) p.push('sectors=' + sectors.join(','));
+      if (extra) extra.forEach(e => p.push(e));
+      return p.length ? '?' + p.join('&') : '';
+    }
+
+    function Section({ title, open, onToggle, children, right }) {
+      return (
+        <section className="mb-3">
+          <div className="section-head">
+            <h6>{title}</h6>
+            <div className="d-flex align-items-center gap-2">{right}
+              {onToggle && <button className="min-btn" aria-label={open?'Minimize':'Expand'} onClick={onToggle}>{open?'–':'+'}</button>}
+            </div>
+          </div>
+          {open && children}
+        </section>
+      );
+    }
+
+    function Topbar({ user, onLogout }) {
+      const initials = user ? user.username.slice(0,2).toUpperCase() : '';
+      return (
+        <nav className="navbar navbar-dark navbar-tt mb-3">
+          <div className="container-fluid">
+            <span className="navbar-brand mb-0 h1">₹ Telegram Trade Tracker
+              <small className="text-light opacity-50 ms-2">Django · DRF · React</small></span>
+            <div className="d-flex align-items-center gap-3">
+              <a className="link-light small d-none d-sm-inline" href="/api/tracker/" target="_blank" rel="noreferrer">API docs</a>
+              {user && user.is_staff && <a className="link-light small d-none d-sm-inline" href="/admin/" target="_blank" rel="noreferrer">Django admin</a>}
+              {user && <span className="d-none d-sm-flex align-items-center gap-2">
+                <span className="avatar" aria-hidden="true">{initials}</span>
+                <span className="text-white small lh-sm">{user.username}<br /><span className="opacity-50">{user.email}</span></span>
+              </span>}
+              {user && <span className="avatar d-sm-none" aria-hidden="true">{initials}</span>}
+              <button className="btn btn-sm btn-outline-light" onClick={onLogout}>Logout</button>
+            </div>
+          </div>
+        </nav>
+      );
+    }
+
+    function RangeBar({ rangeKey, setRangeKey, custom, setCustom, sectors, toggleSector }) {
+      const opts = [['7d','7 days'],['30d','30 days'],['90d','90 days'],['all','All time'],['custom','Custom']];
+      return (
+        <div className="mb-3">
+          <div className="d-flex flex-wrap align-items-center gap-2 mb-2">
+            <span className="badge text-bg-dark">Period</span>
+            {opts.map(([k,l]) => (
+              <button key={k} className={'range-btn '+(rangeKey===k?'active':'')} aria-pressed={rangeKey===k}
+                      onClick={()=>setRangeKey(k)}>{l}</button>
+            ))}
+            {rangeKey==='custom' && <span className="d-flex align-items-center gap-1">
+              <input type="date" className="form-control form-control-sm" style={{width:'auto'}} aria-label="From date"
+                     value={custom.from||''} onChange={e=>setCustom({...custom,from:e.target.value})} />
+              <span className="text-muted small">→</span>
+              <input type="date" className="form-control form-control-sm" style={{width:'auto'}} aria-label="To date"
+                     value={custom.to||''} onChange={e=>setCustom({...custom,to:e.target.value})} />
+            </span>}
+          </div>
+          <div className="d-flex flex-wrap align-items-center gap-2">
+            <span className="badge text-bg-dark">Sectors</span>
+            <button className={'pill '+(sectors.length===0?'active':'')}
+                    style={sectors.length===0?{background:'#334155'}:{}} onClick={()=>sectors.length&&toggleSector(null)}>All</button>
+            {SECTORS.map(([k,l,c]) => {
+              const on = sectors.includes(k);
+              return <button key={k} className={'pill '+(on?'active':'')}
+                             style={on?{background:c}:{}} aria-pressed={on} onClick={()=>toggleSector(k)}>{l}</button>;
+            })}
+          </div>
+        </div>
+      );
+    }
+
+    function SummaryCards({ s }) {
+      if (!s) return null;
+      const items = [
+        ['Channels', s.channels, '#2563eb', '#eff6ff'], ['Trades', s.trades, '#7c3aed', '#f5f3ff'],
+        ['Open', s.open_trades, '#d97706', '#fffbeb'], ['Closed', s.closed_trades, '#059669', '#ecfdf5'],
+        ['Realized ₹ (7d)', s.realized_total, s.realized_total>=0?'#059669':'#dc2626', s.realized_total>=0?'#ecfdf5':'#fef2f2', 'Booked profit/loss on trades closed in the last 7 days'],
+        ['Unrealized ₹', s.unrealized_total, s.unrealized_total>=0?'#0d9488':'#dc2626', '#f0fdfa', 'Paper gain/loss on positions still open, at the last known price'],
+      ];
+      return (
+        <div className="row g-2 mb-3 cards">
+          {items.map(([label,val,accent,tint,hint]) => (
+            <div className="col-6 col-md-4 col-lg-2" key={label}>
+              <div className="card pulse-card h-100" style={{'--accent':accent,'--tint':tint}} title={hint}>
+                <div className="card-body py-2 px-3">
+                  <div className="label">{label}</div>
+                  <div className={'value '+(label.includes('₹')?cls(val):'')}>
+                    {typeof val==='number'&&label.includes('₹')?INR(val):(val ?? '—')}</div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    /* ---------- Favorite picks: cross-channel consensus ---------- */
+    function FavoritePicks({ picks, onPick }) {
+      if (!picks || picks.length===0) return <div className="alert alert-light border">No recommendations in this view.</div>;
+      const max = Math.max(...picks.map(p=>p.buy+p.sell), 1);
+      return (
+        <div className="row g-2">
+          {picks.slice(0,12).map(p => {
+            const bull = p.net>0, bear = p.net<0;
+            return (
+              <div className="col-6 col-md-4 col-lg-3" key={p.symbol}>
+                <div className="card pulse-card h-100" style={{'--accent': bull?'#059669':bear?'#dc2626':'#64748b','--tint':'#fff'}}>
+                  <div className="card-body py-2 px-3">
+                    <div className="d-flex justify-content-between align-items-center">
+                      <span className="fw-bold" style={{cursor:'pointer'}} onClick={()=>onPick&&onPick(p.symbol)}>{p.symbol}</span>
+                      <span className={'badge '+(bull?'text-bg-success':bear?'text-bg-danger':'text-bg-secondary')}>
+                        {bull?'BULLISH':bear?'BEARISH':'SPLIT'}</span>
+                    </div>
+                    <div className="small text-muted mt-1">{p.buyers} buying · {p.sellers} selling</div>
+                    <div className="pick-bar mt-1">
+                      <div style={{width:(100*p.buy/max)+'%',background:'#059669'}} />
+                      <div style={{width:(100*p.sell/max)+'%',background:'#dc2626'}} />
+                    </div>
+                    <div className="d-flex justify-content-between small mt-1">
+                      <span className="pos">▲ {p.buy}</span><span className="neg">▼ {p.sell}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+
+    const PAGE_SIZE = 15;
+
+    function Leaderboard({ rows, onSelect }) {
+      const [sortKey, setSortKey] = useState('realized');
+      const [desc, setDesc] = useState(true);
+      const [hideEmpty, setHideEmpty] = useState(true);
+      const [page, setPage] = useState(1);
+      const sorted = useMemo(() => {
+        let list = rows.slice();
+        if (hideEmpty) list = list.filter(r=>r.trades>0);
+        const val = r => r[sortKey]==null?-Infinity:r[sortKey];
+        list.sort((a,b)=>{const av=val(a),bv=val(b);if(av===bv)return a.name.localeCompare(b.name);return (av<bv?-1:1)*(desc?-1:1);});
+        return list;
+      }, [rows, sortKey, desc, hideEmpty]);
+      useEffect(() => { setPage(1); }, [sorted.length, sortKey, desc, hideEmpty]);
+      const pageRows = sorted.slice((page-1)*PAGE_SIZE, page*PAGE_SIZE);
+      const th = (label,key,align) => { const on=sortKey===key; return (
+        <th className={'th-sort '+(align||'')} aria-label={'Sort by '+label}
+            onClick={()=>{if(sortKey===key)setDesc(!desc);else{setSortKey(key);setDesc(key!=='name');}}}>
+          {label} {on?(desc?'▾':'▴'):''}</th>); };
+      const medal = i => i===0?'🥇':i===1?'🥈':i===2?'🥉':(i+1);
+      return (
+        <div className="table-responsive board-scroll bg-white rounded shadow-sm">
+          <table className="table table-hover table-sm mb-0 align-middle board">
+            <thead className="table-light sticky-top"><tr>
+              <th style={{width:'3rem'}}>#</th>{th('Channel','name')}<th>Verdict</th>{th('Trades','trades','text-end')}
+              {th('Open','open','text-end')}{th('Success','success_rate','text-end')}{th('W · L','wins','text-end')}
+              {th('Realized ₹','realized','text-end')}{th('Unreal ₹','unrealized','text-end')}{th('Invested ₹','invested','text-end')}
+            </tr></thead>
+            <tbody>
+              {pageRows.map((r,i)=>{ const rank=(page-1)*PAGE_SIZE+i; return (
+                <tr key={r.channel} className={'ch-row '+(rank<3?'rank-'+(rank+1):'')} onClick={()=>onSelect(r.channel)} title="Open this channel">
+                  <td>{medal(rank)}</td>
+                  <td className="text-truncate" style={{maxWidth:'16rem'}}>{r.short||r.name}</td>
+                  <td><TierBadge tier={r.tier} /></td>
+                  <td className="text-end">{r.trades}</td><td className="text-end">{r.open}</td>
+                  <td className={'text-end fw-semibold '+(r.success_rate==null?'':r.success_rate>=50?'pos':'neg')}>{PCT(r.success_rate)}</td>
+                  <td className="text-end"><span className="pos">{r.wins}</span> · <span className="neg">{r.losses}</span></td>
+                  <td className={'text-end '+cls(r.realized)}>{INR(r.realized)}</td>
+                  <td className={'text-end '+cls(r.unrealized)}>{INR(r.unrealized)}</td>
+                  <td className="text-end">{INR(r.invested)}</td>
+                </tr>);})}
+              {sorted.length===0 && <tr><td colSpan="10" className="text-center text-muted py-4">No channels in this view.</td></tr>}
+            </tbody>
+          </table>
+          <div className="px-3 py-2 border-top d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div className="form-check form-switch mb-0">
+              <input className="form-check-input" type="checkbox" id="hideEmpty" checked={hideEmpty} onChange={e=>setHideEmpty(e.target.checked)} />
+              <label className="form-check-label small" htmlFor="hideEmpty">Hide channels without trades</label>
+            </div>
+            <Pagination page={page} setPage={setPage} total={sorted.length} pageSize={PAGE_SIZE} />
+            <span className="text-muted small">{sorted.length} channels</span>
+          </div>
+        </div>
+      );
+    }
+
+    /* ---------- accuracy leaderboard (paper-trade validated) ---------- */
+    function AccuracyBoard({ rows, onSelect }) {
+      if (!rows) return <div className="text-muted p-3">Loading accuracy…</div>;
+      if (rows.length === 0) return (
+        <div className="alert alert-light border">No closed paper trades yet — accuracy fills in as the market poll validates consumer calls against real prices.</div>);
+      return (
+        <div className="table-responsive bg-white rounded shadow-sm">
+          <table className="table table-hover table-sm mb-0 align-middle">
+            <thead className="table-light"><tr>
+              <th>#</th><th>Consumer</th><th>Verdict</th><th className="text-end">Validated</th>
+              <th className="text-end" title="Share of validated calls where the channel's claimed direction matched what the market actually did">Accuracy</th>
+              <th className="text-end" title="Average gap between the % move the channel claimed and the % move the market really made">Avg claimed-vs-market gap</th>
+            </tr></thead>
+            <tbody>{rows.map((r, i) => (
+              <tr key={r.channel} className="ch-row" style={{cursor:'pointer'}} onClick={() => onSelect(r.channel)} title="Open this consumer">
+                <td>{i < 3 ? ['🥇','','🥉'][i] : i + 1}</td>
+                <td>{r.short || r.name}</td>
+                <td><TierBadge tier={r.tier} /></td>
+                <td className="text-end">{r.validated}</td>
+                <td className={'text-end fw-bold ' + (r.hit_rate >= 50 ? 'pos' : 'neg')}>{PCT(r.hit_rate)}</td>
+                <td className="text-end">{r.avg_gap_pct == null ? '—' : r.avg_gap_pct + '%'}</td>
+              </tr>))}</tbody>
+          </table>
+        </div>);
+    }
+
+    function LeaderboardTab({ rows, onSelect }) {
+      const [mode, setMode] = useState('pnl');
+      const [acc, setAcc] = useState(null);
+      useEffect(() => {
+        if (mode === 'accuracy' && acc === null)
+          api('/api/tracker/paper/accuracy/').then(d => setAcc(d.results)).catch(() => setAcc([]));
+      }, [mode]);
+      return (
+        <div>
+          <div className="btn-group btn-group-sm mb-2" role="group" aria-label="Leaderboard mode">
+            <button className={'btn ' + (mode === 'pnl' ? 'btn-primary' : 'btn-outline-primary')} onClick={() => setMode('pnl')}>Track record</button>
+            <button className={'btn ' + (mode === 'accuracy' ? 'btn-primary' : 'btn-outline-primary')} onClick={() => setMode('accuracy')}>Accuracy</button>
+          </div>
+          {mode === 'pnl' ? <Leaderboard rows={rows} onSelect={onSelect} />
+                          : <AccuracyBoard rows={acc} onSelect={onSelect} />}
+        </div>);
+    }
+
+    /* ---------- paper trading (per user) ---------- */
+    function PaperTrading() {
+      const [trades, setTrades] = useState([]);
+      const [prefs, setPrefs] = useState(null);
+      const [loading, setLoading] = useState(true);
+      const [err, setErr] = useState('');
+      const [filter, setFilter] = useState('Open');
+      const [form, setForm] = useState({ symbol: '', side: 'BUY', asset_class: 'stock', entry_price: '' });
+
+      const load = useCallback(async () => {
+        setLoading(true); setErr('');
+        try {
+          const [p, pf] = await Promise.all([
+            api('/api/tracker/paper/?limit=200'), api('/api/tracker/prefs/')]);
+          setTrades(p.results); setPrefs(pf);
+        } catch (e) { setErr(e.message); } finally { setLoading(false); }
+      }, []);
+      useEffect(() => { load(); }, [load]);
+
+      const open = trades.filter(t => t.status === 'Open');
+      const closed = trades.filter(t => t.status === 'Closed');
+      const shown = filter === 'Open' ? open : filter === 'Closed' ? closed : trades;
+      const realizedInr = closed.reduce((a, t) => a + (t.realized_inr || 0), 0);
+      const unrealInr = open.reduce((a, t) => a + (t.unrealized_inr || 0), 0);
+      const wins = closed.filter(t => (t.realized_inr || 0) > 0).length;
+      const winRate = closed.length ? Math.round(100 * wins / closed.length) : null;
+
+      async function addManual(e) {
+        e.preventDefault();
+        if (!form.symbol || !form.entry_price) return;
+        try {
+          await apiMutate('POST', '/api/tracker/paper/', {
+            symbol: form.symbol.toUpperCase(), side: form.side,
+            asset_class: form.asset_class, entry_price: parseFloat(form.entry_price) });
+          setForm({ symbol: '', side: 'BUY', asset_class: 'stock', entry_price: '' });
+          load();
+        } catch (e2) { setErr(e2.message); }
+      }
+      async function del(id, symbol) {
+        if (!window.confirm('Delete paper trade ' + symbol + '? This cannot be undone.')) return;
+        try { await apiMutate('DELETE', '/api/tracker/paper/' + id + '/'); load(); }
+        catch (e2) { setErr(e2.message); }
+      }
+      async function savePref(patch) {
+        setPrefs({ ...prefs, ...patch });
+        try { const u = await apiMutate('PUT', '/api/tracker/prefs/', { ...prefs, ...patch }); setPrefs(u); }
+        catch (e2) { setErr(e2.message); }
+      }
+
+      const stat = (label, val, c) => (
+        <div className="col-6 col-md-3"><div className="card pulse-card h-100" style={{ '--accent': '#4f46e5', '--tint': '#fff' }}>
+          <div className="card-body py-2 px-3"><div className="label">{label}</div>
+          <div className={'value ' + (c || '')}>{val}</div></div></div></div>);
+
+      return (
+        <div>
+          {err && <div className="alert alert-danger py-2">{err}</div>}
+          <div className="row g-2 mb-3">
+            {stat('Open positions', open.length)}
+            {stat('Unrealized ₹', <span className={cls(unrealInr)}>{INR(unrealInr)}</span>)}
+            {stat('Realized ₹ (closed)', <span className={cls(realizedInr)}>{INR(realizedInr)}</span>)}
+            {stat('Win rate', PCT(winRate))}
+          </div>
+
+          {prefs &&
+            <div className="card mb-3"><div className="card-body py-2 px-3 pulse-card" style={{ '--accent': '#0891b2', '--tint': '#f0fdfa' }}>
+              <div className="d-flex flex-wrap align-items-center gap-3">
+                <div className="form-check form-switch mb-0">
+                  <input className="form-check-input" type="checkbox" id="autoPaper"
+                         checked={prefs.auto_paper} aria-label="Auto paper trade"
+                         onChange={e => savePref({ auto_paper: e.target.checked })} />
+                  <label className="form-check-label small fw-semibold" htmlFor="autoPaper">Auto paper-trade top consumers</label>
+                </div>
+                <label className="small text-muted">Capital/trade ₹
+                  <input type="number" className="form-control form-control-sm ms-2 d-inline-block" style={{ width: 110 }}
+                         value={prefs.capital_per_trade} aria-label="Capital per trade"
+                         onChange={e => savePref({ capital_per_trade: parseInt(e.target.value) || 0 })} /></label>
+                <label className="small text-muted" title="Auto-close a position if it falls this % below your entry price">SL % ⓘ
+                  <input type="number" step="0.5" className="form-control form-control-sm ms-2 d-inline-block" style={{ width: 74 }}
+                         value={prefs.stop_loss_pct} aria-label="Stop loss percent"
+                         onChange={e => savePref({ stop_loss_pct: parseFloat(e.target.value) || 0 })} /></label>
+                <label className="small text-muted" title="Once in profit, auto-close if the price pulls back this % from its best point — locks in gains without a fixed exit target">Trailing % ⓘ
+                  <input type="number" step="0.5" className="form-control form-control-sm ms-2 d-inline-block" style={{ width: 74 }}
+                         value={prefs.trailing_pct} aria-label="Trailing stop percent"
+                         onChange={e => savePref({ trailing_pct: parseFloat(e.target.value) || 0 })} /></label>
+              </div>
+            </div></div>}
+
+          <form onSubmit={addManual} className="row g-2 align-items-end mb-3">
+            <div className="col-6 col-md-3"><label className="form-label small mb-1">Symbol</label>
+              <input className="form-control form-control-sm" placeholder="e.g. RELIANCE" value={form.symbol}
+                     aria-label="Manual trade symbol" onChange={e => setForm({ ...form, symbol: e.target.value })} /></div>
+            <div className="col-6 col-md-2"><label className="form-label small mb-1">Side</label>
+              <select className="form-select form-select-sm" value={form.side} aria-label="Trade side"
+                      onChange={e => setForm({ ...form, side: e.target.value })}>
+                <option>BUY</option><option>SELL</option></select></div>
+            <div className="col-6 col-md-2"><label className="form-label small mb-1">Sector</label>
+              <select className="form-select form-select-sm" value={form.asset_class} aria-label="Trade sector"
+                      onChange={e => setForm({ ...form, asset_class: e.target.value })}>
+                {SECTORS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></div>
+            <div className="col-6 col-md-3"><label className="form-label small mb-1">Entry price</label>
+              <input type="number" step="0.01" className="form-control form-control-sm" value={form.entry_price}
+                     aria-label="Entry price" onChange={e => setForm({ ...form, entry_price: e.target.value })} /></div>
+            <div className="col-6 col-md-2"><button className="btn btn-sm btn-primary w-100" type="submit">+ Add trade</button></div>
+          </form>
+
+          <div className="d-flex align-items-center gap-2 mb-2">
+            <div className="btn-group btn-group-sm">
+              {['Open', 'Closed', 'All'].map(f => (
+                <button key={f} className={'btn ' + (filter === f ? 'btn-dark' : 'btn-outline-dark')} onClick={() => setFilter(f)}>{f}</button>))}
+            </div>
+            <button className="btn btn-sm btn-outline-secondary" onClick={load}>⟳ Refresh</button>
+          </div>
+
+          <div className="table-responsive shadow-sm rounded bg-white">
+            <table className="table table-hover table-sm mb-0 align-middle">
+              <thead className="table-light"><tr>
+                <th>Symbol</th><th>Sector</th><th>Side</th><th className="text-end">Entry</th>
+                <th className="text-end">Current</th><th className="text-end">Unreal ₹</th>
+                <th className="text-end">Realized ₹</th><th className="text-end">SL/Trail</th>
+                <th>Src</th><th>Status</th><th></th></tr></thead>
+              <tbody>
+                {loading && <tr><td colSpan="11" className="text-center py-4">Loading…</td></tr>}
+                {!loading && shown.map(t => (
+                  <tr key={t.id}>
+                    <td><strong>{t.symbol}</strong></td>
+                    <td><SectorTag ac={t.asset_class} /></td>
+                    <td><span className={'badge ' + (t.side === 'BUY' ? 'text-bg-success' : 'text-bg-danger')}>{t.side}</span></td>
+                    <td className="text-end">{t.entry_price}</td>
+                    <td className="text-end">{t.status === 'Open' ? (t.current_price ?? '—') : (t.exit_price ?? '—')}</td>
+                    <td className={'text-end ' + cls(t.unrealized_inr)}>{t.status === 'Open' ? INR(t.unrealized_inr) : '—'}</td>
+                    <td className={'text-end ' + cls(t.realized_inr)}>{t.status === 'Closed' ? INR(t.realized_inr) : '—'}</td>
+                    <td className="text-end text-muted small">{t.stop_loss_pct}/{t.trailing_pct}</td>
+                    <td><span className="badge text-bg-light border">{t.price_source}</span></td>
+                    <td><span className={'badge ' + (t.status === 'Open' ? 'badge-open' : 'badge-closed')}>{t.status}</span></td>
+                    <td><button className="btn btn-sm btn-outline-danger py-0" aria-label={'Delete ' + t.symbol}
+                                onClick={() => del(t.id, t.symbol)}>✕</button></td>
+                  </tr>))}
+                {!loading && shown.length === 0 &&
+                  <tr><td colSpan="11" className="text-center text-muted py-4">No {filter.toLowerCase()} paper trades. Run paper_autotrade or add one manually.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </div>);
+    }
+
+    function Sparkline({ points }) {
+      if (!points || points.length<2) return <div className="text-muted small">Not enough closed trades.</div>;
+      const W=600,H=70,pad=4, ys=points.map(p=>p.cum);
+      const min=Math.min(...ys,0),max=Math.max(...ys,0),span=(max-min)||1;
+      const x=i=>pad+i*(W-2*pad)/(points.length-1), y=v=>H-pad-(v-min)*(H-2*pad)/span;
+      const d=points.map((p,i)=>(i?'L':'M')+x(i).toFixed(1)+','+y(p.cum).toFixed(1)).join(' ');
+      const last=ys[ys.length-1], stroke=last>=0?'#059669':'#dc2626', zeroY=y(0);
+      return (<svg className="spark" viewBox={'0 0 '+W+' '+H} preserveAspectRatio="none" role="img" aria-label="Cumulative realized equity curve">
+        <line x1={pad} y1={zeroY} x2={W-pad} y2={zeroY} stroke="#94a3b8" strokeDasharray="3,3" />
+        <path d={d} fill="none" stroke={stroke} strokeWidth="2" />
+        <circle cx={x(points.length-1)} cy={y(last)} r="3" fill={stroke} /></svg>);
+    }
+
+    function TrustSummary({ rows, onSelect }) {
+      if (!rows || rows.length===0) return null;
+      const top = rows.filter(r=>r.tier==='top').sort((a,b)=>b.success_rate-a.success_rate).slice(0,5);
+      const watch = rows.filter(r=>r.tier==='watch' && r.trades>0).sort((a,b)=>a.success_rate-b.success_rate).slice(0,3);
+      return (
+        <div className="row g-2 mb-3">
+          <div className="col-md-8">
+            <div className="card trust-card h-100"><div className="card-body py-2 px-3">
+              <div className="label mb-2">✓ Worth following right now</div>
+              {top.length===0
+                ? <div className="text-muted small">No channel has cleared the Top-tier bar yet (≥65% success on 10+ closed trades) — check back as more calls get booked.</div>
+                : <div className="d-flex flex-wrap gap-2">
+                    {top.map(r=>(
+                      <span key={r.channel} className="pill" style={{cursor:'pointer'}} onClick={()=>onSelect(r.channel)}>
+                        {r.short||r.name} <span className="pos fw-bold">{PCT(r.success_rate)}</span>
+                      </span>))}
+                  </div>}
+            </div></div>
+          </div>
+          {watch.length>0 && <div className="col-md-4">
+            <div className="card trust-card h-100" style={{borderLeft:'3px solid #dc2626'}}><div className="card-body py-2 px-3">
+              <div className="label mb-2">⚠ Under 50% on a real sample</div>
+              <div className="d-flex flex-wrap gap-2">
+                {watch.map(r=>(
+                  <span key={r.channel} className="pill" style={{cursor:'pointer'}} onClick={()=>onSelect(r.channel)}>
+                    {r.short||r.name} <span className="neg fw-bold">{PCT(r.success_rate)}</span>
+                  </span>))}
+              </div>
+            </div></div>
+          </div>}
+        </div>
+      );
+    }
+
+    function ChannelPulse({ stats }) {
+      if (!stats) return <div className="card mb-3"><div className="card-body py-3 text-muted">Loading track record…</div></div>;
+      if (!stats.trades) return <div className="alert alert-light border">No trades in this view.</div>;
+      const total=stats.wins+stats.losses+stats.flat||0, denom=total||1;
+      const wp=100*stats.wins/denom, lp=100*stats.losses/denom, fp=100*stats.flat/denom;
+      const card=(label,value,extra,accent,tint)=>(
+        <div className="col-6 col-lg-3 col-md-4"><div className="card pulse-card" style={{'--accent':accent,'--tint':tint}}>
+          <div className="card-body py-2 px-3"><div className="label">{label}</div><div className="value">{value}</div>
+          {extra&&<div className="small text-muted">{extra}</div>}</div></div></div>);
+      return (<div>
+        <div className="row g-2 mb-2">
+          {card('Invested (Σ entry)',INR(stats.invested),stats.trades+' trades · '+stats.open+' open','#2563eb','#eff6ff')}
+          {card('Realized returns',<span className={cls(stats.realized)}>{INR(stats.realized)}</span>,
+            stats.return_pct!=null?'return on entry '+PCT(stats.return_pct):null,'#059669','#ecfdf5')}
+          {card('Success rate',<span>{PCT(stats.success_rate)}</span>,
+            <span><span className="pos">{stats.wins}W</span> · <span className="neg">{stats.losses}L</span> · {stats.flat} flat</span>,'#7c3aed','#f5f3ff')}
+          {card('Unrealized (open)',<span className={cls(stats.unrealized)}>{INR(stats.unrealized)}</span>,stats.open+' live positions','#0d9488','#f0fdfa')}
+          {card('Avg win',<span className="pos">{INR(stats.avg_win)}</span>,'per winning trade','#16a34a','#f0fdf4')}
+          {card('Avg loss',<span className="neg">{INR(stats.avg_loss)}</span>,'per losing trade','#dc2626','#fef2f2')}
+          {card('Best trade',<span className="pos">{stats.best?INR(stats.best.realized):'—'}</span>,
+            stats.best?stats.best.trade+' · '+stats.best.date:null,'#ea580c','#fff7ed')}
+          {card('Worst trade',<span className="neg">{stats.worst?INR(stats.worst.realized):'—'}</span>,
+            stats.worst?stats.worst.trade+' · '+stats.worst.date:null,'#be123c','#fff1f2')}
+        </div>
+        <div className="row g-2">
+          <div className="col-lg-7"><div className="card pulse-card" style={{'--accent':'#4f46e5','--tint':'#fff'}}><div className="card-body py-3">
+            <div className="d-flex justify-content-between align-items-center mb-1"><span className="label">Cumulative realized ₹</span>
+              <span className={'fw-bold '+cls(stats.realized)}>{INR(stats.realized)}</span></div>
+            <Sparkline points={stats.equity_curve} />
+            <div className="success-bar mt-2"><div style={{width:wp+'%',background:'#059669'}}/><div style={{width:fp+'%',background:'#94a3b8'}}/><div style={{width:lp+'%',background:'#dc2626'}}/></div>
+            <div className="small text-muted mt-1">Win/loss split on {total} booked trades</div>
+          </div></div></div>
+          <div className="col-lg-5"><div className="card pulse-card" style={{'--accent':'#0891b2','--tint':'#fff'}}><div className="card-body py-3">
+            <div className="label mb-2">Monthly history</div>
+            <table className="table table-sm mb-0"><thead><tr className="table-light"><th>Month</th><th className="text-end">Trades</th><th className="text-end">Success</th><th className="text-end">Realized ₹</th></tr></thead>
+              <tbody>{stats.monthly.map(m=>(<tr key={m.month}><td>{m.month}</td><td className="text-end">{m.trades}</td>
+                <td className={'text-end '+(m.success_rate>=50?'pos':'neg')}>{m.success_rate}%</td><td className={'text-end '+cls(m.realized)}>{INR(m.realized)}</td></tr>))}
+                {stats.monthly.length===0 && <tr><td colSpan="4" className="text-muted">No booked trades yet.</td></tr>}</tbody></table>
+          </div></div></div>
+        </div>
+      </div>);
+    }
+
+    function App() {
+      const [user, setUser] = useState(null);
+      const [summary, setSummary] = useState(null);
+      const [channels, setChannels] = useState([]);
+      const [trades, setTrades] = useState([]);
+      const [stats, setStats] = useState(null);
+      const [board, setBoard] = useState([]);
+      const [picks, setPicks] = useState([]);
+      const [active, setActive] = useState(null);
+      const [tab, setTab] = useState('overview');
+      const [rangeKey, setRangeKey] = useState('all');
+      const [custom, setCustom] = useState({from:'',to:''});
+      const [sectors, setSectors] = useState([]);
+      const [chQuery, setChQuery] = useState('');
+      const [chSort, setChSort] = useState('trades_count');
+      const [status, setStatus] = useState('All');
+      const [q, setQ] = useState('');
+      const [loading, setLoading] = useState(true);
+      const [err, setErr] = useState('');
+      const [openPulse, setOpenPulse] = useState(true);
+      const [openPicks, setOpenPicks] = useState(true);
+      const [openTrades, setOpenTrades] = useState(true);
+      const [tSortKey, setTSortKey] = useState('date');
+      const [tDesc, setTDesc] = useState(true);
+      const [tPage, setTPage] = useState(1);
+
+      const range = useMemo(()=>rangeDates(rangeKey, custom), [rangeKey, custom]);
+      const toggleSector = k => {
+        if (k === null) { setSectors([]); return; }
+        setSectors(s => s.includes(k) ? s.filter(x=>x!==k) : [...s, k]);
+      };
+
+      const load = useCallback(async () => {
+        setLoading(true); setErr('');
+        try {
+          const [me, chans, trs] = await Promise.all([
+            api('/api/auth/me/'), api('/api/tracker/channels/'), fetchAllPages('/api/tracker/trades/')]);
+          setUser(me); setChannels(chans.results); setTrades(trs);
+        } catch (e) { if (e.message !== 'auth') setErr(e.message); }
+        finally { setLoading(false); }
+      }, []);
+
+      async function loadAnalytics() {
+        setStats(null);
+        const base = active ? qs(range, sectors, ['channel='+active]) : qs(range, sectors);
+        const sumBase = qs(range, sectors);
+        try {
+          const [st, bd, pk, sm] = await Promise.all([
+            api('/api/tracker/stats/' + base),
+            api('/api/tracker/stats/breakdown/' + qs(range, sectors)),
+            api('/api/tracker/picks/' + base),
+            api('/api/tracker/summary/' + sumBase),
+          ]);
+          setStats(st); setBoard(bd.results); setPicks(pk.results); setSummary(sm);
+        } catch (e) { if (e.message !== 'auth') setErr(e.message); }
+      }
+
+      useEffect(()=>{ load(); }, []);
+      useEffect(()=>{ loadAnalytics(); }, [active, range, sectors]);
+
+      async function onLogout(){ await fetch('/api/auth/logout/',{method:'POST',credentials:'same-origin'}); window.location.href='/login/'; }
+
+      const activeChannel = channels.find(c=>c.id===active);
+      const pulseName = active ? (activeChannel?.short||activeChannel?.name||'channel') : 'All channels';
+      const sectorLabel = sectors.length ? sectors.map(s=>SECTOR_LABEL[s]).join(' + ') : 'All sectors';
+      const rangeLabel = range.from||range.to ? ((range.from||'…')+' → '+(range.to||'today')) : 'All time';
+
+      const shown = useMemo(()=>trades.filter(t=>{
+        if (active && t.channel!==active) return false;
+        if (sectors.length && !sectors.includes(t.asset_class)) return false;
+        if (status!=='All' && t.status!==status) return false;
+        if (range.from && (!t.date || t.date<range.from)) return false;
+        if (range.to && (!t.date || t.date>range.to)) return false;
+        if (q){ const hay=(t.trade+' '+(t.note||'')+' '+t.status+' '+(t.channel_name||'')).toLowerCase(); if(!hay.includes(q.toLowerCase())) return false; }
+        return true;
+      }), [trades, active, sectors, status, q, range]);
+
+      const totals = useMemo(()=>({
+        realized: shown.reduce((a,t)=>a+(t.realized||0),0),
+        unreal: shown.reduce((a,t)=>a+(t.unrealized||0),0),
+      }), [shown]);
+
+      const sortedShown = useMemo(() => {
+        const list = shown.slice();
+        const val = t => t[tSortKey];
+        list.sort((a,b) => {
+          let av = val(a), bv = val(b);
+          if (av == null && bv == null) return 0;
+          if (av == null) return 1; if (bv == null) return -1;
+          if (typeof av === 'string') { av = av.toLowerCase(); bv = bv.toLowerCase(); }
+          if (av === bv) return 0;
+          return (av < bv ? -1 : 1) * (tDesc ? -1 : 1);
+        });
+        return list;
+      }, [shown, tSortKey, tDesc]);
+      useEffect(() => { setTPage(1); }, [shown.length, tSortKey, tDesc]);
+      const tradesPage = sortedShown.slice((tPage-1)*PAGE_SIZE, tPage*PAGE_SIZE);
+
+      // per-channel numbers scoped to the selected Period/Sector (from the
+      // same breakdown() call the Leaderboard uses) — a channel with no
+      // trades in the current filter simply won't be in `board`.
+      const boardByChannel = useMemo(() => Object.fromEntries(board.map(r => [r.channel, r])), [board]);
+      const chStat = c => boardByChannel[c.id] || null;
+
+      const CH_SORTS = {
+        name: { label: 'Name (A–Z)', fn: (a,b) => (a.short||a.name).localeCompare(b.short||b.name),
+                badge: c => chStat(c)?.trades ?? 0 },
+        trades_count: { label: 'Most trades', fn: (a,b) => ((chStat(b)?.trades)||0) - ((chStat(a)?.trades)||0),
+                        badge: c => chStat(c)?.trades ?? 0 },
+        realized_total: { label: 'Highest realized ₹', fn: (a,b) => ((chStat(b)?.realized)||0) - ((chStat(a)?.realized)||0),
+                          badge: c => INR(chStat(c)?.realized ?? 0) },
+        success: { label: 'Best success rate', fn: (a,b) => {
+          const rate = c => chStat(c)?.success_rate ?? -1;
+          return rate(b) - rate(a);
+        }, badge: c => chStat(c)?.success_rate != null ? chStat(c).success_rate + '%' : '—' },
+      };
+      const filteredChannels = useMemo(()=>{
+        let list = channels;
+        if (chQuery) {
+          const s = chQuery.toLowerCase();
+          list = list.filter(c=>(c.name+' '+c.short).toLowerCase().includes(s));
+        }
+        return list.slice().sort(CH_SORTS[chSort].fn);
+      }, [channels, chQuery, chSort, boardByChannel]);
+
+      // Leaderboard tab only on the summary (All channels) view
+      const tabs = active===null ? [['overview','Overview'],['board','Leaderboard'],['picks','Favorite picks'],['paper','Paper trading'],['trades','Trades']]
+                                 : [['overview','Overview'],['picks','Favorite picks'],['paper','Paper trading'],['trades','Trades']];
+      const effTab = (tab==='board' && active!==null) ? 'overview' : tab;
+
+      return (
+        <div className="container-fluid px-3">
+          <Topbar user={user} onLogout={onLogout} />
+          {err && <div className="alert alert-danger">{err}</div>}
+          <SummaryCards s={summary} />
+          <RangeBar rangeKey={rangeKey} setRangeKey={setRangeKey} custom={custom} setCustom={setCustom}
+                    sectors={sectors} toggleSector={toggleSector} />
+          <div className="row g-3">
+            <aside className="col-md-3 col-lg-2">
+              <input className="form-control form-control-sm mb-2" placeholder="🔍 Search consumers…"
+                     aria-label="Search consumers" value={chQuery} onChange={e=>setChQuery(e.target.value)} />
+              <select className="form-select form-select-sm mb-2" aria-label="Sort channels"
+                      value={chSort} onChange={e=>setChSort(e.target.value)}>
+                {Object.entries(CH_SORTS).map(([k,v]) => <option key={k} value={k}>Sort: {v.label}</option>)}
+              </select>
+              <nav className="list-group sidebar shadow-sm" aria-label="Channels">
+                <button className={'list-group-item list-group-item-action '+(active===null?'active':'')} onClick={()=>setActive(null)}>
+                  All channels <span className="badge text-bg-secondary">{channels.length}</span></button>
+                {filteredChannels.map(c=>(
+                  <button key={c.id} className={'list-group-item list-group-item-action d-flex justify-content-between align-items-center '+(active===c.id?'active':'')}
+                          onClick={()=>setActive(c.id)} title={c.name}>
+                    <span className="text-truncate" style={{maxWidth:'10rem'}}>{c.short||c.name}</span>
+                    <span className="badge text-bg-light" title={'Sorted by: '+CH_SORTS[chSort].label}>{CH_SORTS[chSort].badge(c)}</span></button>))}
+              </nav>
+            </aside>
+            <main className="col-md-9 col-lg-10">
+              <div className="d-flex align-items-center mb-2 flex-wrap gap-2">
+                <h5 className="mb-0">{pulseName}</h5>
+                <span className="badge bg-light text-dark border">{rangeLabel}</span>
+                <span className="badge" style={{background:sectors.length?'#4f46e5':'#e2e8f0',color:sectors.length?'#fff':'#334155'}}>{sectorLabel}</span>
+              </div>
+              <ul className="nav nav-tabs mb-3" role="tablist">
+                {tabs.map(([k,l])=>(<li className="nav-item" key={l}><button className={'nav-link '+(effTab===k?'active':'')}
+                  role="tab" aria-selected={effTab===k} onClick={()=>setTab(k)}>{l}</button></li>))}
+              </ul>
+
+              {effTab==="overview" && active===null &&
+                <TrustSummary rows={board} onSelect={id=>{setActive(id); setTab('overview');}} />}
+
+              {effTab==="overview" &&
+                <Section title={'Track record · '+pulseName} open={openPulse} onToggle={()=>setOpenPulse(!openPulse)}>
+                  <ChannelPulse stats={stats} /></Section>}
+
+              {effTab==='board' &&
+                <Section title={'Channel leaderboard · '+sectorLabel+' · '+rangeLabel} open={true}>
+                  <LeaderboardTab rows={board} onSelect={id=>{setActive(id); setTab('overview');}} /></Section>}
+
+              {effTab==='picks' &&
+                <Section title={'Favorite picks · who is buying / selling ('+sectorLabel+')'} open={openPicks} onToggle={()=>setOpenPicks(!openPicks)}>
+                  <FavoritePicks picks={picks} onPick={sym=>{setQ(sym); setTab('trades');}} /></Section>}
+
+              {effTab==='paper' &&
+                <Section title={'Paper trading · '+(user?user.username:'you')} open={true}>
+                  <PaperTrading /></Section>}
+
+              {effTab==='trades' &&
+                <Section title={'Individual trades'} open={openTrades} onToggle={()=>setOpenTrades(!openTrades)}
+                         right={<span className="text-muted small">{shown.length} rows · realized {INR(totals.realized)} · unreal {INR(totals.unreal)}</span>}>
+                  <div className="d-flex flex-wrap gap-2 mb-2 align-items-center">
+                    <input className="form-control form-control-sm" style={{maxWidth:280}} placeholder="Search ticker, note, status…"
+                           aria-label="Search trades" value={q} onChange={e=>setQ(e.target.value)} />
+                    <div className="btn-group btn-group-sm">
+                      {['All','Open','Closed'].map(s=>(<button key={s} className={'btn '+(status===s?'btn-primary':'btn-outline-primary')} onClick={()=>setStatus(s)}>{s}</button>))}
+                    </div>
+                    <button className="btn btn-sm btn-outline-secondary" onClick={()=>{load(); loadAnalytics();}}>⟳ Refresh</button>
+                  </div>
+                  <div className="table-responsive shadow-sm rounded bg-white">
+                    <table className="table table-hover table-sm mb-0 align-middle">
+                      <thead className="table-light"><tr>
+                        {(() => {
+                          const tth = (label, key, align) => { const on = tSortKey===key; return (
+                            <th className={'th-sort '+(align||'')} aria-label={'Sort by '+label}
+                                onClick={()=>{if(tSortKey===key)setTDesc(!tDesc);else{setTSortKey(key);setTDesc(true);}}}>
+                              {label} {on?(tDesc?'▾':'▴'):''}</th>); };
+                          return (<>
+                            {tth('Date','date')}<th>Posted (IST)</th>{tth('Channel','channel_name')}{tth('Sector','asset_class')}
+                            {tth('Trade','trade')}<th>Dir</th>
+                            {tth('Entry','entry','text-end')}<th className="text-end">Target</th><th className="text-end">SL</th>
+                            <th className="text-end">LTP/Exit</th>{tth('Unreal ₹','unrealized','text-end')}{tth('P/L ₹','realized','text-end')}
+                            {tth('Status','status')}<th>Note</th>
+                          </>);
+                        })()}
+                      </tr></thead>
+                      <tbody>
+                        {loading && <tr><td colSpan="14" className="text-center py-4">Loading…</td></tr>}
+                        {!loading && tradesPage.map(t=>(
+                          <tr key={t.id}>
+                            <td>{t.date||'—'}</td>
+                            <td className="text-muted">{IST(t.posted_at)||'—'}</td>
+                            <td className="text-truncate" style={{maxWidth:'9rem'}} title={t.channel_name}>{t.channel_name}</td>
+                            <td><SectorTag ac={t.asset_class} /></td>
+                            <td><strong>{t.trade}</strong></td><td>{t.direction}</td>
+                            <td className="text-end">{t.entry ?? '—'}</td><td className="text-end">{t.target ?? '—'}</td>
+                            <td className="text-end">{t.stop_loss ?? '—'}</td><td className="text-end">{t.ltp_exit ?? '—'}</td>
+                            <td className={'text-end '+cls(t.unrealized)}>{t.unrealized!=null?INR(t.unrealized):'—'}</td>
+                            <td className={'text-end '+cls(t.realized)}>{t.realized!=null?INR(t.realized):'—'}</td>
+                            <td><span className={'badge '+(t.status==='Open'?'badge-open':'badge-closed')}>{t.status}</span></td>
+                            <td className="text-truncate" style={{maxWidth:'12rem'}} title={t.note}>{t.note}</td>
+                          </tr>))}
+                        {!loading && shown.length===0 && <tr><td colSpan="14" className="text-center text-muted py-4">No trades match.</td></tr>}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="d-flex justify-content-center pt-2">
+                    <Pagination page={tPage} setPage={setTPage} total={sortedShown.length} pageSize={PAGE_SIZE} />
+                  </div>
+                </Section>}
+            </main>
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  {% endverbatim %}
+  </script>
+</body>
+</html>

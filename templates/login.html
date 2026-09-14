@@ -1,0 +1,86 @@
+<!doctype html>
+{% load static %}
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Login · Telegram Trade Tracker</title>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body { background: linear-gradient(135deg,#0f172a,#1e293b); min-height:100vh; }
+    .card-login { max-width: 400px; }
+  </style>
+</head>
+<body class="d-flex align-items-center">
+  <div id="root" class="container"></div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.24.7/babel.min.js"></script>
+  <script type="text/babel">
+  {% verbatim %}
+    const { useState } = React;
+
+    function LoginApp() {
+      const [username, setUsername] = useState('');
+      const [password, setPassword] = useState('');
+      const [error, setError] = useState('');
+      const [busy, setBusy] = useState(false);
+
+      async function submit(e) {
+        e.preventDefault();
+        setBusy(true); setError('');
+        try {
+          const res = await fetch('/api/auth/login/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ username, password }),
+          });
+          const data = await res.json();
+          if (res.ok) { window.location.href = '/'; return; }
+          setError(data.detail || 'Login failed');
+        } catch (err) {
+          setError('Network error: ' + err.message);
+        } finally {
+          setBusy(false);
+        }
+      }
+
+      return (
+        <div className="row justify-content-center">
+          <div className="col">
+            <div className="card card-login mx-auto shadow">
+              <div className="card-body p-4">
+                <div className="text-center mb-3">
+                  <span style={{fontSize:'2rem'}}>₹</span>
+                  <h1 className="h4 mt-1 mb-0">Telegram Trade Tracker</h1>
+                  <div className="text-muted small">Django · DRF · React</div>
+                </div>
+                {error && <div className="alert alert-danger py-2 small">{error}</div>}
+                <form onSubmit={submit}>
+                  <div className="mb-3">
+                    <label className="form-label">Username or email</label>
+                    <input className="form-control" value={username} autoFocus
+                           onChange={e => setUsername(e.target.value)} required />
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label">Password</label>
+                    <input type="password" className="form-control" value={password}
+                           onChange={e => setPassword(e.target.value)} required />
+                  </div>
+                  <button className="btn btn-primary w-100" disabled={busy}>
+                    {busy ? 'Signing in…' : 'Sign in'}
+                  </button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<LoginApp />);
+  {% endverbatim %}
+  </script>
+</body>
+</html>

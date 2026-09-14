@@ -1,7 +1,8 @@
 from django.urls import include, path
 
 from .views import (BreakdownView, ChannelStatsView, PicksView, PrefsView,
-                    SummaryView, TrackerRouter)
+                    SummaryView, TodaysCallsView, TrackerRouter,
+                    TradesExportView)
 
 router = TrackerRouter()
 
@@ -10,6 +11,8 @@ urlpatterns = [
     path('stats/breakdown/', BreakdownView.as_view(), name='tracker-breakdown'),
     path('stats/', ChannelStatsView.as_view(), name='tracker-stats'),
     path('picks/', PicksView.as_view(), name='tracker-picks'),
+    path('calls/', TodaysCallsView.as_view(), name='tracker-calls'),
+    path('trades/export/', TradesExportView.as_view(), name='tracker-trades-export'),
     path('prefs/', PrefsView.as_view(), name='tracker-prefs'),
     path('', include(router.urls)),
 ]

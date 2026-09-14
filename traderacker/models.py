@@ -1,7 +1,10 @@
+import math
 from datetime import date as _date
+from datetime import timedelta
 
 from django.db import models
 from django.db.models import Count, Q, Sum
+from django.utils import timezone
 
 
 def trust_tier(rate, sample):
@@ -19,12 +22,31 @@ def trust_tier(rate, sample):
         return 'top'
     if rate >= 50:
         return 'solid'
+    if rate < 35 and sample >= 10:
+        return 'avoid'
     return 'watch'
 
 
 TIER_LABELS = {
-    'top': 'Top tier', 'solid': 'Solid', 'watch': 'Watch', 'building': 'Building track record',
+    'top': 'Top tier', 'solid': 'Solid', 'watch': 'Watch',
+    'avoid': 'Avoid', 'building': 'Building track record',
 }
+
+
+def wilson_lower_bound(successes, n, z=1.96):
+    """95%-confidence lower bound on a win rate (Wilson score interval),
+    as a 0-100 percentage. Unlike a raw percentage, this naturally penalizes
+    small samples — 100% on 3 trades scores far lower than 90% on 56 —
+    so it can be used to rank/tier channels without a hard trade-count cutoff.
+    Returns None when there's no sample to score.
+    """
+    if not n:
+        return None
+    phat = successes / n
+    denom = 1 + z * z / n
+    center = phat + z * z / (2 * n)
+    margin = z * math.sqrt((phat * (1 - phat) + z * z / (4 * n)) / n)
+    return round(100 * max(0.0, (center - margin) / denom), 1)
 
 
 class Channel(models.Model):
@@ -68,45 +90,100 @@ class TradeQuerySet(models.QuerySet):
             return self
         return self.filter(asset_class__in=list(sectors))
 
+    def _channel_weights(self):
+        """Map channel_id -> accuracy weight in [0, 1] for consensus scoring.
+
+        Backed by each channel's confidence-adjusted win rate (Wilson lower
+        bound) over its *entire* trade history (not just this queryset's
+        scope), so a channel's credibility doesn't reset per date-range/
+        sector filter. Channels without enough booked trades to trust get a
+        neutral 0.5 weight so new/unproven channels aren't zeroed out.
+        """
+        weights = {}
+        for row in Trade.objects.breakdown():
+            score = row['confidence_score'] if row['booked'] >= 5 else None
+            weights[row['channel']] = (score / 100.0) if score is not None else 0.5
+        return weights
+
     def picks(self, limit=25):
-        """Cross-channel consensus: per normalized symbol, BUY vs SELL counts.
+        """Cross-channel consensus: per normalized symbol, BUY vs SELL counts,
+        both raw (one vote per channel) and accuracy-weighted (each channel's
+        vote scaled by its verified win-rate) so the two can be compared.
 
         'buy' = channels leaning long (BUY / CALL(up)); 'sell' = channels
         leaning short (SELL / PUT(down)). A symbol is one recommendation per
         channel (distinct) so a single noisy channel can't dominate.
         """
         from django.db.models.functions import Upper
+        weights = self._channel_weights()
         rows = (self.exclude(entry=None)
                 .annotate(sym=Upper('trade'))
-                .values('sym')
+                .values('sym', 'channel_id')
                 .annotate(
                     buy=Count('id', filter=Q(direction__in=['BUY', 'CALL (up)'])),
                     sell=Count('id', filter=Q(direction__in=['SELL', 'PUT (down)'])),
-                    buyers=Count('channel', distinct=True,
-                                 filter=Q(direction__in=['BUY', 'CALL (up)'])),
-                    sellers=Count('channel', distinct=True,
-                                  filter=Q(direction__in=['SELL', 'PUT (down)'])),
-                )
-                .order_by('-buy'))
-        out = []
-        for r in rows:
-            sym = r['sym'].split()[0] if r['sym'] else ''
-            out.append({'symbol': sym, 'buy': r['buy'], 'sell': r['sell'],
-                        'buyers': r['buyers'], 'sellers': r['sellers'],
-                        'net': r['buy'] - r['sell']})
+                ))
         # collapse duplicate root symbols (e.g. NIFTY 24000 CE + NIFTY 25000 PE → NIFTY)
         merged = {}
-        for o in out:
-            m = merged.setdefault(o['symbol'], {'symbol': o['symbol'], 'buy': 0,
-                                                'sell': 0, 'buyers': 0, 'sellers': 0})
-            m['buy'] += o['buy']; m['sell'] += o['sell']
-            m['buyers'] = max(m['buyers'], o['buyers'])
-            m['sellers'] = max(m['sellers'], o['sellers'])
+        for r in rows:
+            sym = r['sym'].split()[0] if r['sym'] else ''
+            if not sym:
+                continue
+            m = merged.setdefault(sym, {'symbol': sym, 'buy': 0, 'sell': 0,
+                                        'buyers': 0, 'sellers': 0,
+                                        'weighted_buy': 0.0, 'weighted_sell': 0.0})
+            w = weights.get(r['channel_id'], 0.5)
+            if r['buy']:
+                m['buy'] += r['buy']; m['buyers'] += 1
+                m['weighted_buy'] += r['buy'] * w
+            if r['sell']:
+                m['sell'] += r['sell']; m['sellers'] += 1
+                m['weighted_sell'] += r['sell'] * w
         result = sorted(merged.values(),
                         key=lambda x: (x['buy'] + x['sell']), reverse=True)
         for x in result:
             x['net'] = x['buy'] - x['sell']
+            x['weighted_buy'] = round(x['weighted_buy'], 2)
+            x['weighted_sell'] = round(x['weighted_sell'], 2)
+            x['weighted_net'] = round(x['weighted_buy'] - x['weighted_sell'], 2)
+            raw_side = 'BUY' if x['net'] > 0 else ('SELL' if x['net'] < 0 else None)
+            weighted_side = ('BUY' if x['weighted_net'] > 0 else
+                             ('SELL' if x['weighted_net'] < 0 else None))
+            # flags when raw consensus and accuracy-weighted consensus disagree,
+            # e.g. many low-accuracy channels outvoting a few high-accuracy ones
+            x['diverges'] = bool(raw_side and weighted_side and raw_side != weighted_side)
         return result[:limit]
+
+    def todays_calls(self, hours=24):
+        """Recent trade calls across all channels ('today's calls' live feed),
+        sorted by the posting channel's trust tier / confidence score so the
+        most credible calls surface first.
+        """
+        cutoff = timezone.now() - timedelta(hours=hours)
+        weights = {r['channel']: r for r in Trade.objects.breakdown()}
+        tier_rank = {'top': 0, 'solid': 1, 'watch': 2, 'building': 3, 'avoid': 4}
+        calls = (self.filter(posted_at__gte=cutoff)
+                 .select_related('channel').order_by('-posted_at'))
+        out = []
+        for t in calls:
+            w = weights.get(t.channel_id, {})
+            tier = w.get('tier', 'building')
+            out.append({
+                'id': t.id, 'channel': t.channel_id,
+                'channel_name': t.channel.short or t.channel.name,
+                'trade': t.trade, 'direction': t.direction, 'entry': t.entry,
+                'target': t.target, 'stop_loss': t.stop_loss, 'status': t.status,
+                'asset_class': t.asset_class,
+                'posted_at': t.posted_at.isoformat() if t.posted_at else None,
+                'channel_success_rate': w.get('success_rate'),
+                'channel_booked': w.get('booked', 0),
+                'channel_confidence_score': w.get('confidence_score'),
+                'channel_tier': tier,
+                'channel_tier_label': TIER_LABELS.get(tier),
+            })
+        out.sort(key=lambda r: (tier_rank.get(r['channel_tier'], 5),
+                                -(r['channel_confidence_score'] or 0)))
+        return out
 
     def stats(self):
         """Quick-glance track-record dict for the rows in this queryset."""
@@ -197,7 +274,9 @@ class TradeQuerySet(models.QuerySet):
                 'success_rate': round(100 * r['n_wins'] / r['n_booked'], 1) if r['n_booked'] else None,
             })
         for o in out:
+            o['confidence_score'] = wilson_lower_bound(o['wins'], o['booked'])
             o['tier'] = trust_tier(o['success_rate'], o['booked'])
+            o['tier_label'] = TIER_LABELS.get(o['tier'])
         return out
 
 
@@ -309,14 +388,17 @@ class PaperTradeQuerySet(models.QuerySet):
             gaps = [abs((x.consumer_claimed_pct or 0) - (x.realized_pct or 0))
                     for x in sub if x.consumer_claimed_pct is not None]
             hit_rate = round(100 * hits / r['validated'], 1) if r['validated'] else None
+            tier = trust_tier(hit_rate, r['validated'])
             out.append({
                 'channel': r['source_trade__channel'],
                 'name': r['source_trade__channel__name'],
                 'short': r['source_trade__channel__short'],
                 'validated': r['validated'],
                 'hit_rate': hit_rate,
+                'confidence_score': wilson_lower_bound(hits, r['validated']),
                 'avg_gap_pct': round(sum(gaps) / len(gaps), 1) if gaps else None,
-                'tier': trust_tier(hit_rate, r['validated']),
+                'tier': tier,
+                'tier_label': TIER_LABELS.get(tier),
             })
         out.sort(key=lambda x: (x['hit_rate'] or -1, x['validated']), reverse=True)
         return out
@@ -475,6 +557,25 @@ class QuantityRule(models.Model):
         constraints = [
             models.UniqueConstraint(fields=['scope', 'key'], name='uniq_qty_rule'),
         ]
+
+
+class Watchlist(models.Model):
+    """A user's followed channels, so the frontend can build a
+    'my channels' filter over the leaderboard/feed."""
+    user = models.ForeignKey('auth.User', on_delete=models.CASCADE,
+                             related_name='watchlist')
+    channel = models.ForeignKey(Channel, on_delete=models.CASCADE,
+                                related_name='followers')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(fields=['user', 'channel'], name='uniq_watchlist'),
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} follows {self.channel.short or self.channel.name}"
 
 
 class TelegramMessage(models.Model):

@@ -1,6 +1,8 @@
+import csv
 from datetime import timedelta
 
 from django.db.models import Count, Q, Sum
+from django.http import HttpResponse
 from django.utils import timezone
 from rest_framework import routers, serializers, viewsets
 from rest_framework.decorators import action
@@ -9,11 +11,11 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import (Channel, PaperTrade, QuantityRule, Quote, TelegramMessage,
-                     Trade, UserPreference)
+                     Trade, UserPreference, Watchlist)
 from .serializers import (ChannelSerializer, PaperTradeSerializer,
                           QuantityRuleSerializer, QuoteSerializer,
                           TelegramMessageSerializer, TradeSerializer,
-                          UserPreferenceSerializer)
+                          UserPreferenceSerializer, WatchlistSerializer)
 
 
 class ChannelViewSet(viewsets.ModelViewSet):
@@ -187,6 +189,80 @@ class PicksView(APIView):
         return Response({'results': _scoped_trades(request).picks(limit=limit)})
 
 
+class TodaysCallsView(APIView):
+    """GET /api/tracker/calls/[?hours=24&channel=&sectors=]
+
+    Live feed: recent trade calls across all channels, posted within the
+    last `hours` (default 24, max 30 days), sorted by the posting channel's
+    trust tier / confidence score so the most credible calls surface first.
+    """
+
+    def get(self, request):
+        raw_hours = request.query_params.get('hours', 24)
+        try:
+            hours = int(raw_hours)
+        except (TypeError, ValueError):
+            raise ValidationError({'hours': 'Must be an integer.'})
+        hours = min(max(hours, 1), 24 * 30)
+
+        qs = Trade.objects.all()
+        ch_id = request.query_params.get('channel')
+        if ch_id:
+            if not str(ch_id).isdigit():
+                raise ValidationError({'channel': 'Must be an integer id.'})
+            qs = qs.filter(channel_id=int(ch_id))
+        qs = qs.sectors(_sectors(request))
+        return Response({'results': qs.todays_calls(hours=hours), 'hours': hours})
+
+
+class TradesExportView(APIView):
+    """GET /api/tracker/trades/export/[?channel=&sectors=&status=&date_from=&date_to=]
+
+    CSV download of matching trades — the full ledger, or a single channel's
+    track record when `channel` is given.
+    """
+
+    def get(self, request):
+        qs = _scoped_trades(request).select_related('channel')
+        status = request.query_params.get('status')
+        if status:
+            qs = qs.filter(status=status)
+
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = 'attachment; filename="trades.csv"'
+        writer = csv.writer(response)
+        writer.writerow(['channel', 'asset_class', 'date', 'trade', 'direction',
+                         'entry', 'target', 'stop_loss', 'ltp_exit', 'unrealized',
+                         'realized', 'status', 'posted_at'])
+        for t in qs.order_by('channel__name', 'date'):
+            writer.writerow([
+                t.channel.short or t.channel.name, t.asset_class, t.date, t.trade,
+                t.direction, t.entry, t.target, t.stop_loss, t.ltp_exit,
+                t.unrealized, t.realized, t.status,
+                t.posted_at.isoformat() if t.posted_at else '',
+            ])
+        return response
+
+
+class WatchlistViewSet(viewsets.ModelViewSet):
+    """Per-user followed channels: list/add/remove (own only), so the
+    frontend can build a 'my channels' filter."""
+    serializer_class = WatchlistSerializer
+    http_method_names = ['get', 'post', 'delete']
+
+    def get_queryset(self):
+        return Watchlist.objects.filter(
+            user=self.request.user).select_related('channel')
+
+    def perform_create(self, serializer):
+        # idempotent follow: re-posting an already-followed channel just
+        # returns the existing row instead of tripping the uniqueness constraint
+        channel = serializer.validated_data['channel']
+        obj, _ = Watchlist.objects.get_or_create(
+            user=self.request.user, channel=channel)
+        serializer.instance = obj
+
+
 class PaperViewSet(viewsets.ModelViewSet):
     """Per-user paper trades: list, manual create, delete (own only)."""
     serializer_class = PaperTradeSerializer
@@ -245,3 +321,4 @@ class TrackerRouter(routers.DefaultRouter):
         self.register('quantities', QuantityRuleViewSet)
         self.register('messages', TelegramMessageViewSet)
         self.register('paper', PaperViewSet, basename='paper')
+        self.register('watchlist', WatchlistViewSet, basename='watchlist')

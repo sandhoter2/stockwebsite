@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
 from .models import (Channel, PaperTrade, QuantityRule, Quote, TelegramMessage,
-                     Trade, UserPreference)
+                     Trade, UserPreference, Watchlist)
 
 
 class ChannelSerializer(serializers.ModelSerializer):
@@ -87,3 +87,12 @@ class UserPreferenceSerializer(serializers.ModelSerializer):
         model = UserPreference
         fields = ['auto_paper', 'capital_per_trade', 'stop_loss_pct',
                   'trailing_pct', 'auto_consumers']
+
+
+class WatchlistSerializer(serializers.ModelSerializer):
+    channel_name = serializers.CharField(source='channel.short', read_only=True)
+
+    class Meta:
+        model = Watchlist
+        fields = ['id', 'channel', 'channel_name', 'created_at']
+        read_only_fields = ['id', 'channel_name', 'created_at']

@@ -4,7 +4,8 @@ from django.contrib.auth.models import User
 from django.test import TestCase
 from django.utils import timezone
 
-from traderacker.models import Channel, PaperTrade, Trade, UserPreference
+from traderacker.models import (Channel, PaperTrade, Trade, UserPreference,
+                                Watchlist, trust_tier, wilson_lower_bound)
 
 
 class TrackerApiTests(TestCase):
@@ -379,3 +380,138 @@ class PicksApiTests(TestCase):
         self.assertEqual(ab['buy'], 1)
         self.assertEqual(ab['sell'], 1)
         self.assertEqual(ab['net'], 0)
+        # weighted fields are present alongside the raw counts
+        self.assertIn('weighted_buy', ab)
+        self.assertIn('weighted_sell', ab)
+        self.assertIn('diverges', ab)
+
+
+class ConfidenceScoringTests(TestCase):
+    """Wilson-lower-bound confidence scoring & trust tiers (audit item 2)."""
+
+    def test_wilson_lower_bound_penalizes_small_samples(self):
+        # 100% on 3 trades should score lower than 90% on 56 trades
+        small_sample = wilson_lower_bound(3, 3)
+        large_sample = wilson_lower_bound(50, 56)
+        self.assertLess(small_sample, large_sample)
+
+    def test_wilson_lower_bound_none_without_sample(self):
+        self.assertIsNone(wilson_lower_bound(0, 0))
+
+    def test_trust_tier_avoid_for_poor_large_sample(self):
+        self.assertEqual(trust_tier(20.0, 20), 'avoid')
+
+    def test_trust_tier_building_for_hot_streak(self):
+        # a channel with 100% on 3 trades is 'building', not 'top'
+        self.assertEqual(trust_tier(100.0, 3), 'building')
+
+    def test_trust_tier_top_needs_both_rate_and_sample(self):
+        self.assertEqual(trust_tier(90.0, 56), 'top')
+        self.assertEqual(trust_tier(90.0, 3), 'building')
+
+    def test_breakdown_exposes_confidence_score_and_tier_label(self):
+        ch = Channel.objects.create(peer='-3001', name='C', short='C')
+        for i in range(10):
+            Trade.objects.create(channel=ch, trade=f'T{i}', entry=100,
+                                 realized=10, status='Closed')
+        rows = Trade.objects.breakdown()
+        row = rows[0]
+        self.assertIn('confidence_score', row)
+        self.assertIn('tier_label', row)
+        self.assertEqual(row['tier'], 'top')
+        self.assertEqual(row['tier_label'], 'Top tier')
+
+
+class TodaysCallsApiTests(TestCase):
+    """Live feed endpoint (audit item 3)."""
+
+    def setUp(self):
+        self.user = User.objects.create_user('tester3', password='pw12345!')
+        self.client.force_login(self.user)
+        self.ch = Channel.objects.create(peer='-4001', name='Recent', short='R')
+        Trade.objects.create(channel=self.ch, trade='FRESH', entry=100,
+                             direction='BUY', status='Open',
+                             posted_at=timezone.now())
+        Trade.objects.create(channel=self.ch, trade='STALE', entry=100,
+                             direction='BUY', status='Open',
+                             posted_at=timezone.now() - dt.timedelta(days=5))
+
+    def test_only_recent_calls_returned(self):
+        r = self.client.get('/api/tracker/calls/?hours=24')
+        self.assertEqual(r.status_code, 200)
+        rows = r.json()['results']
+        trades = [row['trade'] for row in rows]
+        self.assertIn('FRESH', trades)
+        self.assertNotIn('STALE', trades)
+        self.assertIn('channel_tier', rows[0])
+        self.assertIn('channel_confidence_score', rows[0])
+
+    def test_wider_window_includes_stale(self):
+        r = self.client.get('/api/tracker/calls/?hours=240')
+        trades = [row['trade'] for row in r.json()['results']]
+        self.assertIn('STALE', trades)
+
+    def test_invalid_hours_returns_400(self):
+        r = self.client.get('/api/tracker/calls/?hours=notanumber')
+        self.assertEqual(r.status_code, 400)
+
+
+class WatchlistApiTests(TestCase):
+    """Per-user followed-channels CRUD (audit item 4)."""
+
+    def setUp(self):
+        self.user = User.objects.create_user('tester4', password='pw12345!')
+        self.client.force_login(self.user)
+        self.ch = Channel.objects.create(peer='-5001', name='Fav', short='F')
+
+    def test_follow_list_unfollow(self):
+        r = self.client.post('/api/tracker/watchlist/', {'channel': self.ch.id})
+        self.assertEqual(r.status_code, 201)
+        r = self.client.get('/api/tracker/watchlist/')
+        rows = r.json()['results'] if 'results' in r.json() else r.json()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]['channel'], self.ch.id)
+        wl_id = rows[0]['id']
+        r = self.client.delete(f'/api/tracker/watchlist/{wl_id}/')
+        self.assertEqual(r.status_code, 204)
+        self.assertEqual(Watchlist.objects.count(), 0)
+
+    def test_duplicate_follow_is_idempotent(self):
+        self.client.post('/api/tracker/watchlist/', {'channel': self.ch.id})
+        r = self.client.post('/api/tracker/watchlist/', {'channel': self.ch.id})
+        self.assertEqual(r.status_code, 201)
+        self.assertEqual(Watchlist.objects.count(), 1)
+
+    def test_watchlist_is_per_user(self):
+        other = User.objects.create_user('other4', password='pw12345!')
+        Watchlist.objects.create(user=other, channel=self.ch)
+        r = self.client.get('/api/tracker/watchlist/')
+        rows = r.json()['results'] if 'results' in r.json() else r.json()
+        self.assertEqual(len(rows), 0)
+
+
+class TradesExportApiTests(TestCase):
+    """CSV export (audit item 5)."""
+
+    def setUp(self):
+        self.user = User.objects.create_user('tester5', password='pw12345!')
+        self.client.force_login(self.user)
+        self.ch = Channel.objects.create(peer='-6001', name='Exp', short='E')
+        Trade.objects.create(channel=self.ch, trade='X', entry=100,
+                             realized=10, status='Closed')
+
+    def test_export_returns_csv(self):
+        r = self.client.get('/api/tracker/trades/export/')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r['Content-Type'], 'text/csv')
+        body = r.content.decode()
+        self.assertIn('channel', body.splitlines()[0])
+        self.assertIn('X', body)
+
+    def test_export_scoped_to_channel(self):
+        other = Channel.objects.create(peer='-6002', name='Other', short='O')
+        Trade.objects.create(channel=other, trade='Y', entry=50, status='Open')
+        r = self.client.get(f'/api/tracker/trades/export/?channel={self.ch.id}')
+        body = r.content.decode()
+        self.assertIn('X', body)
+        self.assertNotIn('Y', body)

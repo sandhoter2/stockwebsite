@@ -334,6 +334,60 @@ class SignalParserTests(TestCase):
         self.assertIsNone(parse_exit_price('TARGET HIT, exiting now'))
         self.assertIsNone(parse_exit_price('Fresh entry NIFTY 24000 CE'))
 
+    def test_fresh_breakout_lowercase(self):
+        # "SYMBOL fresh breakout above/below N" is Stockpro Online's own
+        # lower/mixed-case level phrasing (the codebase's usual RE_CASH is
+        # case-sensitive on "ABOVE"/"BELOW"/"BREAKOUT" to avoid matching
+        # ordinary prose in other channels, so it never fires for this one).
+        # Only the first word becomes the trade symbol for a multi-word name.
+        from traderacker.signals import parse_message
+        sigs = parse_message('LUMINO fresh breakout above 112')
+        self.assertEqual(len(sigs), 1)
+        self.assertEqual(sigs[0]['trade'], 'LUMINO')
+        self.assertEqual(sigs[0]['entry'], 112.0)
+        self.assertEqual(sigs[0]['direction'], 'BUY')
+
+        sigs2 = parse_message('APOLLO MICRO fresh breakout above 418')
+        self.assertEqual(len(sigs2), 1)
+        self.assertEqual(sigs2[0]['trade'], 'APOLLO')
+        self.assertEqual(sigs2[0]['entry'], 418.0)
+
+    def test_shared_research_recap_signal(self):
+        # "We shared the research ... it looks good above N" is Stockpro
+        # Online's retrospective recap/social-proof post — sometimes the
+        # only record of an earlier call's entry level in the tracked
+        # history, so it's treated as a real signal.
+        from traderacker.signals import parse_message
+        text = ('✅MILKYMIST  🔥 - We shared the research 2nd September '
+                '2026 only that it looks good above 237\n\n'
+                'Today it made a high of 292.75, Stock has delivered '
+                'potential 23.52% upmove in few days only')
+        sigs = parse_message(text)
+        self.assertEqual(len(sigs), 1)
+        self.assertEqual(sigs[0]['trade'], 'MILKYMIST')
+        self.assertEqual(sigs[0]['entry'], 237.0)
+        self.assertEqual(sigs[0]['direction'], 'BUY')
+
+    def test_made_a_high_of_is_not_a_signal_or_exit(self):
+        # a pure price-tracking follow-up on an already-open call — no
+        # BUY/breakout keyword (no new signal) and no close-out wording
+        # (RE_EXIT never fires), so the trade correctly stays Open per the
+        # no-auto-close product rule (Stockpro Online).
+        from traderacker.signals import parse_message, parse_exit
+        text = '✅RAYMOND MADE A HIGH OF 974.85🚀🚀'
+        self.assertEqual(parse_message(text), [])
+        self.assertFalse(parse_exit(text))
+
+    def test_oi_dump_produces_no_signal(self):
+        # strike-wise NIFTY/BANKNIFTY long/short open-interest dumps have no
+        # ALL-CAPS-ticker-with-adjacent-price shape the parser recognizes
+        # (Stockpro Online).
+        from traderacker.signals import parse_message
+        text = ('NIFTY\n23200 -\nLongs - 3.10L (Intraday - 1.95L)\n'
+                'Shorts - 66225 (Intraday - 60634)\n\nData negative.\n'
+                'VIX 5.17% up.')
+        self.assertEqual(parse_message(text), [])
+
     def test_promo_messages_are_skipped(self):
         from traderacker.signals import parse_message, is_promo
         self.assertTrue(is_promo('Ganesh offer opens here, valid for first 50 slots only'))

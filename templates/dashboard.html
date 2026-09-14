@@ -30,6 +30,8 @@
       .navbar-tt .navbar-brand small { display:none; }
       .navbar-tt .navbar-brand { font-size:1.05rem; }
     }
+    .navbar-tt .navbar-toggler { border-color:rgba(255,255,255,.35); }
+    .navbar-tt .navbar-toggler:focus { box-shadow:0 0 0 .2rem rgba(255,255,255,.25); }
     .sidebar { max-height: calc(100vh - 150px); overflow-y:auto; }
     .list-group-item { cursor:pointer; border-radius:.5rem!important; margin-bottom:2px; border-color:transparent!important;
                         transition:background-color .15s var(--tt-ease), transform .15s var(--tt-ease); }
@@ -82,8 +84,15 @@
     .tier-badge { font-size:.68rem; font-weight:700; padding:.15rem .5rem; border-radius:1rem; white-space:nowrap; }
     .tier-top { background:#dcfce7; color:#166534; }
     .tier-solid { background:#e0f2fe; color:#075985; }
-    .tier-watch { background:#fee2e2; color:#991b1b; }
+    .tier-watch { background:#fef3c7; color:#92400e; }
+    .tier-avoid { background:#fee2e2; color:#991b1b; }
     .tier-building { background:#f1f5f9; color:#475569; }
+    .diverge-badge { font-size:.65rem; font-weight:700; padding:.15rem .5rem; border-radius:1rem;
+                      background:#ede9fe; color:#6d28d9; white-space:nowrap; }
+    .ch-name-wrap { white-space:normal; word-break:break-word; line-height:1.15; text-align:left; }
+    .star-btn { border:0; background:transparent; padding:0 .25rem; line-height:1; font-size:1rem;
+                color:#cbd5e1; cursor:pointer; flex:none; }
+    .star-btn.on { color:#d97706; }
     .btn { transition:transform .1s var(--tt-ease), box-shadow .15s var(--tt-ease), background-color .15s var(--tt-ease); }
     .btn:hover { box-shadow:0 2px 8px rgba(15,23,42,.1); }
     .btn:active { transform:scale(.97); }
@@ -102,6 +111,7 @@
 </head>
 <body>
   <div id="root"></div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/js/bootstrap.bundle.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.24.7/babel.min.js"></script>
@@ -158,16 +168,17 @@
     const IST = s => !s ? null : new Date(s).toLocaleString('en-IN',
       {timeZone:'Asia/Kolkata', day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit', hour12:false});
 
-    const TIER_LABEL = { top:'Top tier', solid:'Solid', watch:'Watch', building:'Building track record' };
+    const TIER_LABEL = { top:'Top tier', solid:'Solid', watch:'Watch', avoid:'Avoid', building:'Building track record' };
     const TIER_HINT = {
       top: 'Verified strong: ≥65% hit rate on 10+ closed/validated calls.',
       solid: 'Net positive so far, but not yet enough volume or margin to call it proven.',
-      watch: 'Under 50% on a real sample — track record says be cautious here.',
+      watch: 'Under 50% but not enough volume yet to call it a firm avoid — proceed cautiously.',
+      avoid: 'Under 35% on 10+ closed/validated calls — a real sample says be careful here.',
       building: 'Fewer than 5 closed/validated calls — a streak either way isn\'t a track record yet.',
     };
-    function TierBadge({ tier }) {
+    function TierBadge({ tier, label }) {
       if (!tier) return null;
-      return <span className={'tier-badge tier-'+tier} title={TIER_HINT[tier]}>{TIER_LABEL[tier]||tier}</span>;
+      return <span className={'tier-badge tier-'+tier} title={TIER_HINT[tier]}>{label||TIER_LABEL[tier]||tier}</span>;
     }
 
     async function api(url) {
@@ -241,19 +252,25 @@
     function Topbar({ user, onLogout }) {
       const initials = user ? user.username.slice(0,2).toUpperCase() : '';
       return (
-        <nav className="navbar navbar-dark navbar-tt mb-3">
+        <nav className="navbar navbar-expand-lg navbar-dark navbar-tt mb-3">
           <div className="container-fluid">
             <span className="navbar-brand mb-0 h1">₹ Telegram Trade Tracker
               <small className="text-light opacity-50 ms-2">Django · DRF · React</small></span>
-            <div className="d-flex align-items-center gap-3">
-              <a className="link-light small d-none d-sm-inline" href="/api/tracker/" target="_blank" rel="noreferrer">API docs</a>
-              {user && user.is_staff && <a className="link-light small d-none d-sm-inline" href="/admin/" target="_blank" rel="noreferrer">Django admin</a>}
-              {user && <span className="d-none d-sm-flex align-items-center gap-2">
-                <span className="avatar" aria-hidden="true">{initials}</span>
-                <span className="text-white small lh-sm">{user.username}<br /><span className="opacity-50">{user.email}</span></span>
-              </span>}
-              {user && <span className="avatar d-sm-none" aria-hidden="true">{initials}</span>}
-              <button className="btn btn-sm btn-outline-light" onClick={onLogout}>Logout</button>
+            <button className="navbar-toggler" type="button" data-bs-toggle="collapse"
+                    data-bs-target="#topbarNav" aria-controls="topbarNav" aria-expanded="false"
+                    aria-label="Toggle navigation">
+              <span className="navbar-toggler-icon"></span>
+            </button>
+            <div className="collapse navbar-collapse flex-grow-0" id="topbarNav">
+              <div className="d-flex flex-column flex-lg-row align-items-lg-center gap-2 gap-lg-3 mt-3 mt-lg-0 ms-auto">
+                <a className="link-light small" href="/api/tracker/" target="_blank" rel="noreferrer">API docs</a>
+                {user && user.is_staff && <a className="link-light small" href="/admin/" target="_blank" rel="noreferrer">Django admin</a>}
+                {user && <span className="d-flex align-items-center gap-2">
+                  <span className="avatar" aria-hidden="true">{initials}</span>
+                  <span className="text-white small lh-sm">{user.username}<br /><span className="opacity-50">{user.email}</span></span>
+                </span>}
+                <button className="btn btn-sm btn-outline-light align-self-start align-self-lg-center" onClick={onLogout}>Logout</button>
+              </div>
             </div>
           </div>
         </nav>
@@ -325,6 +342,7 @@
         <div className="row g-2">
           {picks.slice(0,12).map(p => {
             const bull = p.net>0, bear = p.net<0;
+            const wbull = p.weighted_net>0, wbear = p.weighted_net<0;
             return (
               <div className="col-6 col-md-4 col-lg-3" key={p.symbol}>
                 <div className="card pulse-card h-100" style={{'--accent': bull?'#059669':bear?'#dc2626':'#64748b','--tint':'#fff'}}>
@@ -342,6 +360,12 @@
                     <div className="d-flex justify-content-between small mt-1">
                       <span className="pos">▲ {p.buy}</span><span className="neg">▼ {p.sell}</span>
                     </div>
+                    {p.diverges &&
+                      <div className="mt-1" title={'Raw consensus is '+(bull?'BULLISH':bear?'BEARISH':'SPLIT')+
+                        ', but weighted by verified channel accuracy it leans '+(wbull?'BULLISH':wbear?'BEARISH':'SPLIT')+
+                        ' (weighted buy '+p.weighted_buy+' vs sell '+p.weighted_sell+').'}>
+                        <span className="diverge-badge">⚠ accuracy-weighted view disagrees</span>
+                      </div>}
                   </div>
                 </div>
               </div>
@@ -385,9 +409,13 @@
                 <tr key={r.channel} className={'ch-row '+(rank<3?'rank-'+(rank+1):'')} onClick={()=>onSelect(r.channel)} title="Open this channel">
                   <td>{medal(rank)}</td>
                   <td className="text-truncate" style={{maxWidth:'16rem'}}>{r.short||r.name}</td>
-                  <td><TierBadge tier={r.tier} /></td>
+                  <td><TierBadge tier={r.tier} label={r.tier_label} /></td>
                   <td className="text-end">{r.trades}</td><td className="text-end">{r.open}</td>
-                  <td className={'text-end fw-semibold '+(r.success_rate==null?'':r.success_rate>=50?'pos':'neg')}>{PCT(r.success_rate)}</td>
+                  <td className={'text-end fw-semibold '+(r.success_rate==null?'':r.success_rate>=50?'pos':'neg')}
+                      title={r.confidence_score!=null?'Confidence-adjusted (Wilson) score: '+r.confidence_score+'%':undefined}>
+                    {PCT(r.success_rate)}
+                    {r.booked>0 && <span className="text-muted fw-normal small"> ({r.booked} trade{r.booked===1?'':'s'})</span>}
+                  </td>
                   <td className="text-end"><span className="pos">{r.wins}</span> · <span className="neg">{r.losses}</span></td>
                   <td className={'text-end '+cls(r.realized)}>{INR(r.realized)}</td>
                   <td className={'text-end '+cls(r.unrealized)}>{INR(r.unrealized)}</td>
@@ -425,9 +453,12 @@
               <tr key={r.channel} className="ch-row" style={{cursor:'pointer'}} onClick={() => onSelect(r.channel)} title="Open this consumer">
                 <td>{i < 3 ? ['🥇','','🥉'][i] : i + 1}</td>
                 <td>{r.short || r.name}</td>
-                <td><TierBadge tier={r.tier} /></td>
+                <td><TierBadge tier={r.tier} label={r.tier_label} /></td>
                 <td className="text-end">{r.validated}</td>
-                <td className={'text-end fw-bold ' + (r.hit_rate >= 50 ? 'pos' : 'neg')}>{PCT(r.hit_rate)}</td>
+                <td className={'text-end fw-bold ' + (r.hit_rate >= 50 ? 'pos' : 'neg')}
+                    title={r.confidence_score!=null?'Confidence-adjusted (Wilson) score: '+r.confidence_score+'%':undefined}>
+                  {PCT(r.hit_rate)} <span className="text-muted fw-normal small">({r.validated})</span>
+                </td>
                 <td className="text-end">{r.avg_gap_pct == null ? '—' : r.avg_gap_pct + '%'}</td>
               </tr>))}</tbody>
           </table>
@@ -449,6 +480,78 @@
           </div>
           {mode === 'pnl' ? <Leaderboard rows={rows} onSelect={onSelect} />
                           : <AccuracyBoard rows={acc} onSelect={onSelect} />}
+        </div>);
+    }
+
+    /* ---------- Today's calls: live feed sorted by channel trust tier ---------- */
+    function TodaysCalls({ sectors, onSelectChannel }) {
+      const [hours, setHours] = useState(24);
+      const [rows, setRows] = useState(null);
+      const [err, setErr] = useState('');
+
+      const load = useCallback(async () => {
+        setErr('');
+        try {
+          const params = ['hours=' + hours];
+          if (sectors && sectors.length) params.push('sectors=' + sectors.join(','));
+          const d = await api('/api/tracker/calls/?' + params.join('&'));
+          setRows(d.results);
+        } catch (e) { setErr(e.message); setRows([]); }
+      }, [hours, sectors]);
+      useEffect(() => { load(); }, [load]);
+
+      const opts = [[6,'6h'],[24,'24h'],[72,'3 days'],[168,'7 days']];
+      return (
+        <div>
+          <div className="d-flex flex-wrap align-items-center gap-2 mb-2">
+            <div className="btn-group btn-group-sm">
+              {opts.map(([h,l]) => (
+                <button key={h} className={'btn ' + (hours===h ? 'btn-primary' : 'btn-outline-primary')}
+                        onClick={()=>setHours(h)}>{l}</button>))}
+            </div>
+            <button className="btn btn-sm btn-outline-secondary" onClick={load}>⟳ Refresh</button>
+            <span className="text-muted small">Sorted by posting channel's trust tier, most credible first</span>
+          </div>
+          {err && <div className="alert alert-danger py-2">{err}</div>}
+          {rows === null && <div className="text-muted p-3">Loading calls…</div>}
+          {rows !== null && rows.length === 0 &&
+            <div className="alert alert-light border">No calls posted in this window.</div>}
+          {rows !== null && rows.length > 0 &&
+            <div className="table-responsive bg-white rounded shadow-sm">
+              <table className="table table-hover table-sm mb-0 align-middle">
+                <thead className="table-light"><tr>
+                  <th>Channel</th><th>Tier</th><th className="d-none d-md-table-cell">Sector</th>
+                  <th>Trade</th><th>Dir</th><th className="text-end">Entry</th>
+                  <th className="text-end d-none d-lg-table-cell">Target</th>
+                  <th className="text-end d-none d-lg-table-cell">SL</th>
+                  <th>Status</th><th className="d-none d-md-table-cell">Posted (IST)</th>
+                </tr></thead>
+                <tbody>
+                  {rows.map(r => (
+                    <tr key={r.id}>
+                      <td className="text-truncate" style={{maxWidth:'9rem', cursor:'pointer'}}
+                          title={r.channel_name} onClick={()=>onSelectChannel && onSelectChannel(r.channel)}>
+                        {r.channel_name}
+                      </td>
+                      <td>
+                        <TierBadge tier={r.channel_tier} label={r.channel_tier_label} />
+                        {r.channel_booked>0 &&
+                          <span className="text-muted small ms-1"
+                                title={r.channel_confidence_score!=null?'Confidence score '+r.channel_confidence_score+'%':undefined}>
+                            ({r.channel_booked})</span>}
+                      </td>
+                      <td className="d-none d-md-table-cell"><SectorTag ac={r.asset_class} /></td>
+                      <td><strong>{r.trade}</strong></td>
+                      <td>{r.direction}</td>
+                      <td className="text-end">{r.entry ?? '—'}</td>
+                      <td className="text-end d-none d-lg-table-cell">{r.target ?? '—'}</td>
+                      <td className="text-end d-none d-lg-table-cell">{r.stop_loss ?? '—'}</td>
+                      <td><span className={'badge '+(r.status==='Open'?'badge-open':'badge-closed')}>{r.status}</span></td>
+                      <td className="d-none d-md-table-cell text-muted small">{IST(r.posted_at)||'—'}</td>
+                    </tr>))}
+                </tbody>
+              </table>
+            </div>}
         </div>);
     }
 
@@ -713,6 +816,27 @@
       const [tSortKey, setTSortKey] = useState('date');
       const [tDesc, setTDesc] = useState(true);
       const [tPage, setTPage] = useState(1);
+      const [watchlist, setWatchlist] = useState([]);
+      const [followedOnly, setFollowedOnly] = useState(false);
+
+      const loadWatchlist = useCallback(async () => {
+        try { const w = await fetchAllPages('/api/tracker/watchlist/'); setWatchlist(w); }
+        catch (e) { /* non-critical */ }
+      }, []);
+      useEffect(() => { loadWatchlist(); }, [loadWatchlist]);
+      const followedIds = useMemo(() => new Set(watchlist.map(w => w.channel)), [watchlist]);
+      async function toggleFollow(channelId) {
+        const existing = watchlist.find(w => w.channel === channelId);
+        try {
+          if (existing) {
+            await apiMutate('DELETE', '/api/tracker/watchlist/' + existing.id + '/');
+            setWatchlist(ws => ws.filter(w => w.id !== existing.id));
+          } else {
+            const created = await apiMutate('POST', '/api/tracker/watchlist/', { channel: channelId });
+            setWatchlist(ws => [...ws, created]);
+          }
+        } catch (e) { setErr(e.message); }
+      }
 
       const range = useMemo(()=>rangeDates(rangeKey, custom), [rangeKey, custom]);
       const toggleSector = k => {
@@ -810,13 +934,14 @@
           const s = chQuery.toLowerCase();
           list = list.filter(c=>(c.name+' '+c.short).toLowerCase().includes(s));
         }
+        if (followedOnly) list = list.filter(c => followedIds.has(c.id));
         return list.slice().sort(CH_SORTS[chSort].fn);
-      }, [channels, chQuery, chSort, boardByChannel]);
+      }, [channels, chQuery, chSort, boardByChannel, followedOnly, followedIds]);
 
-      // Leaderboard tab only on the summary (All channels) view
-      const tabs = active===null ? [['overview','Overview'],['board','Leaderboard'],['picks','Favorite picks'],['paper','Paper trading'],['trades','Trades']]
+      // Leaderboard & Today's calls tabs only on the summary (All channels) view
+      const tabs = active===null ? [['overview','Overview'],['calls',"Today's calls"],['board','Leaderboard'],['picks','Favorite picks'],['paper','Paper trading'],['trades','Trades']]
                                  : [['overview','Overview'],['picks','Favorite picks'],['paper','Paper trading'],['trades','Trades']];
-      const effTab = (tab==='board' && active!==null) ? 'overview' : tab;
+      const effTab = ((tab==='board' || tab==='calls') && active!==null) ? 'overview' : tab;
 
       return (
         <div className="container-fluid px-3">
@@ -826,24 +951,36 @@
           <RangeBar rangeKey={rangeKey} setRangeKey={setRangeKey} custom={custom} setCustom={setCustom}
                     sectors={sectors} toggleSector={toggleSector} />
           <div className="row g-3">
-            <aside className="col-md-3 col-lg-2">
+            <aside className="col-md-4 col-lg-3">
               <input className="form-control form-control-sm mb-2" placeholder="🔍 Search consumers…"
                      aria-label="Search consumers" value={chQuery} onChange={e=>setChQuery(e.target.value)} />
               <select className="form-select form-select-sm mb-2" aria-label="Sort channels"
                       value={chSort} onChange={e=>setChSort(e.target.value)}>
                 {Object.entries(CH_SORTS).map(([k,v]) => <option key={k} value={k}>Sort: {v.label}</option>)}
               </select>
+              <div className="form-check form-switch mb-2">
+                <input className="form-check-input" type="checkbox" id="followedOnly" checked={followedOnly}
+                       onChange={e=>setFollowedOnly(e.target.checked)} />
+                <label className="form-check-label small" htmlFor="followedOnly">Followed only ({watchlist.length})</label>
+              </div>
               <nav className="list-group sidebar shadow-sm" aria-label="Channels">
                 <button className={'list-group-item list-group-item-action '+(active===null?'active':'')} onClick={()=>setActive(null)}>
                   All channels <span className="badge text-bg-secondary">{channels.length}</span></button>
-                {filteredChannels.map(c=>(
-                  <button key={c.id} className={'list-group-item list-group-item-action d-flex justify-content-between align-items-center '+(active===c.id?'active':'')}
-                          onClick={()=>setActive(c.id)} title={c.name}>
-                    <span className="text-truncate" style={{maxWidth:'10rem'}}>{c.short||c.name}</span>
-                    <span className="badge text-bg-light" title={'Sorted by: '+CH_SORTS[chSort].label}>{CH_SORTS[chSort].badge(c)}</span></button>))}
+                {filteredChannels.map(c=>{ const followed = followedIds.has(c.id); return (
+                  <div key={c.id} className={'list-group-item list-group-item-action d-flex justify-content-between align-items-center gap-1 '+(active===c.id?'active':'')}
+                       style={{cursor:'pointer'}} onClick={()=>setActive(c.id)} title={c.name}>
+                    <button type="button" className={'star-btn '+(followed?'on':'')}
+                            aria-label={(followed?'Unfollow ':'Follow ')+(c.short||c.name)}
+                            title={followed?'Unfollow':'Follow'}
+                            onClick={e=>{e.stopPropagation(); toggleFollow(c.id);}}>{followed?'★':'☆'}</button>
+                    <span className="ch-name-wrap flex-grow-1">{c.short||c.name}</span>
+                    <span className="badge text-bg-light" title={'Sorted by: '+CH_SORTS[chSort].label}>{CH_SORTS[chSort].badge(c)}</span>
+                  </div>);})}
+                {followedOnly && filteredChannels.length===0 &&
+                  <div className="text-muted small p-2">No followed channels yet — click ☆ next to a channel to follow it.</div>}
               </nav>
             </aside>
-            <main className="col-md-9 col-lg-10">
+            <main className="col-md-8 col-lg-9">
               <div className="d-flex align-items-center mb-2 flex-wrap gap-2">
                 <h5 className="mb-0">{pulseName}</h5>
                 <span className="badge bg-light text-dark border">{rangeLabel}</span>
@@ -860,6 +997,10 @@
               {effTab==="overview" &&
                 <Section title={'Track record · '+pulseName} open={openPulse} onToggle={()=>setOpenPulse(!openPulse)}>
                   <ChannelPulse stats={stats} /></Section>}
+
+              {effTab==='calls' &&
+                <Section title={"Today's calls · live feed"} open={true}>
+                  <TodaysCalls sectors={sectors} onSelectChannel={id=>{setActive(id); setTab('overview');}} /></Section>}
 
               {effTab==='board' &&
                 <Section title={'Channel leaderboard · '+sectorLabel+' · '+rangeLabel} open={true}>
@@ -883,41 +1024,55 @@
                       {['All','Open','Closed'].map(s=>(<button key={s} className={'btn '+(status===s?'btn-primary':'btn-outline-primary')} onClick={()=>setStatus(s)}>{s}</button>))}
                     </div>
                     <button className="btn btn-sm btn-outline-secondary" onClick={()=>{load(); loadAnalytics();}}>⟳ Refresh</button>
+                    <a className="btn btn-sm btn-outline-success ms-auto"
+                       href={'/api/tracker/trades/export/' + qs(range, sectors, [
+                         ...(active ? ['channel='+active] : []),
+                         ...(status !== 'All' ? ['status='+status] : []),
+                       ])}
+                       target="_blank" rel="noreferrer" title="Download the filtered trades as CSV">
+                      ⭳ Export CSV</a>
                   </div>
                   <div className="table-responsive shadow-sm rounded bg-white">
                     <table className="table table-hover table-sm mb-0 align-middle">
                       <thead className="table-light"><tr>
                         {(() => {
-                          const tth = (label, key, align) => { const on = tSortKey===key; return (
-                            <th className={'th-sort '+(align||'')} aria-label={'Sort by '+label}
+                          const tth = (label, key, align, extra) => { const on = tSortKey===key; return (
+                            <th className={'th-sort '+(align||'')+' '+(extra||'')} aria-label={'Sort by '+label}
                                 onClick={()=>{if(tSortKey===key)setTDesc(!tDesc);else{setTSortKey(key);setTDesc(true);}}}>
                               {label} {on?(tDesc?'▾':'▴'):''}</th>); };
                           return (<>
-                            {tth('Date','date')}<th>Posted (IST)</th>{tth('Channel','channel_name')}{tth('Sector','asset_class')}
+                            {tth('Date','date',null,'d-none d-xl-table-cell')}
+                            <th className="d-none d-xl-table-cell">Posted (IST)</th>
+                            {tth('Channel','channel_name')}
+                            {tth('Sector','asset_class',null,'d-none d-lg-table-cell')}
                             {tth('Trade','trade')}<th>Dir</th>
                             {tth('Entry','entry','text-end')}<th className="text-end">Target</th><th className="text-end">SL</th>
-                            <th className="text-end">LTP/Exit</th>{tth('Unreal ₹','unrealized','text-end')}{tth('P/L ₹','realized','text-end')}
-                            {tth('Status','status')}<th>Note</th>
+                            <th className="text-end d-none d-lg-table-cell">LTP/Exit</th>
+                            {tth('Unreal ₹','unrealized','text-end','d-none d-lg-table-cell')}
+                            {tth('P/L ₹','realized','text-end')}
+                            {tth('Status','status')}
+                            <th className="d-none d-xl-table-cell">Note</th>
                           </>);
                         })()}
                       </tr></thead>
                       <tbody>
-                        {loading && <tr><td colSpan="14" className="text-center py-4">Loading…</td></tr>}
+                        {loading && <tr><td colSpan="10" className="text-center py-4">Loading…</td></tr>}
                         {!loading && tradesPage.map(t=>(
                           <tr key={t.id}>
-                            <td>{t.date||'—'}</td>
-                            <td className="text-muted">{IST(t.posted_at)||'—'}</td>
+                            <td className="d-none d-xl-table-cell">{t.date||'—'}</td>
+                            <td className="text-muted d-none d-xl-table-cell">{IST(t.posted_at)||'—'}</td>
                             <td className="text-truncate" style={{maxWidth:'9rem'}} title={t.channel_name}>{t.channel_name}</td>
-                            <td><SectorTag ac={t.asset_class} /></td>
+                            <td className="d-none d-lg-table-cell"><SectorTag ac={t.asset_class} /></td>
                             <td><strong>{t.trade}</strong></td><td>{t.direction}</td>
                             <td className="text-end">{t.entry ?? '—'}</td><td className="text-end">{t.target ?? '—'}</td>
-                            <td className="text-end">{t.stop_loss ?? '—'}</td><td className="text-end">{t.ltp_exit ?? '—'}</td>
-                            <td className={'text-end '+cls(t.unrealized)}>{t.unrealized!=null?INR(t.unrealized):'—'}</td>
+                            <td className="text-end">{t.stop_loss ?? '—'}</td>
+                            <td className="text-end d-none d-lg-table-cell">{t.ltp_exit ?? '—'}</td>
+                            <td className={'text-end d-none d-lg-table-cell '+cls(t.unrealized)}>{t.unrealized!=null?INR(t.unrealized):'—'}</td>
                             <td className={'text-end '+cls(t.realized)}>{t.realized!=null?INR(t.realized):'—'}</td>
                             <td><span className={'badge '+(t.status==='Open'?'badge-open':'badge-closed')}>{t.status}</span></td>
-                            <td className="text-truncate" style={{maxWidth:'12rem'}} title={t.note}>{t.note}</td>
+                            <td className="text-truncate d-none d-xl-table-cell" style={{maxWidth:'12rem'}} title={t.note}>{t.note}</td>
                           </tr>))}
-                        {!loading && shown.length===0 && <tr><td colSpan="14" className="text-center text-muted py-4">No trades match.</td></tr>}
+                        {!loading && shown.length===0 && <tr><td colSpan="10" className="text-center text-muted py-4">No trades match.</td></tr>}
                       </tbody>
                     </table>
                   </div>

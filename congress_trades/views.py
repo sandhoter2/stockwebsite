@@ -4,7 +4,7 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 
 from .models import CongressTrade
-from .serializers import CongressTradeSerializer
+from .serializers import CongressTradeSerializer, PoliticianBreakdownSerializer
 
 
 class CongressTradeViewSet(viewsets.ReadOnlyModelViewSet):
@@ -53,6 +53,54 @@ class CongressTradeViewSet(viewsets.ReadOnlyModelViewSet):
         rows = CongressTrade.objects.notable(days=days, limit=limit)
         return Response({'results': CongressTradeSerializer(rows, many=True).data,
                          'days': days})
+
+    @action(detail=False, methods=['get'], url_path='politicians')
+    def politicians(self, request):
+        """GET /api/congress/trades/politicians/[?days=&party=&chamber=]
+
+        Per-politician leaderboard — trade counts, win rate on closed
+        round-trips, realized/unrealized profit totals and a trust tier
+        (reusing traderacker's Wilson-score tiering), mirroring
+        traderacker's /stats/breakdown/ channel leaderboard.
+        """
+        qs = CongressTrade.objects.all()
+        p = self.request.query_params
+        if p.get('party'):
+            qs = qs.filter(party=p['party'].upper())
+        if p.get('chamber'):
+            qs = qs.filter(chamber__iexact=p['chamber'])
+        if p.get('days'):
+            try:
+                days = min(max(int(p['days']), 1), 3650)
+            except (TypeError, ValueError):
+                raise ValidationError({'days': 'Must be an integer.'})
+            qs = qs.recent(days=days)
+        rows = qs.politician_breakdown()
+        return Response({'results': PoliticianBreakdownSerializer(rows, many=True).data})
+
+    @action(detail=False, methods=['get'], url_path='politician-profile')
+    def politician_profile(self, request):
+        """GET /api/congress/trades/politician-profile/?politician=<name>
+
+        One politician's full profile: their leaderboard row (trust tier,
+        win rate, realized/unrealized totals) plus their complete trade
+        history — mirrors the channel profile pattern (breakdown row +
+        that channel's trades), scoped to a single politician.
+        """
+        name = request.query_params.get('politician')
+        if not name:
+            raise ValidationError({'politician': 'Required.'})
+        qs = CongressTrade.objects.filter(politician_name__iexact=name)
+        if not qs.exists():
+            return Response({'detail': 'No trades found for this politician.'}, status=404)
+        profile_rows = CongressTrade.objects.filter(
+            politician_name__iexact=name).politician_breakdown()
+        profile = profile_rows[0] if profile_rows else None
+        trades = qs.order_by('-transaction_date', '-disclosure_date')
+        return Response({
+            'profile': PoliticianBreakdownSerializer(profile).data if profile else None,
+            'trades': CongressTradeSerializer(trades, many=True).data,
+        })
 
 
 class CongressRouter(routers.DefaultRouter):

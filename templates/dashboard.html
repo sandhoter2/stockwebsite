@@ -811,10 +811,132 @@
       </div>);
     }
 
-    /* ---------- Market Intel: Congress trades, Institutional reports, News, Super investors ----------
-       All four are terse, scannable one-line-per-item feeds (not dense tables) — the backend
-       pre-formats the dominant text (summary_line / short_summary+title / headline_line /
-       change_summary_line); secondary metadata stays small and muted beside it. */
+    /* ---------- Market Intel: Institutional reports, News, Super investors ----------
+       Terse, scannable one-line-per-item feeds — the backend pre-formats the dominant
+       text (short_summary+title / headline_line / change_summary_line); secondary
+       metadata stays small and muted beside it. Congress Trades is the exception: a
+       structured table + a per-politician profile (see below), same visual language
+       as the channel leaderboard/track-record. */
+
+    // US-dollar formatter for Congress trade amounts/profit (the rest of the app is
+    // ₹-denominated for Telegram-channel paper trading; congressional disclosures are
+    // always USD). Mirrors INR's shape (— for null, no forced sign).
+    const USD = v => v == null ? '—' : '$' + Number(v).toLocaleString('en-US', {maximumFractionDigits: 0});
+
+    function ProfitCell({ row }) {
+      if (row.profit == null) {
+        return <span className="text-muted" title="Not enough matched-trade/price data to estimate a profit for this row">—</span>;
+      }
+      const realized = row.profit_is_realized;
+      return (
+        <span className={cls(row.profit)} title={realized
+          ? 'Realized (est.): closed round-trip, priced off the disclosed amount range midpoint and the actual market move between trade dates.'
+          : 'Unrealized (est.): still open, marked to the current market price. Disclosures give a dollar range and no share price, so this is an approximation.'}>
+          {USD(row.profit)}{!realized && <sup className="ms-1" style={{fontWeight:700}}>est</sup>}
+        </span>);
+    }
+
+    function BuySellBadge({ type }) {
+      const cfg = { buy: ['text-bg-success','BUY'], sell: ['text-bg-danger','SELL'], exchange: ['text-bg-secondary','EXCHANGE'] };
+      const [bg, label] = cfg[type] || ['text-bg-secondary', (type||'?').toUpperCase()];
+      return <span className={'badge ' + bg}>{label}</span>;
+    }
+
+    /* ---------- Congress Trades: structured table ---------- */
+    function CongressTable({ rows, onSelectPolitician }) {
+      const [page, setPage] = useState(1);
+      useEffect(() => { setPage(1); }, [rows]);
+      const pageRows = rows.slice((page-1)*PAGE_SIZE, page*PAGE_SIZE);
+      return (
+        <div className="table-responsive shadow-sm rounded bg-white">
+          <table className="table table-hover table-sm mb-0 align-middle">
+            <thead className="table-light"><tr>
+              <th>Time</th><th>Resource</th><th>Stock</th><th>Buy/Sell</th>
+              <th className="text-end">Amount (est.)</th><th className="text-end">Profit</th>
+              <th className="d-none d-md-table-cell">Chamber</th>
+              <th className="d-none d-lg-table-cell">Source</th>
+            </tr></thead>
+            <tbody>
+              {pageRows.map(r => (
+                <tr key={r.id}>
+                  <td className="text-nowrap">{r.time}</td>
+                  <td>
+                    <span className="text-truncate d-inline-block align-middle"
+                          style={onSelectPolitician ? {maxWidth:'11rem', cursor:'pointer', textDecoration:'underline dotted'} : {maxWidth:'11rem'}}
+                          role={onSelectPolitician ? 'button' : undefined}
+                          title={onSelectPolitician ? ('Open ' + r.politician_name + "'s profile") : undefined}
+                          onClick={onSelectPolitician ? ()=>onSelectPolitician(r.politician_name) : undefined}>{r.politician_name}</span>{' '}
+                    {r.party !== '?' && <span className={'badge ' + (r.party==='D'?'text-bg-primary':r.party==='R'?'text-bg-danger':'text-bg-secondary')}>{r.party}</span>}
+                  </td>
+                  <td><strong>{r.ticker || r.asset_description}</strong></td>
+                  <td><BuySellBadge type={r.buy_or_sell} /></td>
+                  <td className="text-end text-muted" title={'Disclosed range: ' + r.amount_range_label}>{r.amount_range_label}</td>
+                  <td className="text-end"><ProfitCell row={r} /></td>
+                  <td className="d-none d-md-table-cell text-muted small">{r.chamber}</td>
+                  <td className="d-none d-lg-table-cell">
+                    <a className="small text-muted" href={r.filing_url} target="_blank" rel="noreferrer" title="View source filing">filing ↗</a>
+                  </td>
+                </tr>))}
+              {rows.length===0 && <tr><td colSpan="8" className="text-center text-muted py-4">No trades in this window.</td></tr>}
+            </tbody>
+          </table>
+          {rows.length > PAGE_SIZE &&
+            <div className="px-3 py-2 border-top d-flex justify-content-between align-items-center flex-wrap gap-2">
+              <Pagination page={page} setPage={setPage} total={rows.length} pageSize={PAGE_SIZE} />
+              <span className="text-muted small">{rows.length} trades</span>
+            </div>}
+        </div>);
+    }
+
+    /* ---------- Congress Trades: per-politician profile ----------
+       Mirrors the channel track-record layout (ChannelPulse's pulse-card grid +
+       TierBadge + a history table) so the two features read as the same idea
+       applied to two domains, not two different designs. */
+    function CongressProfile({ politician, onBack }) {
+      const [data, setData] = useState(null);
+      const [err, setErr] = useState('');
+
+      useEffect(() => {
+        setData(null); setErr('');
+        api('/api/congress/trades/politician-profile/?politician=' + encodeURIComponent(politician))
+          .then(setData).catch(e => setErr(e.message));
+      }, [politician]);
+
+      const card = (label,value,extra,accent,tint) => (
+        <div className="col-6 col-lg-3 col-md-4"><div className="card pulse-card" style={{'--accent':accent,'--tint':tint}}>
+          <div className="card-body py-2 px-3"><div className="label">{label}</div><div className="value">{value}</div>
+          {extra && <div className="small text-muted">{extra}</div>}</div></div></div>);
+
+      return (
+        <div>
+          <button className="btn btn-sm btn-outline-secondary mb-2" onClick={onBack}>← Back to Congress Trades</button>
+          {err && <div className="alert alert-danger py-2">{err}</div>}
+          {!err && !data && <div className="text-muted p-3">Loading profile…</div>}
+          {data && data.profile && (() => { const p = data.profile; return (<>
+            <div className="d-flex align-items-center mb-2 flex-wrap gap-2">
+              <h5 className="mb-0">{p.politician_name}</h5>
+              {p.party !== '?' && <span className={'badge ' + (p.party==='D'?'text-bg-primary':p.party==='R'?'text-bg-danger':'text-bg-secondary')}>{p.party}</span>}
+              <span className="badge bg-light text-dark border">{p.chamber}</span>
+              <TierBadge tier={p.tier} label={p.tier_label} />
+            </div>
+            <div className="row g-2 mb-2">
+              {card('Trades', p.trades, p.buys+' buys · '+p.sells+' sells','#2563eb','#eff6ff')}
+              {card('Win rate', PCT(p.win_rate),
+                <span><span className="pos">{p.wins}W</span> · <span className="neg">{p.losses}L</span> on {p.closed} closed</span>,'#7c3aed','#f5f3ff')}
+              {card('Realized profit',<span className={cls(p.realized_profit)}>{USD(p.realized_profit)}</span>,
+                'estimated · '+p.closed+' closed round-trips','#059669','#ecfdf5')}
+              {card('Unrealized profit',<span className={cls(p.unrealized_profit)}>{USD(p.unrealized_profit)}</span>,
+                'estimated · '+p.open+' open positions','#0d9488','#f0fdfa')}
+            </div>
+            <div className="alert alert-light border small py-2">
+              Profit figures are <strong>estimates</strong>: disclosures report a dollar range and never a share
+              price, so we apply the ticker's real subsequent market move to the range midpoint. Treat these as
+              directional, not exact.
+            </div>
+          </>); })()}
+          {data && <CongressTable rows={data.trades} onSelectPolitician={null} />}
+        </div>);
+    }
 
     function CongressTab() {
       const [rows, setRows] = useState(null);
@@ -822,18 +944,21 @@
       const [days, setDays] = useState(60);
       const [party, setParty] = useState('');
       const [politician, setPolitician] = useState('');
+      const [selected, setSelected] = useState(null);
 
       const load = useCallback(async () => {
         setErr('');
         try {
-          const params = ['days=' + days, 'limit=40'];
+          const params = ['days=' + days, 'limit=150'];
           if (party) params.push('party=' + party);
           if (politician) params.push('politician=' + encodeURIComponent(politician));
-          const d = await api('/api/congress/trades/notable/?' + params.join('&'));
-          setRows(d.results);
+          const d = await fetchAllPages('/api/congress/trades/?' + params.join('&'));
+          setRows(d);
         } catch (e) { setErr(e.message); setRows([]); }
       }, [days, party, politician]);
       useEffect(() => { load(); }, [load]);
+
+      if (selected) return <CongressProfile politician={selected} onBack={()=>setSelected(null)} />;
 
       const opts = [[30,'30d'],[60,'60d'],[90,'90d'],[180,'180d']];
       return (
@@ -850,20 +975,11 @@
             <input className="form-control form-control-sm" style={{maxWidth:200}} placeholder="🔍 Search politician…"
                    aria-label="Search politician" value={politician} onChange={e=>setPolitician(e.target.value)} />
             <button className="btn btn-sm btn-outline-secondary" onClick={load}>⟳ Refresh</button>
-            <span className="text-muted small">Largest disclosed House trades · Senate data not yet available</span>
+            <span className="text-muted small">Senate data not yet available</span>
           </div>
           {err && <div className="alert alert-danger py-2">{err}</div>}
           {rows === null && <div className="text-muted p-3">Loading trades…</div>}
-          {rows !== null && rows.length === 0 &&
-            <div className="alert alert-light border">No notable trades in this window.</div>}
-          {rows !== null && rows.length > 0 &&
-            <div className="feed-list">
-              {rows.map(r => (
-                <div key={r.id} className="feed-row d-flex justify-content-between align-items-center gap-2">
-                  <span>{r.summary_line}</span>
-                  <a className="small text-muted text-nowrap" href={r.filing_url} target="_blank" rel="noreferrer" title="View filing">source ↗</a>
-                </div>))}
-            </div>}
+          {rows !== null && <CongressTable rows={rows} onSelectPolitician={setSelected} />}
         </div>);
     }
 

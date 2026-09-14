@@ -72,6 +72,10 @@ INSTALLED_APPS = [
     'core',
     'accounts',
     'traderacker',
+    'congress_trades',
+    'institutional_reports',
+    'market_news',
+    'super_investors',
 ]
 
 MIDDLEWARE = [

@@ -132,14 +132,17 @@ RE_OPT_EXPIRY2 = re.compile(
     r'\s*(CE|PE)\b(?:\s*(?:ABOVE|BELOW|AT)\s*' + NUM + r')?',
     re.IGNORECASE)
 RE_CRYPTO = re.compile(
-    SYM + r'\s+(LONG|SHORT)\b\s*(\d+\s*[Xx])?')
-RE_ENTER = re.compile(r'(?:ENTER|ENTRY|ENT)\s*[-:]?\s*' + NUM, re.IGNORECASE)
+    # symbol and LONG/SHORT may be joined by a plain space ("STX LONG 10x")
+    # or an em/en-dash ("DOGE – LONG", "LINK – SHORT" — Serezha Calls' format)
+    SYM + r'\s*[-–—]?\s*(LONG|SHORT)\b\s*(\d+\s*[Xx])?')
+RE_ENTER = re.compile(
+    r'(?:ENTER|ENTRY|ENT)\s*(?:PRICE)?\s*[-:]?\s*' + NUM, re.IGNORECASE)
 RE_PREMIUM = re.compile(r'(?:@\s*|ENTRY\s+|ENTER\s+(?:AT|IN)\s+)' + NUM, re.IGNORECASE)
 RE_SUPPORT = re.compile(
-    r'\b(?:SUPPORT|S/L|S/T|SL\b|STOP[\s\-]?LOSS|STOP|STCP)\s*[:\-]?\s*'
+    r'\b(?:SUPPORT|S/L|S/T|SL\b|STOP[\s\-]?LOSS|STOP|STCP)\s*(?:PRICE)?\s*[:\-]?\s*'
     r'(?:AT\s+|BELOW\s+|ABOVE\s+|NEAR\s+|ON\s+)?' + NUM, re.IGNORECASE)
 RE_TARGET = re.compile(
-    r'\b(?:VIEW|VIEWS|TARGETS?|TGT|SHT)\s*[:\-]?\s*'
+    r'\b(?:VIEW|VIEWS|TARGETS?|TGT|SHT)\s*(?:PRICES?)?\s*[:\-]?\s*'
     r'(?:AT\s+|ON\s+|NEAR\s+)?' + NUM, re.IGNORECASE)
 # Nirmal Bang Official abbreviates STOP LOSS as "SL ABV <price>" (ABV =
 # above) and TARGET as "TG <price>" — kept as separate style-gated patterns
@@ -317,6 +320,25 @@ def parse_message(text, style=None):
              'entry': _f(ent.group(1)) if ent else None,
              'target': None, 'stop_loss': None, 'status': 'Open'})
 
+    # 2b. bare crypto symbol named in prose with no LONG/SHORT keyword at
+    # all, but fully-labeled Entry/Target/Stop-loss PRICE lines, e.g.
+    # "#ETH ... Entry Price: 2455  Target Prices: 2479/2546/2605  Stop Loss
+    # Price: 2379" (Serezha Calls). Gated on the known CRYPTO ticker set
+    # plus ALL THREE labels being present so an ordinary prose mention of a
+    # coin never turns into a phantom trade. Direction comes from comparing
+    # the first target to the entry (never guessed from sentiment words).
+    if not out:
+        ent_m, tg_m, sl_m = RE_ENTER.search(text), RE_TARGET.search(text), RE_SUPPORT.search(text)
+        if ent_m and tg_m and sl_m:
+            for tok in re.findall(r'\b([A-Z][A-Z0-9]{1,10})\b', text):
+                if tok in CRYPTO:
+                    entry_v, target_v = _f(ent_m.group(1)), _f(tg_m.group(1))
+                    add({'trade': tok,
+                         'direction': 'BUY' if target_v >= entry_v else 'SELL',
+                         'entry': entry_v, 'target': target_v,
+                         'stop_loss': _f(sl_m.group(1)), 'status': 'Open'})
+                    break
+
     # 3. verb-after cash: "BLUESTARCO CASH ABOVE 1570"
     for m in RE_CASH.finditer(text):
         sym, side, level = m.group(1), m.group(3).upper(), m.group(4)
@@ -373,6 +395,14 @@ def parse_message(text, style=None):
             sig['entry'] = _f(enter.group(1))
         if sig['status'] == 'Open' and RE_HOLDING.search(text):
             sig['status'] = 'Open'
+
+    # a crypto match that still has no entry price after all fill attempts
+    # is a follow-up post repeating the "SYMBOL LONG 10x" header from an
+    # earlier message (e.g. "STX LONG 10x\n1 TP" / "JUP LONG 10x\n...
+    # stopped out"), not a fresh order — emitting it would upsert as a
+    # phantom duplicate Open trade (channel, trade, entry=None) alongside
+    # the real one. Drop it; conservative "no confident match -> no trade".
+    out = [s for s in out if not (s['asset_class'] == 'crypto' and s['entry'] is None)]
     return out
 
 

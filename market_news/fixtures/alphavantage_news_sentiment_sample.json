@@ -1,0 +1,2568 @@
+{
+    "items": "50",
+    "sentiment_score_definition": "x <= -0.35: Bearish; -0.35 < x <= -0.15: Somewhat-Bearish; -0.15 < x < 0.15: Neutral; 0.15 <= x < 0.35: Somewhat_Bullish; x >= 0.35: Bullish",
+    "relevance_score_definition": "0 < x <= 1, with a higher score indicating higher relevance.",
+    "feed": [
+        {
+            "title": "PayPal Stock Is Down But Is the Company Broken?",
+            "url": "https://www.stl.news/paypal-stock-is-down-but-is-the-company-broken/",
+            "time_published": "20260913T132613",
+            "authors": [
+                "Martin Smith"
+            ],
+            "summary": "PayPal's stock has experienced a significant decline from its pandemic-era highs, leading investors to question its future growth and competitive position amidst new threats like AI and increased competition from other tech giants. Despite the stock's poor performance, the company remains profitable, generates billions in free cash flow, and is actively returning capital to shareholders through buybacks and dividends. The article explores whether PayPal's current valuation represents a potential turnaround opportunity or if its strategic and competitive challenges will lead to further decline.",
+            "banner_image": "https://85336464.delivery.rocketcdn.me/wp-content/uploads/2026/09/BigStock-PayPal-Sign-860x574.jpg",
+            "source": "STL.News",
+            "category_within_source": "General",
+            "source_domain": "STL.News",
+            "topics": [
+                {
+                    "topic": "earnings",
+                    "relevance_score": "0.907074"
+                },
+                {
+                    "topic": "financial_markets",
+                    "relevance_score": "0.924451"
+                },
+                {
+                    "topic": "technology",
+                    "relevance_score": "0.830484"
+                },
+                {
+                    "topic": "finance",
+                    "relevance_score": "0.735010"
+                }
+            ],
+            "overall_sentiment_score": 0.077804,
+            "overall_sentiment_label": "Neutral",
+            "ticker_sentiment": [
+                {
+                    "ticker": "PYPL",
+                    "relevance_score": "1.000000",
+                    "ticker_sentiment_score": "0.111152",
+                    "ticker_sentiment_label": "Neutral"
+                },
+                {
+                    "ticker": "NKE",
+                    "relevance_score": "0.649330",
+                    "ticker_sentiment_score": "0.128982",
+                    "ticker_sentiment_label": "Neutral"
+                },
+                {
+                    "ticker": "AAPL",
+                    "relevance_score": "0.645104",
+                    "ticker_sentiment_score": "-0.137978",
+                    "ticker_sentiment_label": "Neutral"
+                }
+            ]
+        },
+        {
+            "title": "Consumer Tech (Sep 7-11): Apple Launches First Foldable iPhone, XPeng Commissioned IRON Humanoid Robot Pr",
+            "url": "https://www.benzinga.com/markets/tech/26/09/61754574/consumer-tech-sep-7-11-apple-launches-first-foldable-iphone-xpeng-commissioned-iron-humanoid-robot-production-more",
+            "time_published": "20260912T212311",
+            "authors": [],
+            "summary": "This article summarizes key developments in consumer tech from September 7-11, highlighting Apple's launch of a new foldable iPhone and Watch Series 12, and XPeng's commissioning of production lines for its IRON humanoid robot. Other major news includes escalating AI regulation talks, antitrust inquiries into NVIDIA and Fox/Roku deals, and earnings reports from Oracle, Copart, and Adobe. The article also covers advancements in semiconductors, software, automotive, robotics, spacecrafts, and AI.",
+            "banner_image": "https://cdn.benzinga.com/cdn-cgi/image/width=3840,format=auto,quality=85/files/images/story/2025/07/24/article-header-background-image.png",
+            "source": "Benzinga",
+            "category_within_source": "General",
+            "source_domain": "Benzinga",
+            "topics": [
+                {
+                    "topic": "technology",
+                    "relevance_score": "0.935384"
+                },
+                {
+                    "topic": "earnings",
+                    "relevance_score": "0.840858"
+                },
+                {
+                    "topic": "retail_wholesale",
+                    "relevance_score": "0.732231"
+                },
+                {
+                    "topic": "energy_transportation",
+                    "relevance_score": "0.627417"
+                }
+            ],
+            "overall_sentiment_score": 0.074895,
+            "overall_sentiment_label": "Neutral",
+            "ticker_sentiment": [
+                {
+                    "ticker": "AAPL",
+                    "relevance_score": "0.990523",
+                    "ticker_sentiment_score": "0.337195",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                },
+                {
+                    "ticker": "PM",
+                    "relevance_score": "0.613909",
+                    "ticker_sentiment_score": "-0.101282",
+                    "ticker_sentiment_label": "Neutral"
+                },
+                {
+                    "ticker": "NVDA",
+                    "relevance_score": "0.799937",
+                    "ticker_sentiment_score": "-0.226439",
+                    "ticker_sentiment_label": "Somewhat-Bearish"
+                },
+                {
+                    "ticker": "ORCL",
+                    "relevance_score": "0.883781",
+                    "ticker_sentiment_score": "0.425496",
+                    "ticker_sentiment_label": "Bullish"
+                },
+                {
+                    "ticker": "CPRT",
+                    "relevance_score": "0.672607",
+                    "ticker_sentiment_score": "-0.102763",
+                    "ticker_sentiment_label": "Neutral"
+                }
+            ]
+        },
+        {
+            "title": "Should You Ignore MP Materials and Buy This Rare-Earth Stock Instead?",
+            "url": "https://finance.yahoo.com/markets/stocks/articles/ignore-mp-materials-buy-rare-173300735.html",
+            "time_published": "20260912T173300",
+            "authors": [
+                "Lee Samaha"
+            ],
+            "summary": "This article compares MP Materials (NYSE: MP) and USA Rare Earth (NASDAQ: USAR), two rare-earth companies crucial for securing a domestic supply for the U.S. Both have government backing but differ in their focus: MP Materials on light rare-earth elements (LREE) and USA Rare Earth on heavy rare-earth elements (HREE). While MP Materials is more advanced in its mine-to-magnet strategy, USA Rare Earth presents a higher-risk, higher-return opportunity due to the strategic importance and higher value of HREEs.",
+            "banner_image": "https://s.yimg.com/lo/mysterio/api/ecf053599bde0389a9fdbd6366aeb28634f34079b3cbef04cc2f7a3f97418f1e/lightyear_networkapi/resizefill_h48%3Bquality_100%3Bformat_webp/https%3A%2F%2Fs.yimg.com%2Fos%2Fcreatr-uploaded-images%2F2020-10%2F515f50a0-0f30-11eb-9ebf-0273aacc9ef0",
+            "source": "Yahoo Finance",
+            "category_within_source": "General",
+            "source_domain": "Yahoo Finance",
+            "topics": [
+                {
+                    "topic": "financial_markets",
+                    "relevance_score": "0.924860"
+                },
+                {
+                    "topic": "manufacturing",
+                    "relevance_score": "0.739642"
+                },
+                {
+                    "topic": "technology",
+                    "relevance_score": "0.601645"
+                }
+            ],
+            "overall_sentiment_score": 0.239073,
+            "overall_sentiment_label": "Somewhat-Bullish",
+            "ticker_sentiment": [
+                {
+                    "ticker": "MP",
+                    "relevance_score": "1.000000",
+                    "ticker_sentiment_score": "0.036143",
+                    "ticker_sentiment_label": "Neutral"
+                },
+                {
+                    "ticker": "AAPL",
+                    "relevance_score": "0.703663",
+                    "ticker_sentiment_score": "0.300943",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                },
+                {
+                    "ticker": "GM",
+                    "relevance_score": "0.749976",
+                    "ticker_sentiment_score": "0.333481",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                },
+                {
+                    "ticker": "NVDA",
+                    "relevance_score": "0.607455",
+                    "ticker_sentiment_score": "0.340882",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                }
+            ]
+        },
+        {
+            "title": "Sirius XM CEO Highlights Cash Flow Growth, New Sports Plans and Ad Expansion at Conference",
+            "url": "https://finance.yahoo.com/media-advertising/articles/sirius-xm-ceo-highlights-cash-160158796.html",
+            "time_published": "20260912T155427",
+            "authors": [],
+            "summary": "Sirius XM's CEO, Jennifer Witz, outlined the company's strategy focusing on strengthening its subscription business, expanding advertising, and improving efficiency. The company reiterated free cash flow guidance of $1.375 billion this year and $1.5 billion next year, supported by cost savings and lower capital spending. Sirius XM is also focusing on subscriber retention through new features like 360L, Companion, and continuous service, as well as introducing lower-priced packages like the $5 Sports Pass.",
+            "banner_image": "https://s.yimg.com/lo/mysterio/api/dc4c2d2e38dbfbc061fb16b05f10967af91edbb93d07d28cf2c9a19a44389ffe/lightyear_networkapi/resizefit_w960%3Bquality_80%3Bformat_webp/https%3A%2F%2Fmedia.zenfs.com%2Fen%2Fmarketbeat_955%2F2b3a0dea4d7cdc09d3d793996b49caf8.png",
+            "source": "Yahoo Finance",
+            "category_within_source": "General",
+            "source_domain": "Yahoo Finance",
+            "topics": [
+                {
+                    "topic": "earnings",
+                    "relevance_score": "0.927339"
+                },
+                {
+                    "topic": "financial_markets",
+                    "relevance_score": "0.724791"
+                },
+                {
+                    "topic": "technology",
+                    "relevance_score": "0.605306"
+                }
+            ],
+            "overall_sentiment_score": 0.284415,
+            "overall_sentiment_label": "Somewhat-Bullish",
+            "ticker_sentiment": [
+                {
+                    "ticker": "SIRI",
+                    "relevance_score": "1.000000",
+                    "ticker_sentiment_score": "0.484643",
+                    "ticker_sentiment_label": "Bullish"
+                },
+                {
+                    "ticker": "AMZN",
+                    "relevance_score": "0.608624",
+                    "ticker_sentiment_score": "0.212157",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                },
+                {
+                    "ticker": "AAPL",
+                    "relevance_score": "0.629065",
+                    "ticker_sentiment_score": "0.245427",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                }
+            ]
+        },
+        {
+            "title": "Super Micro Computer Inc Stock (SMCI) Closed Up by 7.28% on Sep 11: What Signal Does It Send?",
+            "url": "https://www.tradingkey.com/news/market-movers/262164288-market-movers-smci-20260911",
+            "time_published": "20260912T154120",
+            "authors": [
+                "TradingKey"
+            ],
+            "summary": "Super Micro Computer Inc (SMCI) stock rose 7.28% due to institutional sector rotation into computer hardware and server infrastructure, coupled with strong demand reaffirmed by executives and a record AI order backlog. The company reported $39.06 billion in annual revenue and $2.20 billion in net profit, outperforming the Technology Equipment sector. Despite some technical indicators suggesting neutrality or overbought conditions, investor sentiment is bullish due to attractive valuation and strategic positioning in AI infrastructure.",
+            "banner_image": "https://resource.tradingkey.com/ai/wkrepot/7bb96140-f9c1-4c84-80a6-2a8615e51eb0_1789157721.png",
+            "source": "TradingKey",
+            "category_within_source": "General",
+            "source_domain": "TradingKey",
+            "topics": [
+                {
+                    "topic": "earnings",
+                    "relevance_score": "0.941087"
+                },
+                {
+                    "topic": "financial_markets",
+                    "relevance_score": "0.941987"
+                },
+                {
+                    "topic": "technology",
+                    "relevance_score": "0.825876"
+                }
+            ],
+            "overall_sentiment_score": 0.29366,
+            "overall_sentiment_label": "Somewhat-Bullish",
+            "ticker_sentiment": [
+                {
+                    "ticker": "SMCI",
+                    "relevance_score": "1.000000",
+                    "ticker_sentiment_score": "0.429411",
+                    "ticker_sentiment_label": "Bullish"
+                },
+                {
+                    "ticker": "AAPL",
+                    "relevance_score": "0.634339",
+                    "ticker_sentiment_score": "0.181800",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                },
+                {
+                    "ticker": "AMD",
+                    "relevance_score": "0.614000",
+                    "ticker_sentiment_score": "0.297225",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                }
+            ]
+        },
+        {
+            "title": "What Is Driving Attention Around Singularity Future Technology (SGLY)?",
+            "url": "https://kalkinemedia.com/us/stocks/technology/what-is-driving-attention-around-singularity-future-technology-sgly",
+            "time_published": "20260912T123505",
+            "authors": [
+                "Anmol Khazanchi"
+            ],
+            "summary": "Singularity Future Technology (SGLY) has garnered market attention following a significant stock retreat, prompting investors to re-examine the logistics-technology company. This market activity is directly linked to the company's technology profile, distinguishing its movements from broader market trends driven by easing energy concerns and inflation updates. The article emphasizes that the current interest stems from verified session activity and the company's business context, rather than future projections.",
+            "banner_image": "https://kalkinemedia.com/storage/uploads/large/shutterstock_2396156075_09_12_2026_12_30_14_311358.jpg",
+            "source": "Kalkine Media",
+            "category_within_source": "General",
+            "source_domain": "Kalkine Media",
+            "topics": [
+                {
+                    "topic": "technology",
+                    "relevance_score": "0.948542"
+                },
+                {
+                    "topic": "financial_markets",
+                    "relevance_score": "0.827094"
+                }
+            ],
+            "overall_sentiment_score": 0.147238,
+            "overall_sentiment_label": "Neutral",
+            "ticker_sentiment": [
+                {
+                    "ticker": "SGLY",
+                    "relevance_score": "1.000000",
+                    "ticker_sentiment_score": "-0.283409",
+                    "ticker_sentiment_label": "Somewhat-Bearish"
+                },
+                {
+                    "ticker": "AMD",
+                    "relevance_score": "0.588014",
+                    "ticker_sentiment_score": "0.262333",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                },
+                {
+                    "ticker": "GOOGL",
+                    "relevance_score": "0.580960",
+                    "ticker_sentiment_score": "0.237299",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                },
+                {
+                    "ticker": "GOOG",
+                    "relevance_score": "0.608912",
+                    "ticker_sentiment_score": "0.263217",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                },
+                {
+                    "ticker": "AAPL",
+                    "relevance_score": "0.597791",
+                    "ticker_sentiment_score": "0.229259",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                }
+            ]
+        },
+        {
+            "title": "Apple’s always-listening watch features test eavesdropping laws",
+            "url": "https://www.latimes.com/world-nation/story/2026-09-12/apples-always-listening-watch-features-test-eavesdropping-laws",
+            "time_published": "20260912T102215",
+            "authors": [
+                "Natalie Lung"
+            ],
+            "summary": "Apple's new Siri Recap and Live Rewind features for Apple Watch, which transcribe conversations, are raising legal concerns in several U.S. states regarding eavesdropping and wiretap laws. Legal experts question whether processing speech without creating a traditional audio file could still violate all-party consent laws, despite Apple's privacy assurances that audio is not recorded or stored. The controversy highlights the growing tension between convenience and privacy as ambient AI devices become more prevalent.",
+            "banner_image": "https://ca-times.brightspotcdn.com/dims4/default/e32ddf9/2147483647/strip/true/crop/5000x3333+0+0/resize/1200x800!/quality/75/?url=https%3A%2F%2Fcalifornia-times-brightspot.s3.amazonaws.com%2Fe3%2F71%2F021b6e2f45d29326951caecd5d16%2F2293832283.jpg",
+            "source": "Los Angeles Times",
+            "category_within_source": "General",
+            "source_domain": "Los Angeles Times",
+            "topics": [
+                {
+                    "topic": "technology",
+                    "relevance_score": "0.925804"
+                },
+                {
+                    "topic": "finance",
+                    "relevance_score": "0.721202"
+                }
+            ],
+            "overall_sentiment_score": -0.142675,
+            "overall_sentiment_label": "Neutral",
+            "ticker_sentiment": [
+                {
+                    "ticker": "AAPL",
+                    "relevance_score": "0.967615",
+                    "ticker_sentiment_score": "-0.313625",
+                    "ticker_sentiment_label": "Somewhat-Bearish"
+                },
+                {
+                    "ticker": "META",
+                    "relevance_score": "0.610200",
+                    "ticker_sentiment_score": "0.126789",
+                    "ticker_sentiment_label": "Neutral"
+                }
+            ]
+        },
+        {
+            "title": "GS Stock Price Today - Goldman Sachs Group News, Charts, Retail Sentiment",
+            "url": "https://stocktwits.com/symbol/GS",
+            "time_published": "20260912T011636",
+            "authors": [],
+            "summary": "This article provides current stock information for Goldman Sachs Group (GS), including its stock price, market capitalization, volume, and P/E ratio. It also details the company's business segments: Global Banking and Markets, Asset and Wealth Management, and Platform Solutions. Additionally, the article includes recent news headlines related to Goldman Sachs and a sentiment poll regarding the stock.",
+            "banner_image": null,
+            "source": "Stocktwits",
+            "category_within_source": "General",
+            "source_domain": "Stocktwits",
+            "topics": [
+                {
+                    "topic": "earnings",
+                    "relevance_score": "0.925526"
+                },
+                {
+                    "topic": "financial_markets",
+                    "relevance_score": "0.927960"
+                },
+                {
+                    "topic": "finance",
+                    "relevance_score": "0.927343"
+                },
+                {
+                    "topic": "ipo",
+                    "relevance_score": "0.647786"
+                }
+            ],
+            "overall_sentiment_score": 0.205485,
+            "overall_sentiment_label": "Somewhat-Bullish",
+            "ticker_sentiment": [
+                {
+                    "ticker": "GS",
+                    "relevance_score": "1.000000",
+                    "ticker_sentiment_score": "0.420134",
+                    "ticker_sentiment_label": "Bullish"
+                },
+                {
+                    "ticker": "AAPL",
+                    "relevance_score": "0.572082",
+                    "ticker_sentiment_score": "0.047247",
+                    "ticker_sentiment_label": "Neutral"
+                }
+            ]
+        },
+        {
+            "title": "Life360 at Goldman Sachs conference: growth broadens beyond family tracking",
+            "url": "https://ng.investing.com/news/stock-market-news/life360-at-goldman-sachs-conference-growth-broadens-beyond-family-tracking-93CH-2692497",
+            "time_published": "20260911T233139",
+            "authors": [
+                "Investing.com"
+            ],
+            "summary": "Life360 presented at the Goldman Sachs Communacopia + Technology Conference 2026, highlighting its expanded growth strategy beyond traditional family tracking to include subscriptions, advertising, and new products like pet trackers. The company reported record subscription growth in Q2, with management emphasizing profitability in core subscriptions funding new ventures and international expansion. Despite a 35% year-to-date stock drop, Life360 sees significant growth potential in its 100 million monthly active members and plans to target aging parents and reluctant sharers with new services.",
+            "banner_image": "https://content-media.investing.com/news/GoldmanSachsGroup_800x533_L_1670864483.jpg",
+            "source": "Investing.com Nigeria",
+            "category_within_source": "General",
+            "source_domain": "Investing.com Nigeria",
+            "topics": [
+                {
+                    "topic": "earnings",
+                    "relevance_score": "0.919627"
+                },
+                {
+                    "topic": "technology",
+                    "relevance_score": "0.803756"
+                },
+                {
+                    "topic": "finance",
+                    "relevance_score": "0.632607"
+                }
+            ],
+            "overall_sentiment_score": 0.31346,
+            "overall_sentiment_label": "Somewhat-Bullish",
+            "ticker_sentiment": [
+                {
+                    "ticker": "LIF",
+                    "relevance_score": "1.000000",
+                    "ticker_sentiment_score": "0.603369",
+                    "ticker_sentiment_label": "Bullish"
+                },
+                {
+                    "ticker": "GS",
+                    "relevance_score": "0.631511",
+                    "ticker_sentiment_score": "0.244211",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                },
+                {
+                    "ticker": "AAPL",
+                    "relevance_score": "0.740804",
+                    "ticker_sentiment_score": "0.119474",
+                    "ticker_sentiment_label": "Neutral"
+                }
+            ]
+        },
+        {
+            "title": "ON Semiconductor Corp Stock (ON) Moved Up by 7.35% on Sep 11: Facts Behind the Movement",
+            "url": "https://www.tradingkey.com/news/market-movers/262164172-market-movers-on-20260911",
+            "time_published": "20260911T214525",
+            "authors": [
+                "TradingKey"
+            ],
+            "summary": "ON Semiconductor Corp (ON) stock rose by 7.35% on September 11, driven by a broad tech equity relief rally following favorable August consumer price index data and declining crude oil prices. The surge was also fueled by anticipation for the company's 2026 Investor Day, focusing on its growth in AI power management. Despite some company-specific risks related to acquisitions and market exposure, analysts have a \"Hold\" rating with an average price target of $107.16.",
+            "banner_image": "https://resource.tradingkey.com/ai/wkrepot/7d809fbd-6aae-43ff-9ccf-4cbdaef1775c_1789154117.png",
+            "source": "TradingKey",
+            "category_within_source": "General",
+            "source_domain": "TradingKey",
+            "topics": [
+                {
+                    "topic": "earnings",
+                    "relevance_score": "0.949850"
+                },
+                {
+                    "topic": "financial_markets",
+                    "relevance_score": "0.818682"
+                },
+                {
+                    "topic": "technology",
+                    "relevance_score": "0.916970"
+                },
+                {
+                    "topic": "economy_monetary",
+                    "relevance_score": "0.640479"
+                },
+                {
+                    "topic": "economy_macro",
+                    "relevance_score": "0.647316"
+                }
+            ],
+            "overall_sentiment_score": 0.204973,
+            "overall_sentiment_label": "Somewhat-Bullish",
+            "ticker_sentiment": [
+                {
+                    "ticker": "ON",
+                    "relevance_score": "1.000000",
+                    "ticker_sentiment_score": "0.443432",
+                    "ticker_sentiment_label": "Bullish"
+                },
+                {
+                    "ticker": "AAPL",
+                    "relevance_score": "0.607145",
+                    "ticker_sentiment_score": "0.214106",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                },
+                {
+                    "ticker": "MU",
+                    "relevance_score": "0.609551",
+                    "ticker_sentiment_score": "-0.107539",
+                    "ticker_sentiment_label": "Neutral"
+                },
+                {
+                    "ticker": "AMD",
+                    "relevance_score": "0.617995",
+                    "ticker_sentiment_score": "0.340094",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                },
+                {
+                    "ticker": "QCOM",
+                    "relevance_score": "0.649854",
+                    "ticker_sentiment_score": "0.231670",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                }
+            ]
+        },
+        {
+            "title": "Form 8K T3 Defense Inc For: 11 September By Investing.com",
+            "url": "https://ca.investing.com/news/stock-market-news/form-8k-t3-defense-inc-for-11-september-93CH-4837109",
+            "time_published": "20260911T213624",
+            "authors": [
+                "Investing.com"
+            ],
+            "summary": "This article announces the filing of a Form 8K by T3 Defense Inc. on September 11, and provides current financial market data for various indices, commodities, bonds, and stocks. It also lists popular news articles and market movers, including gainers and losers.",
+            "banner_image": "https://content-media.investing.com/news/moved_LYNXMPEM450ND_1200_L.jpg",
+            "source": "Investing.com Canada",
+            "category_within_source": "General",
+            "source_domain": "Investing.com Canada",
+            "topics": [
+                {
+                    "topic": "financial_markets",
+                    "relevance_score": "0.934010"
+                },
+                {
+                    "topic": "earnings",
+                    "relevance_score": "0.719073"
+                },
+                {
+                    "topic": "economy_monetary",
+                    "relevance_score": "0.641007"
+                }
+            ],
+            "overall_sentiment_score": 0.157687,
+            "overall_sentiment_label": "Somewhat-Bullish",
+            "ticker_sentiment": [
+                {
+                    "ticker": "DFNS",
+                    "relevance_score": "0.923046",
+                    "ticker_sentiment_score": "0.020203",
+                    "ticker_sentiment_label": "Neutral"
+                },
+                {
+                    "ticker": "AAPL",
+                    "relevance_score": "0.645664",
+                    "ticker_sentiment_score": "0.212332",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                },
+                {
+                    "ticker": "TSLA",
+                    "relevance_score": "0.640478",
+                    "ticker_sentiment_score": "0.239427",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                },
+                {
+                    "ticker": "AVGO",
+                    "relevance_score": "0.604395",
+                    "ticker_sentiment_score": "0.245790",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                }
+            ]
+        },
+        {
+            "title": "Kalshi stock futures plan targets Tesla and Apple shares - Bloomberg",
+            "url": "https://www.investing.com/news/stock-market-news/kalshi-stock-futures-plan-targets-tesla-and-apple-shares--bloomberg-93CH-4898406",
+            "time_published": "20260911T203149",
+            "authors": [
+                "Investing.com"
+            ],
+            "summary": "Kalshi Inc. is planning to file for regulatory approval to offer single-stock perpetual futures in the U.S., focusing on shares of Tesla, Apple, and Nvidia. The New York-based company intends to submit its application to the Commodity Futures Trading Commission and Securities and Exchange Commission as early as next week. If approved, these would be the first single-stock perpetual futures offered in the United States, marking a significant expansion for newer trading platforms.",
+            "banner_image": "https://content-media.investing.com/news/LYNXNPEA9907F_L.jpg",
+            "source": "Investing.com",
+            "category_within_source": "General",
+            "source_domain": "Investing.com",
+            "topics": [
+                {
+                    "topic": "financial_markets",
+                    "relevance_score": "0.901326"
+                },
+                {
+                    "topic": "finance",
+                    "relevance_score": "0.701027"
+                },
+                {
+                    "topic": "technology",
+                    "relevance_score": "0.645765"
+                }
+            ],
+            "overall_sentiment_score": 0.10159,
+            "overall_sentiment_label": "Neutral",
+            "ticker_sentiment": [
+                {
+                    "ticker": "AAPL",
+                    "relevance_score": "1.000000",
+                    "ticker_sentiment_score": "0.130426",
+                    "ticker_sentiment_label": "Neutral"
+                },
+                {
+                    "ticker": "TSLA",
+                    "relevance_score": "0.916969",
+                    "ticker_sentiment_score": "0.119919",
+                    "ticker_sentiment_label": "Neutral"
+                },
+                {
+                    "ticker": "NVDA",
+                    "relevance_score": "0.830886",
+                    "ticker_sentiment_score": "0.102583",
+                    "ticker_sentiment_label": "Neutral"
+                }
+            ]
+        },
+        {
+            "title": "Best Buy stock hits 52-week high at 91.27 USD",
+            "url": "https://www.investing.com/news/company-news/best-buy-stock-hits-52week-high-at-9127-usd-93CH-4898361",
+            "time_published": "20260911T192204",
+            "authors": [
+                "Investing.com"
+            ],
+            "summary": "Best Buy (BBY) stock has reached a new 52-week high of $91.27, trading at $91.32 with a market cap of $19.08 billion, reflecting an 18.5% increase over the past year. The company's recent fiscal Q2 2027 results surpassed expectations, with adjusted earnings of $1.47 per share and revenue of $9.78 billion, though analyst sentiment is mixed regarding its valuation. InvestingPro analysis suggests the stock is undervalued, with an attractive P/E ratio of 15.15 and a low PEG ratio of 0.23.",
+            "banner_image": "https://content-media.investing.com/news/LYNXMPEA7P0M1_L.jpg",
+            "source": "Investing.com",
+            "category_within_source": "General",
+            "source_domain": "Investing.com",
+            "topics": [
+                {
+                    "topic": "earnings",
+                    "relevance_score": "0.901307"
+                },
+                {
+                    "topic": "financial_markets",
+                    "relevance_score": "0.825442"
+                },
+                {
+                    "topic": "retail_wholesale",
+                    "relevance_score": "0.730304"
+                }
+            ],
+            "overall_sentiment_score": 0.261864,
+            "overall_sentiment_label": "Somewhat-Bullish",
+            "ticker_sentiment": [
+                {
+                    "ticker": "BBY",
+                    "relevance_score": "1.000000",
+                    "ticker_sentiment_score": "0.485264",
+                    "ticker_sentiment_label": "Bullish"
+                },
+                {
+                    "ticker": "GOOGL",
+                    "relevance_score": "0.587497",
+                    "ticker_sentiment_score": "0.204804",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                },
+                {
+                    "ticker": "AAPL",
+                    "relevance_score": "0.576044",
+                    "ticker_sentiment_score": "0.239085",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                },
+                {
+                    "ticker": "AMZN",
+                    "relevance_score": "0.563545",
+                    "ticker_sentiment_score": "0.214650",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                },
+                {
+                    "ticker": "NFLX",
+                    "relevance_score": "0.596373",
+                    "ticker_sentiment_score": "0.221442",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                }
+            ]
+        },
+        {
+            "title": "Apple Shares Jump 3.6% as $1,999 Foldable iPhone Duo Debuts",
+            "url": "https://finance.biggo.com/news/1e070cdb-1a30-49f0-9f17-9b4a4fd96e24",
+            "time_published": "20260911T182154",
+            "authors": [],
+            "summary": "Apple's shares increased by 3.6% following the launch of its new $1,999 foldable iPhone Duo, a significant design change that generated considerable online interest. Despite this, AT&T's CEO dismissed the technology as \"not new.\" Meanwhile, other market segments saw Lennar's stock fall due to rising mortgage rates and Newmont's decline as the materials sector underperformed.",
+            "banner_image": "https://img.biggo.com/s9pLHwnizbUe53QneBcPWgTuXwBAf-pw66Hbtzt6jro/fit/1720/0/sm/0/aHR0cHM6Ly9pbWcuYmdvLm9uZS9uZXdzLWltYWdlL2luZm9fY2FyZC8yMDI2LTA5LzFlMDcwY2RiLTFhMzAtNDlmMC05ZjE3LTliNGE0ZmQ5NmUyNF8xNzg5MTU0NTQ3X2RlZmF1dG8ud2VicA.webp",
+            "source": "BigGo Finance",
+            "category_within_source": "General",
+            "source_domain": "BigGo Finance",
+            "topics": [
+                {
+                    "topic": "technology",
+                    "relevance_score": "0.910891"
+                },
+                {
+                    "topic": "financial_markets",
+                    "relevance_score": "0.823409"
+                },
+                {
+                    "topic": "retail_wholesale",
+                    "relevance_score": "0.647616"
+                },
+                {
+                    "topic": "real_estate",
+                    "relevance_score": "0.635533"
+                }
+            ],
+            "overall_sentiment_score": -0.040225,
+            "overall_sentiment_label": "Neutral",
+            "ticker_sentiment": [
+                {
+                    "ticker": "AAPL",
+                    "relevance_score": "0.970622",
+                    "ticker_sentiment_score": "0.735117",
+                    "ticker_sentiment_label": "Bullish"
+                },
+                {
+                    "ticker": "T",
+                    "relevance_score": "0.713244",
+                    "ticker_sentiment_score": "0.225804",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                },
+                {
+                    "ticker": "LEN",
+                    "relevance_score": "0.622621",
+                    "ticker_sentiment_score": "-0.536281",
+                    "ticker_sentiment_label": "Bearish"
+                },
+                {
+                    "ticker": "NEM",
+                    "relevance_score": "0.635598",
+                    "ticker_sentiment_score": "-0.418357",
+                    "ticker_sentiment_label": "Bearish"
+                }
+            ]
+        },
+        {
+            "title": "Arista Networks Inc Stock (ANET) Opened Up by 4.45% on Sep 11: Facts Behind the Movement",
+            "url": "https://www.tradingkey.com/news/market-movers/262163651-market-movers-anet-20260911",
+            "time_published": "20260911T175420",
+            "authors": [
+                "TradingKey"
+            ],
+            "summary": "Arista Networks Inc (ANET) stock opened up by 4.45% on September 11, driven by strong demand in the artificial intelligence data center ecosystem and a revised full-year revenue outlook. Despite positive momentum from hyperscaler investments and analyst endorsements, the stock experienced intraday volatility due to elevated valuation metrics, potential power bottlenecks, and significant insider share sales. These factors collectively highlight investor enthusiasm for ANET's AI role while also pointing to caution regarding its premium valuation and operational constraints.",
+            "banner_image": "https://resource.tradingkey.com/uploads/20251024/68658377675a42e2bbed98144a729ddatradingkeylogo-ed79a44cf96240a287ca1bb541f06bff.png",
+            "source": "TradingKey",
+            "category_within_source": "General",
+            "source_domain": "TradingKey",
+            "topics": [
+                {
+                    "topic": "earnings",
+                    "relevance_score": "0.907756"
+                },
+                {
+                    "topic": "technology",
+                    "relevance_score": "0.802492"
+                },
+                {
+                    "topic": "financial_markets",
+                    "relevance_score": "0.704490"
+                },
+                {
+                    "topic": "economy_macro",
+                    "relevance_score": "0.611868"
+                }
+            ],
+            "overall_sentiment_score": 0.328687,
+            "overall_sentiment_label": "Somewhat-Bullish",
+            "ticker_sentiment": [
+                {
+                    "ticker": "ANET",
+                    "relevance_score": "1.000000",
+                    "ticker_sentiment_score": "0.407918",
+                    "ticker_sentiment_label": "Bullish"
+                },
+                {
+                    "ticker": "AAPL",
+                    "relevance_score": "0.618652",
+                    "ticker_sentiment_score": "0.202929",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                }
+            ]
+        },
+        {
+            "title": "Why This Apple Supplier Is on Pace for Its Best 5-Day Stretch in 17 Years",
+            "url": "https://www.barrons.com/articles/skyworks-solutions-stock-apple-qorvo-64596da8",
+            "time_published": "20260911T154955",
+            "authors": [
+                "Kit Norton"
+            ],
+            "summary": "Skyworks Solutions, an Apple supplier, is experiencing its best five-day stock performance in 17 years. This surge occurred after CEO Philip Brace provided an update to investors regarding a crucial merger. The stock closed higher for the fifth consecutive trading session on Friday.",
+            "banner_image": "https://images.barrons.com/im-45050595?width=700&height=466",
+            "source": "Barron's",
+            "category_within_source": "General",
+            "source_domain": "Barron's",
+            "topics": [
+                {
+                    "topic": "mergers_and_acquisitions",
+                    "relevance_score": "0.817870"
+                },
+                {
+                    "topic": "technology",
+                    "relevance_score": "0.934089"
+                },
+                {
+                    "topic": "financial_markets",
+                    "relevance_score": "0.707538"
+                }
+            ],
+            "overall_sentiment_score": 0.388296,
+            "overall_sentiment_label": "Bullish",
+            "ticker_sentiment": [
+                {
+                    "ticker": "SWKS",
+                    "relevance_score": "1.000000",
+                    "ticker_sentiment_score": "0.487762",
+                    "ticker_sentiment_label": "Bullish"
+                },
+                {
+                    "ticker": "AAPL",
+                    "relevance_score": "0.722528",
+                    "ticker_sentiment_score": "0.346807",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                }
+            ]
+        },
+        {
+            "title": "Why Apple’s next computer should be for the smart home",
+            "url": "https://www.theverge.com/tech/993892/apples-next-computer-smart-home-hub-airport-router",
+            "time_published": "20260911T142012",
+            "authors": [
+                "Jennifer Pattison Tuohy"
+            ],
+            "summary": "The article argues that Apple's next significant computer should be an \"intelligent home hub\" to address the shortcomings of current smart home infrastructure. This device would combine a Wi-Fi router, an AI-powered smart home hub, and local storage into a single unit, prioritizing local processing for improved speed, privacy, and reliability. The author suggests this \"Apple Home Server\" could integrate Apple's past ventures in networking and media streaming with its current leadership in Matter and Thread protocols, providing a robust, user-friendly solution for managing digital life and smart home automations locally.",
+            "banner_image": "https://platform.theverge.com/wp-content/uploads/sites/2/chorus/uploads/chorus_asset/file/24732441/236707_Mac_Studio_AKrales_0064.jpg?quality=90&strip=all&crop=0%2C0%2C100%2C100&w=2400",
+            "source": "The Verge",
+            "category_within_source": "General",
+            "source_domain": "The Verge",
+            "topics": [
+                {
+                    "topic": "technology",
+                    "relevance_score": "1.000000"
+                },
+                {
+                    "topic": "retail_wholesale",
+                    "relevance_score": "0.738138"
+                }
+            ],
+            "overall_sentiment_score": 0.347957,
+            "overall_sentiment_label": "Somewhat-Bullish",
+            "ticker_sentiment": [
+                {
+                    "ticker": "AAPL",
+                    "relevance_score": "1.000000",
+                    "ticker_sentiment_score": "0.340408",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                }
+            ]
+        },
+        {
+            "title": "Jensen Huang Mocks Nvidia ‘Circular Financing’ Fears: ‘If That Is, Let’s Do More of That’",
+            "url": "https://www.benzinga.com/markets/prediction-markets/26/09/61740701/nvidia-circular-financing-jensen-huang",
+            "time_published": "20260911T141241",
+            "authors": [
+                "Daragh Thomas Benzinga Staff Writer"
+            ],
+            "summary": "Nvidia CEO Jensen Huang dismissed concerns about the company's \"circular financing\" strategy, where it invests in AI labs and cloud providers that subsequently use Nvidia technology. Huang stated that Nvidia's capital input is small compared to the business generated, emphasizing the company's strong visibility into these projects. Skeptics, including Jim Chanos and Michael Burry, argue that this strategy blurs the lines between genuine demand and demand created by Nvidia's own financial backing.",
+            "banner_image": "https://cdn.benzinga.com/cdn-cgi/image/width=3840,format=auto,quality=85/files/images/story/2026/09/11/Jensen-Huang--Nvidia-Founder-And-Ceo-And.jpg",
+            "source": "Benzinga",
+            "category_within_source": "General",
+            "source_domain": "Benzinga",
+            "topics": [
+                {
+                    "topic": "technology",
+                    "relevance_score": "0.929212"
+                },
+                {
+                    "topic": "earnings",
+                    "relevance_score": "0.833705"
+                },
+                {
+                    "topic": "financial_markets",
+                    "relevance_score": "0.713719"
+                },
+                {
+                    "topic": "economy_macro",
+                    "relevance_score": "0.621900"
+                }
+            ],
+            "overall_sentiment_score": 0.138517,
+            "overall_sentiment_label": "Neutral",
+            "ticker_sentiment": [
+                {
+                    "ticker": "NVDA",
+                    "relevance_score": "1.000000",
+                    "ticker_sentiment_score": "0.284792",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                },
+                {
+                    "ticker": "BLK",
+                    "relevance_score": "0.629635",
+                    "ticker_sentiment_score": "0.135335",
+                    "ticker_sentiment_label": "Neutral"
+                },
+                {
+                    "ticker": "GS",
+                    "relevance_score": "0.623758",
+                    "ticker_sentiment_score": "0.069991",
+                    "ticker_sentiment_label": "Neutral"
+                },
+                {
+                    "ticker": "AAPL",
+                    "relevance_score": "0.580150",
+                    "ticker_sentiment_score": "0.115769",
+                    "ticker_sentiment_label": "Neutral"
+                },
+                {
+                    "ticker": "GOOGL",
+                    "relevance_score": "0.583937",
+                    "ticker_sentiment_score": "0.117635",
+                    "ticker_sentiment_label": "Neutral"
+                }
+            ]
+        },
+        {
+            "title": "Company News for Sep 11, 2026",
+            "url": "https://uk.finance.yahoo.com/news/company-news-sep-11-2026-132500285.html",
+            "time_published": "20260911T132011",
+            "authors": [
+                "Zacks Equity Research"
+            ],
+            "summary": "Apple Inc. (AAPL) saw its shares jump 3.6% after unveiling its new $1,999 foldable iPhone Duo. In contrast, Lennar Corporation (LEN) shares fell 3.5% due to rising mortgage rates, and Newmont Corporation (NEM) declined 2% as the materials sector suffered. AT&T Inc. (T) shares rose 1.6%, despite its CEO questioning Apple's foldable phone technology.",
+            "banner_image": "https://s.yimg.com/lo/mysterio/api/bd78613cd17cae22876a8a5fb36297fe0a526965ab7702ece2216c8d7f82d3e4/lightyear_networkapi/resizefit_w960%3Bquality_80%3Bformat_webp/https%3A%2F%2Fmedia.zenfs.com%2Fen%2Fzacks.com%2Fbd614b5b4cd86d012677e26365ef58e3.jpg",
+            "source": "Yahoo Finance UK",
+            "category_within_source": "General",
+            "source_domain": "Yahoo Finance UK",
+            "topics": [
+                {
+                    "topic": "financial_markets",
+                    "relevance_score": "0.944093"
+                },
+                {
+                    "topic": "technology",
+                    "relevance_score": "0.834346"
+                },
+                {
+                    "topic": "real_estate",
+                    "relevance_score": "0.722687"
+                },
+                {
+                    "topic": "earnings",
+                    "relevance_score": "0.719955"
+                },
+                {
+                    "topic": "economy_monetary",
+                    "relevance_score": "0.609725"
+                }
+            ],
+            "overall_sentiment_score": 0.397888,
+            "overall_sentiment_label": "Bullish",
+            "ticker_sentiment": [
+                {
+                    "ticker": "AAPL",
+                    "relevance_score": "0.979061",
+                    "ticker_sentiment_score": "0.464479",
+                    "ticker_sentiment_label": "Bullish"
+                },
+                {
+                    "ticker": "LEN",
+                    "relevance_score": "0.713898",
+                    "ticker_sentiment_score": "0.436117",
+                    "ticker_sentiment_label": "Bullish"
+                },
+                {
+                    "ticker": "T",
+                    "relevance_score": "0.656813",
+                    "ticker_sentiment_score": "0.289301",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                },
+                {
+                    "ticker": "NEM",
+                    "relevance_score": "0.629619",
+                    "ticker_sentiment_score": "0.333591",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                }
+            ]
+        },
+        {
+            "title": "Form 8K Ocean Capital Acquisition Corporation For: 11 September By Investing.com",
+            "url": "https://ca.investing.com/news/stock-market-news/form-8k-oceancapital-acquisition-corporation-for-11-september-93CH-4836703",
+            "time_published": "20260911T131810",
+            "authors": [],
+            "summary": "This article announces the filing of a Form 8K by Ocean Capital Acquisition Corporation for September 11. It's a brief, factual update from Investing.com, a financial markets news source, without further details provided in the snippet.",
+            "banner_image": "https://content-media.investing.com/news/moved_LYNXMPEM3Q0WG_1200_L.jpg",
+            "source": "Investing.com Canada",
+            "category_within_source": "General",
+            "source_domain": "Investing.com Canada",
+            "topics": [
+                {
+                    "topic": "financial_markets",
+                    "relevance_score": "0.945605"
+                }
+            ],
+            "overall_sentiment_score": 0.038575,
+            "overall_sentiment_label": "Neutral",
+            "ticker_sentiment": [
+                {
+                    "ticker": "OCAC-R",
+                    "relevance_score": "0.310346",
+                    "ticker_sentiment_score": "0.003360",
+                    "ticker_sentiment_label": "Neutral"
+                },
+                {
+                    "ticker": "AVGO",
+                    "relevance_score": "0.561950",
+                    "ticker_sentiment_score": "0.043081",
+                    "ticker_sentiment_label": "Neutral"
+                },
+                {
+                    "ticker": "AAPL",
+                    "relevance_score": "0.591771",
+                    "ticker_sentiment_score": "0.023222",
+                    "ticker_sentiment_label": "Neutral"
+                },
+                {
+                    "ticker": "TSLA",
+                    "relevance_score": "0.558084",
+                    "ticker_sentiment_score": "0.040269",
+                    "ticker_sentiment_label": "Neutral"
+                }
+            ]
+        },
+        {
+            "title": "Adobe Forecast Misses Estimates, Renewing Fears About AI Impact",
+            "url": "https://finance.yahoo.com/technology/ai/articles/adobe-forecast-misses-estimates-renewing-201136315.html",
+            "time_published": "20260911T125400",
+            "authors": [
+                "Brody Ford"
+            ],
+            "summary": "Adobe Inc.'s sales forecast narrowly missed analysts' estimates, reigniting concerns among investors about the impact of AI competitors on the company. The software maker's shares dropped following the announcement, reflecting ongoing investor unease, especially given the rise of generative AI tools that offer alternatives to Adobe's traditional products. The company also announced a new CEO, Anil Chakravarthy, a decision that surprised some investors as he previously led a smaller division.",
+            "banner_image": "https://s.yimg.com/lo/mysterio/api/5a19cb852add8cfb785f7064e760042d9c48aa912601a72319f7c45cc3a0ebc6/lightyear_networkapi/resizefill_w960%3Bquality_80%3Bformat_webp/https%3A%2F%2Fmedia.zenfs.com%2Fen%2Fbloomberg_holding_pen_162%2F0b759cc39877b24fdfc1cd6a4068148a.jpg",
+            "source": "Yahoo Finance",
+            "category_within_source": "General",
+            "source_domain": "Yahoo Finance",
+            "topics": [
+                {
+                    "topic": "earnings",
+                    "relevance_score": "0.940919"
+                },
+                {
+                    "topic": "technology",
+                    "relevance_score": "0.814621"
+                }
+            ],
+            "overall_sentiment_score": -0.07371,
+            "overall_sentiment_label": "Neutral",
+            "ticker_sentiment": [
+                {
+                    "ticker": "ADBE",
+                    "relevance_score": "1.000000",
+                    "ticker_sentiment_score": "-0.421402",
+                    "ticker_sentiment_label": "Bearish"
+                },
+                {
+                    "ticker": "AAPL",
+                    "relevance_score": "0.635748",
+                    "ticker_sentiment_score": "0.330310",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                }
+            ]
+        },
+        {
+            "title": "Skyworks Rises 7%, Qorvo Gains 5% as CEO Says $22B Merger Is in Final Stages; Qualcomm Ticks Up",
+            "url": "https://finance.yahoo.com/markets/stocks/articles/skyworks-rises-7-qorvo-gains-141101962.html",
+            "time_published": "20260911T101100",
+            "authors": [
+                "David Moadel"
+            ],
+            "summary": "Skyworks and Qorvo stocks saw significant gains after Skyworks CEO Phil Brace announced their $22 billion merger is in its final stages, with only two regulatory jurisdictions pending. Qualcomm also rose, contributing to a broader semiconductor sector rally that provided a second support for Skyworks' gains beyond the merger catalyst. The fixed exchange ratio ensures Qorvo closely tracks Skyworks, and the deal's risk profile has shifted from existential to procedural.",
+            "banner_image": "https://s.yimg.com/lo/mysterio/api/37f659f74872dff191321c32b3f9fbaca42150b6e52bd8e10b1f7e3c7d574038/lightyear_networkapi/resizefill_h48%3Bquality_100%3Bformat_webp/https%3A%2F%2Fs.yimg.com%2Fos%2Fcreatr-uploaded-images%2F2025-10%2F4c1b1d40-ab89-11f0-8fcd-756508880954",
+            "source": "Yahoo Finance",
+            "category_within_source": "General",
+            "source_domain": "Yahoo Finance",
+            "topics": [
+                {
+                    "topic": "mergers_and_acquisitions",
+                    "relevance_score": "0.915263"
+                },
+                {
+                    "topic": "financial_markets",
+                    "relevance_score": "0.839450"
+                },
+                {
+                    "topic": "technology",
+                    "relevance_score": "0.717899"
+                }
+            ],
+            "overall_sentiment_score": 0.339381,
+            "overall_sentiment_label": "Somewhat-Bullish",
+            "ticker_sentiment": [
+                {
+                    "ticker": "QRVO",
+                    "relevance_score": "1.000000",
+                    "ticker_sentiment_score": "0.440490",
+                    "ticker_sentiment_label": "Bullish"
+                },
+                {
+                    "ticker": "SWKS",
+                    "relevance_score": "0.959787",
+                    "ticker_sentiment_score": "0.489125",
+                    "ticker_sentiment_label": "Bullish"
+                },
+                {
+                    "ticker": "QCOM",
+                    "relevance_score": "0.737899",
+                    "ticker_sentiment_score": "0.257221",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                },
+                {
+                    "ticker": "AAPL",
+                    "relevance_score": "0.610432",
+                    "ticker_sentiment_score": "0.138369",
+                    "ticker_sentiment_label": "Neutral"
+                }
+            ]
+        },
+        {
+            "title": "BofA Strategists Warn of Stock Volatility as Outflows Hit US",
+            "url": "https://finance.yahoo.com/markets/stocks/articles/bofa-strategists-warn-stock-volatility-084500523.html",
+            "time_published": "20260911T034500",
+            "authors": [
+                "Michael Msika"
+            ],
+            "summary": "Bank of America strategists are warning of increased stock market volatility due to significant outflows from US equities and investor complacency regarding rising Treasury yields. US equity funds have seen $14.2 billion in outflows over three weeks, the largest since January, signaling investor caution despite a lack of widespread panic. The strategists point to \"blasé markets\" and \"bravado policy\" as a recipe for instability, citing factors like monetary policy uncertainty, geopolitical tensions, and doubts about AI's economic impact.",
+            "banner_image": "https://s.yimg.com/lo/mysterio/api/86ffb5946033edba50c35f95cc3d05d925b006837a32feafb92b7f2bd59e458a/lightyear_networkapi/resizefit_w960%3Bquality_80%3Bformat_webp/https%3A%2F%2Fmedia.zenfs.com%2Fen%2Fbloomberg_holding_pen_162%2F499401b0de04721d958100610ffab975.jpg",
+            "source": "Yahoo Finance",
+            "category_within_source": "General",
+            "source_domain": "Yahoo Finance",
+            "topics": [
+                {
+                    "topic": "financial_markets",
+                    "relevance_score": "0.923765"
+                },
+                {
+                    "topic": "economy_monetary",
+                    "relevance_score": "0.833309"
+                },
+                {
+                    "topic": "economy_macro",
+                    "relevance_score": "0.731545"
+                }
+            ],
+            "overall_sentiment_score": 0.026774,
+            "overall_sentiment_label": "Neutral",
+            "ticker_sentiment": [
+                {
+                    "ticker": "BAC",
+                    "relevance_score": "1.000000",
+                    "ticker_sentiment_score": "-0.263840",
+                    "ticker_sentiment_label": "Somewhat-Bearish"
+                },
+                {
+                    "ticker": "AAPL",
+                    "relevance_score": "0.656228",
+                    "ticker_sentiment_score": "0.142856",
+                    "ticker_sentiment_label": "Neutral"
+                },
+                {
+                    "ticker": "TSLA",
+                    "relevance_score": "0.593777",
+                    "ticker_sentiment_score": "-0.113277",
+                    "ticker_sentiment_label": "Neutral"
+                },
+                {
+                    "ticker": "CVX",
+                    "relevance_score": "0.569542",
+                    "ticker_sentiment_score": "0.191062",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                },
+                {
+                    "ticker": "XOM",
+                    "relevance_score": "0.559862",
+                    "ticker_sentiment_score": "0.190192",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                }
+            ]
+        },
+        {
+            "title": "Switch to Verizon and get the new iPhone 18 Pro now. No trade-in needed. And get the latest iPhone every year.",
+            "url": "https://sg.finance.yahoo.com/news/switch-verizon-iphone-18-pro-025600543.html",
+            "time_published": "20260911T025650",
+            "authors": [],
+            "summary": "Verizon is offering the new iPhone 18 Pro with no trade-in required and the option to upgrade to the latest iPhone every year through its Simplicity plan. Customers can also get additional Apple products like the Apple Watch Series 12, Apple Watch Ultra 4, AirPods 5, and the new foldable iPhone Duo. The announcement highlights Verizon's loyalty program, which includes no activation or upgrade fees and Verizon Dollars cash back.",
+            "banner_image": "https://s.yimg.com/lo/mysterio/api/f7984f54b9f3250d61a840a08f4bb80791eaa6221015ee83b42718319a4ceb5b/lightyear_networkapi/resizefill_h48%3Bquality_100%3Bformat_webp/https%3A%2F%2Fs.yimg.com%2Fos%2Fcreatr-uploaded-images%2F2025-08%2Fb2b7bbc0-8385-11f0-977e-d9d7d4cd04d2",
+            "source": "Yahoo Finance Singapore",
+            "category_within_source": "General",
+            "source_domain": "Yahoo Finance Singapore",
+            "topics": [
+                {
+                    "topic": "retail_wholesale",
+                    "relevance_score": "0.718844"
+                },
+                {
+                    "topic": "technology",
+                    "relevance_score": "0.914492"
+                }
+            ],
+            "overall_sentiment_score": 0.446121,
+            "overall_sentiment_label": "Bullish",
+            "ticker_sentiment": [
+                {
+                    "ticker": "VZ",
+                    "relevance_score": "1.000000",
+                    "ticker_sentiment_score": "0.446551",
+                    "ticker_sentiment_label": "Bullish"
+                },
+                {
+                    "ticker": "AAPL",
+                    "relevance_score": "0.943709",
+                    "ticker_sentiment_score": "0.426455",
+                    "ticker_sentiment_label": "Bullish"
+                }
+            ]
+        },
+        {
+            "title": "eBay CEO Jamie Iannone sells $2.29 million in company stock",
+            "url": "https://www.investing.com/news/insider-trading-news/ebay-ceo-jamie-iannone-sells-229-million-in-company-stock-93CH-4897128",
+            "time_published": "20260911T005421",
+            "authors": [
+                "Investing.com"
+            ],
+            "summary": "eBay CEO Jamie Iannone sold 22,220 shares of company stock in early September 2026, totaling approximately $2.29 million, executed under a Rule 10b5-1 trading plan. Despite the sales, Iannone still holds a significant number of direct and indirect shares. The company recently reported strong Q2 results, exceeding analyst expectations and leading to raised full-year guidance and positive analyst ratings.",
+            "banner_image": "https://content-media.investing.com/news/ebay_800x533_L_1412585413.jpg",
+            "source": "Investing.com",
+            "category_within_source": "General",
+            "source_domain": "Investing.com",
+            "topics": [
+                {
+                    "topic": "finance",
+                    "relevance_score": "0.825376"
+                },
+                {
+                    "topic": "earnings",
+                    "relevance_score": "0.940153"
+                },
+                {
+                    "topic": "financial_markets",
+                    "relevance_score": "0.727054"
+                }
+            ],
+            "overall_sentiment_score": -0.065778,
+            "overall_sentiment_label": "Neutral",
+            "ticker_sentiment": [
+                {
+                    "ticker": "EBAY",
+                    "relevance_score": "0.984115",
+                    "ticker_sentiment_score": "-0.107594",
+                    "ticker_sentiment_label": "Neutral"
+                },
+                {
+                    "ticker": "ADBE",
+                    "relevance_score": "0.590665",
+                    "ticker_sentiment_score": "0.139043",
+                    "ticker_sentiment_label": "Neutral"
+                },
+                {
+                    "ticker": "ORCL",
+                    "relevance_score": "0.575245",
+                    "ticker_sentiment_score": "-0.131669",
+                    "ticker_sentiment_label": "Neutral"
+                },
+                {
+                    "ticker": "NVDA",
+                    "relevance_score": "0.588698",
+                    "ticker_sentiment_score": "-0.101911",
+                    "ticker_sentiment_label": "Neutral"
+                },
+                {
+                    "ticker": "AAPL",
+                    "relevance_score": "0.559898",
+                    "ticker_sentiment_score": "0.118570",
+                    "ticker_sentiment_label": "Neutral"
+                }
+            ]
+        },
+        {
+            "title": "Apple SVP Jennifer Newstead sells $456,176 of company stock",
+            "url": "https://www.investing.com/news/insider-trading-news/apple-svp-jennifer-newstead-sells-456176-of-company-stock-93CH-4897097",
+            "time_published": "20260911T001854",
+            "authors": [
+                "Investing.com"
+            ],
+            "summary": "Jennifer Newstead, Apple's SVP, General Counsel, and Government Affairs, sold 1,438 shares of AAPL stock for $456,176 on September 8, 2026, as part of a Rule 10b5-1 trading plan. Following the sale, she directly owns 34,352 shares. Apple shares are trading near their 52-week high and are considered overvalued by InvestingPro, despite the recent introduction of a new foldable iPhone model, the Duo.",
+            "banner_image": "https://content-media.investing.com/news/apple_800x533_L_1411373495.jpg",
+            "source": "Investing.com",
+            "category_within_source": "General",
+            "source_domain": "Investing.com",
+            "topics": [
+                {
+                    "topic": "financial_markets",
+                    "relevance_score": "0.913711"
+                },
+                {
+                    "topic": "technology",
+                    "relevance_score": "0.818850"
+                },
+                {
+                    "topic": "earnings",
+                    "relevance_score": "0.707443"
+                }
+            ],
+            "overall_sentiment_score": 0.164516,
+            "overall_sentiment_label": "Somewhat-Bullish",
+            "ticker_sentiment": [
+                {
+                    "ticker": "AAPL",
+                    "relevance_score": "1.000000",
+                    "ticker_sentiment_score": "-0.127453",
+                    "ticker_sentiment_label": "Neutral"
+                },
+                {
+                    "ticker": "JPM",
+                    "relevance_score": "0.578366",
+                    "ticker_sentiment_score": "0.229213",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                },
+                {
+                    "ticker": "MS",
+                    "relevance_score": "0.563708",
+                    "ticker_sentiment_score": "0.206981",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                },
+                {
+                    "ticker": "BAC",
+                    "relevance_score": "0.596941",
+                    "ticker_sentiment_score": "0.246939",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                }
+            ]
+        },
+        {
+            "title": "Microsoft plans 38 gigawatts of data center capacity by 2032, Bloomberg News reports",
+            "url": "https://www.reuters.com/business/microsoft-plans-38-gigawatts-data-center-capacity-by-2032-bloomberg-news-reports-2026-09-10/",
+            "time_published": "20260910T221241",
+            "authors": [
+                "Reuters"
+            ],
+            "summary": "Microsoft intends to significantly expand its data center capacity to 38 gigawatts by 2032, more than tripling its current footprint of 12 gigawatts, according to a Bloomberg News report. A growing portion of this expansion, about one-third, will be dedicated to AI-specific chips, reflecting the massive computing power required for generative AI services. The company expects substantial capital expenditures, with plans to spread long-term data center leases over 25 years to lower annual reported costs.",
+            "banner_image": "https://www.reuters.com/resizer/v2/ESUP3MMU5ZPTLCBINUWBBLLNJM.jpg?auth=ee6ad202bde42ec4f10889047874869d519a898b06e1f525bb8357b4c3f95ef0&width=1920&quality=80",
+            "source": "Reuters",
+            "category_within_source": "General",
+            "source_domain": "Reuters",
+            "topics": [
+                {
+                    "topic": "earnings",
+                    "relevance_score": "0.934318"
+                },
+                {
+                    "topic": "technology",
+                    "relevance_score": "0.839244"
+                }
+            ],
+            "overall_sentiment_score": 0.209781,
+            "overall_sentiment_label": "Somewhat-Bullish",
+            "ticker_sentiment": [
+                {
+                    "ticker": "MSFT",
+                    "relevance_score": "1.000000",
+                    "ticker_sentiment_score": "0.403843",
+                    "ticker_sentiment_label": "Bullish"
+                },
+                {
+                    "ticker": "ORCL",
+                    "relevance_score": "0.622663",
+                    "ticker_sentiment_score": "0.243316",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                },
+                {
+                    "ticker": "INTC",
+                    "relevance_score": "0.622688",
+                    "ticker_sentiment_score": "0.230005",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                },
+                {
+                    "ticker": "AAPL",
+                    "relevance_score": "0.621166",
+                    "ticker_sentiment_score": "-0.137587",
+                    "ticker_sentiment_label": "Neutral"
+                },
+                {
+                    "ticker": "NVDA",
+                    "relevance_score": "0.628730",
+                    "ticker_sentiment_score": "0.322314",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                }
+            ]
+        },
+        {
+            "title": "Amkor will expand investments in its advanced packaging facility in Arizona to $12 billion",
+            "url": "https://www.kjzz.org/business/2026-09-10/amkor-will-expand-investments-in-its-advanced-packaging-facility-in-arizona-to-12-billion",
+            "time_published": "20260910T214300",
+            "authors": [
+                "Greg Hahne"
+            ],
+            "summary": "Amkor Technology Inc. is significantly expanding its investment in an advanced packaging and testing facility in Arizona, increasing it from $2 billion to $12 billion. This expansion will nearly triple the facility's size to over a million square feet, supporting the U.S. government's initiative to onshore advanced manufacturing. Apple is slated to be the first customer, utilizing Amkor for packaging chips produced by TSMC in Arizona.",
+            "banner_image": "https://npr.brightspotcdn.com/dims4/default/00c7469/2147483647/strip/true/crop/955x538+0+0/resize/880x496!/quality/90/?url=http%3A%2F%2Fnpr-brightspot.s3.amazonaws.com%2Flegacy%2Fs3fs-public%2FAmkor_rendering.png",
+            "source": "KJZZ",
+            "category_within_source": "General",
+            "source_domain": "KJZZ",
+            "topics": [
+                {
+                    "topic": "manufacturing",
+                    "relevance_score": "0.935709"
+                },
+                {
+                    "topic": "technology",
+                    "relevance_score": "0.803407"
+                }
+            ],
+            "overall_sentiment_score": 0.397122,
+            "overall_sentiment_label": "Bullish",
+            "ticker_sentiment": [
+                {
+                    "ticker": "AMKR",
+                    "relevance_score": "1.000000",
+                    "ticker_sentiment_score": "0.423796",
+                    "ticker_sentiment_label": "Bullish"
+                },
+                {
+                    "ticker": "AAPL",
+                    "relevance_score": "0.703085",
+                    "ticker_sentiment_score": "0.327010",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                }
+            ]
+        },
+        {
+            "title": "Apple is walking a ‘tightrope’ when it comes to the prices of its new iPhones",
+            "url": "https://www.marketwatch.com/story/apples-stock-rises-after-iphone-reveal-the-company-is-walking-a-tightrope-on-pricing-say-analysts-813898ac",
+            "time_published": "20260910T201916",
+            "authors": [
+                "Barbara Kollmeyer",
+                "Hannah Pedone"
+            ],
+            "summary": "Apple is facing a pricing dilemma for its new iPhones, including the iPhone 18 Pro line and its first foldable phone, the Duo. Analysts suggest the company may need to absorb some costs to maintain sales amidst rising inflation and constrained consumer spending. The challenge lies in balancing increased production costs with consumers' limited ability to pay higher prices for new devices.",
+            "banner_image": "https://images.mktw.net/im-38300245?width=1260&height=840",
+            "source": "MarketWatch",
+            "category_within_source": "General",
+            "source_domain": "MarketWatch",
+            "topics": [
+                {
+                    "topic": "technology",
+                    "relevance_score": "0.900740"
+                },
+                {
+                    "topic": "retail_wholesale",
+                    "relevance_score": "0.801767"
+                },
+                {
+                    "topic": "economy_monetary",
+                    "relevance_score": "0.719506"
+                }
+            ],
+            "overall_sentiment_score": -0.232691,
+            "overall_sentiment_label": "Somewhat-Bearish",
+            "ticker_sentiment": [
+                {
+                    "ticker": "AAPL",
+                    "relevance_score": "1.000000",
+                    "ticker_sentiment_score": "-0.222332",
+                    "ticker_sentiment_label": "Somewhat-Bearish"
+                }
+            ]
+        },
+        {
+            "title": "BofA Tweaks Apple Stock Price Target After Ternus Debut",
+            "url": "https://ca.finance.yahoo.com/news/bofa-tweaks-apple-stock-price-185234629.html",
+            "time_published": "20260910T185200",
+            "authors": [
+                "Moz Farooque ACCA"
+            ],
+            "summary": "Bank of America maintained its Buy rating on Apple (NASDAQ:AAPL) but lowered its price target from $380 to $370 after CEO John Ternus's first product event. The adjustment reflects softer-than-expected new iPhone pricing, which could boost sales volume but pressure gross margins due to rising component costs. Despite increased iPhone unit estimates for 2026 and 2027, the reduced average selling prices led to lower profit expectations, although confidence in Apple's long-term strategy remains strong, particularly with the introduction of the foldable iPhone Duo and advancements in AI and privacy.",
+            "banner_image": "https://s.yimg.com/lo/mysterio/api/1b68aab08c9ea2f649ab560c6e73a9477aed74c9cbe5936f1a0862c48889c323/lightyear_networkapi/resizefill_h48%3Bquality_100%3Bformat_webp/https%3A%2F%2Fs.yimg.com%2Fos%2Fcreatr-uploaded-images%2F2020-11%2F656a72d0-2a99-11eb-abff-c3a42df53bdf",
+            "source": "Yahoo! Finance Canada",
+            "category_within_source": "General",
+            "source_domain": "Yahoo! Finance Canada",
+            "topics": [
+                {
+                    "topic": "earnings",
+                    "relevance_score": "0.928941"
+                },
+                {
+                    "topic": "technology",
+                    "relevance_score": "0.816041"
+                },
+                {
+                    "topic": "financial_markets",
+                    "relevance_score": "0.711702"
+                }
+            ],
+            "overall_sentiment_score": 0.120155,
+            "overall_sentiment_label": "Neutral",
+            "ticker_sentiment": [
+                {
+                    "ticker": "BAC",
+                    "relevance_score": "0.927991",
+                    "ticker_sentiment_score": "0.145816",
+                    "ticker_sentiment_label": "Neutral"
+                },
+                {
+                    "ticker": "AAPL",
+                    "relevance_score": "0.960058",
+                    "ticker_sentiment_score": "0.089594",
+                    "ticker_sentiment_label": "Neutral"
+                }
+            ]
+        },
+        {
+            "title": "The Apple Watch Got a Massive AI Upgrade—and the Controversy Could Get It Banned at the Office",
+            "url": "https://www.inc.com/kit-eaton/the-apple-watch-got-a-massive-ai-upgrade-and-the-controversy-could-get-it-banned-at-the-office/91403791",
+            "time_published": "20260910T184547",
+            "authors": [
+                "KIT EATON"
+            ],
+            "summary": "The new Apple Watch Series 12 and Ultra 4 feature advanced AI capabilities like Live Rewind and Siri Recap, which record and summarize conversations. While Sound Recognition offers useful accessibility features, the Live Rewind and Siri Recap functionalities raise significant privacy concerns for corporate environments. Companies may consider banning these devices in meetings due to the risk of business secrets leaking.",
+            "banner_image": "https://img-cdn.inc.com/image/upload/f_webp,c_fit,w_1920,q_auto/vip/2026/09/apple-watch-listening-inc.jpg",
+            "source": "Inc.com",
+            "category_within_source": "General",
+            "source_domain": "Inc.com",
+            "topics": [
+                {
+                    "topic": "technology",
+                    "relevance_score": "0.905173"
+                },
+                {
+                    "topic": "ipo",
+                    "relevance_score": "0.626536"
+                }
+            ],
+            "overall_sentiment_score": 0.027103,
+            "overall_sentiment_label": "Neutral",
+            "ticker_sentiment": [
+                {
+                    "ticker": "AAPL",
+                    "relevance_score": "1.000000",
+                    "ticker_sentiment_score": "0.035084",
+                    "ticker_sentiment_label": "Neutral"
+                }
+            ]
+        },
+        {
+            "title": "QYLD ETF Explained: How an $8.3 Billion Covered Call Strategy Delivers 12% Monthly Income",
+            "url": "https://kalkine.ca/news/etfs/qyld-etf-explained-how-an-83-billion-covered-call-strategy-delivers-12-monthly-income",
+            "time_published": "20260910T183030",
+            "authors": [
+                "Vinay Lochav"
+            ],
+            "summary": "The QYLD ETF utilizes a covered call strategy on the Nasdaq 100 Index to generate monthly income, boasting an $8.3 billion AUM and a 12.21% trailing twelve-month distribution yield. While it aims for current income, investors should note that this strategy caps upside potential in exchange for regular distributions from option premiums. The fund's holdings mirror the Nasdaq 100, and its performance is tied to the index's direction and volatility.",
+            "banner_image": "https://kalkine.ca/featured_image/gallery/large/shutterstock_2667253171_09_10_2026_18_42_22_146419.jpg",
+            "source": "kalkine.ca",
+            "category_within_source": "General",
+            "source_domain": "kalkine.ca",
+            "topics": [
+                {
+                    "topic": "finance",
+                    "relevance_score": "0.713886"
+                },
+                {
+                    "topic": "financial_markets",
+                    "relevance_score": "0.932837"
+                },
+                {
+                    "topic": "technology",
+                    "relevance_score": "0.621115"
+                }
+            ],
+            "overall_sentiment_score": 0.16902,
+            "overall_sentiment_label": "Somewhat-Bullish",
+            "ticker_sentiment": [
+                {
+                    "ticker": "QYLD",
+                    "relevance_score": "1.000000",
+                    "ticker_sentiment_score": "0.292343",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                },
+                {
+                    "ticker": "NVDA",
+                    "relevance_score": "0.602229",
+                    "ticker_sentiment_score": "0.135194",
+                    "ticker_sentiment_label": "Neutral"
+                },
+                {
+                    "ticker": "AAPL",
+                    "relevance_score": "0.602782",
+                    "ticker_sentiment_score": "0.118724",
+                    "ticker_sentiment_label": "Neutral"
+                },
+                {
+                    "ticker": "MSFT",
+                    "relevance_score": "0.630918",
+                    "ticker_sentiment_score": "0.148480",
+                    "ticker_sentiment_label": "Neutral"
+                },
+                {
+                    "ticker": "AMZN",
+                    "relevance_score": "0.637717",
+                    "ticker_sentiment_score": "0.102387",
+                    "ticker_sentiment_label": "Neutral"
+                }
+            ]
+        },
+        {
+            "title": "Apple catches up in foldables. Wall Street likes it",
+            "url": "https://ca.finance.yahoo.com/news/apple-catches-foldables-wall-street-180000412.html",
+            "time_published": "20260910T181913",
+            "authors": [
+                "Proactive"
+            ],
+            "summary": "Apple has unveiled its first foldable iPhone, the iPhone Duo, priced from $1,999, entering a market previously dominated by Samsung, Google, and Huawei. Analysts are largely positive, with Bank of America seeing a larger market opportunity and UBS expecting Apple to sell over 5 million foldable units in fiscal 2026. This launch also marks new CEO John Ternus's first major product introduction, emphasizing Apple's focus on integrated hardware, software, and services.",
+            "banner_image": "https://s.yimg.com/lo/mysterio/api/b5f7156a9ca7b3ad5fe0f58c9f15cee41504c307aedf8702f3ad045ca5bcc08f/lightyear_networkapi/resizefill_h48%3Bquality_100%3Bformat_webp/https%3A%2F%2Fd29szjachogqwa.cloudfront.net%2Fimages%2Fuser-uploaded%2FProactive-Light.png",
+            "source": "Yahoo! Finance Canada",
+            "category_within_source": "General",
+            "source_domain": "Yahoo! Finance Canada",
+            "topics": [
+                {
+                    "topic": "technology",
+                    "relevance_score": "0.906942"
+                },
+                {
+                    "topic": "financial_markets",
+                    "relevance_score": "0.832730"
+                },
+                {
+                    "topic": "earnings",
+                    "relevance_score": "0.711057"
+                },
+                {
+                    "topic": "retail_wholesale",
+                    "relevance_score": "0.636184"
+                }
+            ],
+            "overall_sentiment_score": 0.225267,
+            "overall_sentiment_label": "Somewhat-Bullish",
+            "ticker_sentiment": [
+                {
+                    "ticker": "AAPL",
+                    "relevance_score": "1.000000",
+                    "ticker_sentiment_score": "0.490926",
+                    "ticker_sentiment_label": "Bullish"
+                },
+                {
+                    "ticker": "GOOG",
+                    "relevance_score": "0.725242",
+                    "ticker_sentiment_score": "0.144986",
+                    "ticker_sentiment_label": "Neutral"
+                },
+                {
+                    "ticker": "BAC",
+                    "relevance_score": "0.622704",
+                    "ticker_sentiment_score": "0.255788",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                },
+                {
+                    "ticker": "IBM",
+                    "relevance_score": "0.564701",
+                    "ticker_sentiment_score": "0.056703",
+                    "ticker_sentiment_label": "Neutral"
+                }
+            ]
+        },
+        {
+            "title": "RB Global Inc stock hits 52-week low at 80.62 USD",
+            "url": "https://www.investing.com/news/company-news/rb-global-inc-stock-hits-52week-low-at-8062-usd-93CH-4896614",
+            "time_published": "20260910T173030",
+            "authors": [
+                "Investing.com"
+            ],
+            "summary": "RB Global Inc (RBA) stock has fallen to a 52-week low of $80.62, representing a 31.94% decrease over the past year. Despite the downturn, InvestingPro data suggests the stock is undervalued and oversold, potentially indicating a buying opportunity. The company recently reported second-quarter 2026 revenue of $1.32 billion, exceeding forecasts, although adjusted EPS missed expectations.",
+            "banner_image": "https://content-media.investing.com/news/LYNXMPEM3K18K_1200_L.jpg",
+            "source": "Investing.com",
+            "category_within_source": "General",
+            "source_domain": "Investing.com",
+            "topics": [
+                {
+                    "topic": "earnings",
+                    "relevance_score": "0.947298"
+                },
+                {
+                    "topic": "financial_markets",
+                    "relevance_score": "0.905309"
+                },
+                {
+                    "topic": "economy_macro",
+                    "relevance_score": "0.735477"
+                }
+            ],
+            "overall_sentiment_score": -0.02309,
+            "overall_sentiment_label": "Neutral",
+            "ticker_sentiment": [
+                {
+                    "ticker": "RBA",
+                    "relevance_score": "1.000000",
+                    "ticker_sentiment_score": "0.128102",
+                    "ticker_sentiment_label": "Neutral"
+                },
+                {
+                    "ticker": "ORCL",
+                    "relevance_score": "0.627601",
+                    "ticker_sentiment_score": "-0.138016",
+                    "ticker_sentiment_label": "Neutral"
+                },
+                {
+                    "ticker": "MU",
+                    "relevance_score": "0.613012",
+                    "ticker_sentiment_score": "-0.112644",
+                    "ticker_sentiment_label": "Neutral"
+                },
+                {
+                    "ticker": "ADBE",
+                    "relevance_score": "0.639049",
+                    "ticker_sentiment_score": "-0.144604",
+                    "ticker_sentiment_label": "Neutral"
+                },
+                {
+                    "ticker": "AAPL",
+                    "relevance_score": "0.626632",
+                    "ticker_sentiment_score": "0.108633",
+                    "ticker_sentiment_label": "Neutral"
+                }
+            ]
+        },
+        {
+            "title": "Skyworks Solutions Surges 10%, Qorvo Climbs 6% While Chip Stocks Fall: Is the Merger Finally Clearing?",
+            "url": "https://247wallst.com/investing/2026/09/10/skyworks-solutions-surges-10-qorvo-climbs-6-while-chip-stocks-fall-is-the-merger-finally-clearing/",
+            "time_published": "20260910T164746",
+            "authors": [
+                "David Moadel"
+            ],
+            "summary": "Skyworks Solutions (SWKS) and Qorvo (QRVO) saw significant stock surges of 10% and 6% respectively, while the broader semiconductor market experienced a decline. This divergence suggests that the market is pricing in increased optimism for their proposed merger, as Skyworks' CEO Phil Brace previously indicated the China review had entered its final phase with a target close by year-end. Investors are closely watching for formal regulatory decisions or merger-completion disclosures as the transaction appears to be nearing its conclusion.",
+            "banner_image": "https://247wallst.com/wp-content/uploads/2026/08/shutterstock_2512399729-400x225.jpg",
+            "source": "24/7 Wall St.",
+            "category_within_source": "General",
+            "source_domain": "24/7 Wall St.",
+            "topics": [
+                {
+                    "topic": "mergers_and_acquisitions",
+                    "relevance_score": "1.000000"
+                },
+                {
+                    "topic": "financial_markets",
+                    "relevance_score": "0.915310"
+                },
+                {
+                    "topic": "technology",
+                    "relevance_score": "0.830179"
+                },
+                {
+                    "topic": "earnings",
+                    "relevance_score": "0.738849"
+                }
+            ],
+            "overall_sentiment_score": 0.266136,
+            "overall_sentiment_label": "Somewhat-Bullish",
+            "ticker_sentiment": [
+                {
+                    "ticker": "SWKS",
+                    "relevance_score": "0.970764",
+                    "ticker_sentiment_score": "0.402092",
+                    "ticker_sentiment_label": "Bullish"
+                },
+                {
+                    "ticker": "AAPL",
+                    "relevance_score": "0.603022",
+                    "ticker_sentiment_score": "0.142003",
+                    "ticker_sentiment_label": "Neutral"
+                },
+                {
+                    "ticker": "QCOM",
+                    "relevance_score": "0.587230",
+                    "ticker_sentiment_score": "0.209480",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                }
+            ]
+        },
+        {
+            "title": "Seagate Technology Holdings PLC Stock (STX) Moved Down by 3.95% on Sep 10: Key Drivers Unveiled",
+            "url": "https://www.tradingkey.com/news/market-movers/262161473-market-movers-stx-20260910",
+            "time_published": "20260910T161500",
+            "authors": [
+                "TradingKey"
+            ],
+            "summary": "Seagate Technology Holdings PLC (STX) stock dropped by 3.95% on September 10 due to tactical profit-taking after recent gains and market sentiment influenced by debt note redemption and insider share sales. Despite strong long-term demand for mass-capacity storage driven by AI data center expansion, elevated valuation multiples made the stock susceptible to short-term pullbacks. Technical indicators show neutral signals, and the company reported annual revenue of $12.20 billion.",
+            "banner_image": null,
+            "source": "TradingKey",
+            "category_within_source": "General",
+            "source_domain": "TradingKey",
+            "topics": [
+                {
+                    "topic": "financial_markets",
+                    "relevance_score": "0.911237"
+                },
+                {
+                    "topic": "technology",
+                    "relevance_score": "0.835669"
+                },
+                {
+                    "topic": "earnings",
+                    "relevance_score": "0.746744"
+                },
+                {
+                    "topic": "economy_macro",
+                    "relevance_score": "0.639486"
+                }
+            ],
+            "overall_sentiment_score": -0.136946,
+            "overall_sentiment_label": "Neutral",
+            "ticker_sentiment": [
+                {
+                    "ticker": "STX",
+                    "relevance_score": "1.000000",
+                    "ticker_sentiment_score": "-0.288231",
+                    "ticker_sentiment_label": "Somewhat-Bearish"
+                },
+                {
+                    "ticker": "AAPL",
+                    "relevance_score": "0.608163",
+                    "ticker_sentiment_score": "0.214891",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                },
+                {
+                    "ticker": "MU",
+                    "relevance_score": "0.600175",
+                    "ticker_sentiment_score": "-0.314437",
+                    "ticker_sentiment_label": "Somewhat-Bearish"
+                },
+                {
+                    "ticker": "NVDA",
+                    "relevance_score": "0.642655",
+                    "ticker_sentiment_score": "-0.202060",
+                    "ticker_sentiment_label": "Somewhat-Bearish"
+                },
+                {
+                    "ticker": "WDC",
+                    "relevance_score": "0.580843",
+                    "ticker_sentiment_score": "-0.109910",
+                    "ticker_sentiment_label": "Neutral"
+                }
+            ]
+        },
+        {
+            "title": "Taiwan Semiconductor September Revenue Surges 53% and Can’t Keep Up With Demand",
+            "url": "https://247wallst.com/investing/2026/09/10/taiwan-semiconductor-september-revenue-surges-53-and-cant-keep-up-with-demand/",
+            "time_published": "20260910T152756",
+            "authors": [
+                "Rich Duprey"
+            ],
+            "summary": "Taiwan Semiconductor Manufacturing (TSMC) reported a 53% year-over-year surge in August 2026 revenue, reaching $16.35 billion, significantly exceeding its own full-year guidance. Despite this strong financial performance, TSMC is struggling to meet customer demand, particularly due to tight packaging capacity and a significant gap between demand and supply for AI chips. The company is aggressively expanding its capacity, with 20 fabs under construction, and anticipates continued strong demand from the AI sector through 2029-2030.",
+            "banner_image": "https://247wallst.com/wp-content/uploads/2019/09/imageforentry4-ubk.jpg",
+            "source": "24/7 Wall St.",
+            "category_within_source": "General",
+            "source_domain": "24/7 Wall St.",
+            "topics": [
+                {
+                    "topic": "earnings",
+                    "relevance_score": "1.000000"
+                },
+                {
+                    "topic": "technology",
+                    "relevance_score": "0.924079"
+                },
+                {
+                    "topic": "financial_markets",
+                    "relevance_score": "0.805146"
+                },
+                {
+                    "topic": "manufacturing",
+                    "relevance_score": "0.710657"
+                },
+                {
+                    "topic": "economy_macro",
+                    "relevance_score": "0.603050"
+                }
+            ],
+            "overall_sentiment_score": 0.242711,
+            "overall_sentiment_label": "Somewhat-Bullish",
+            "ticker_sentiment": [
+                {
+                    "ticker": "TSM",
+                    "relevance_score": "1.000000",
+                    "ticker_sentiment_score": "0.435273",
+                    "ticker_sentiment_label": "Bullish"
+                },
+                {
+                    "ticker": "AMD",
+                    "relevance_score": "0.723129",
+                    "ticker_sentiment_score": "0.327424",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                },
+                {
+                    "ticker": "NVDA",
+                    "relevance_score": "0.741841",
+                    "ticker_sentiment_score": "0.305418",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                },
+                {
+                    "ticker": "AAPL",
+                    "relevance_score": "0.603840",
+                    "ticker_sentiment_score": "0.142114",
+                    "ticker_sentiment_label": "Neutral"
+                },
+                {
+                    "ticker": "QCOM",
+                    "relevance_score": "0.624544",
+                    "ticker_sentiment_score": "0.105918",
+                    "ticker_sentiment_label": "Neutral"
+                }
+            ]
+        },
+        {
+            "title": "Apple's foldable iPhone is 'not new': AT&T CEO",
+            "url": "https://finance.yahoo.com/video/apples-foldable-iphone-not-t-152837975.html",
+            "time_published": "20260910T151928",
+            "authors": [
+                "Yahoo Finance Video and Brian Sozzi"
+            ],
+            "summary": "AT&T CEO John Stankey commented on Apple's entry into the foldable phone market, stating that the concept is \"not new\" as Android devices have offered foldable options for years. He suggested that foldable phones serve a niche market and questioned whether Apple's version would significantly alter penetration dynamics, especially given the rising prices of iPhones which are causing consumers to hold onto devices longer. Stankey also discussed how AT&T plans to support new form factors and consumer purchasing behaviors.",
+            "banner_image": "https://s.yimg.com/lo/mysterio/api/fdb03dc0745fd4fca3bcf9e1433fbd3657d584a77efa39052e37c0eca469bd1f/lightyear_networkapi/resizefill_h48%3Bquality_100%3Bformat_webp/https%3A%2F%2Fs.yimg.com%2Fos%2Fcreatr-uploaded-images%2F2020-12%2F02246f50-3412-11eb-bfdd-de89f8b3b8b8",
+            "source": "Yahoo Finance",
+            "category_within_source": "General",
+            "source_domain": "Yahoo Finance",
+            "topics": [
+                {
+                    "topic": "technology",
+                    "relevance_score": "1.000000"
+                },
+                {
+                    "topic": "finance",
+                    "relevance_score": "0.605229"
+                }
+            ],
+            "overall_sentiment_score": 0.01272,
+            "overall_sentiment_label": "Neutral",
+            "ticker_sentiment": [
+                {
+                    "ticker": "AAPL",
+                    "relevance_score": "1.000000",
+                    "ticker_sentiment_score": "-0.063965",
+                    "ticker_sentiment_label": "Neutral"
+                },
+                {
+                    "ticker": "T",
+                    "relevance_score": "0.904845",
+                    "ticker_sentiment_score": "0.098256",
+                    "ticker_sentiment_label": "Neutral"
+                },
+                {
+                    "ticker": "COIN",
+                    "relevance_score": "0.649735",
+                    "ticker_sentiment_score": "0.028911",
+                    "ticker_sentiment_label": "Neutral"
+                }
+            ]
+        },
+        {
+            "title": "Forget the Magnificent Seven Stocks, Gary Black Says This Tech Giant Is Cheaper",
+            "url": "https://www.benzinga.com/trading-ideas/long-ideas/26/09/61716878/forget-the-magnificent-seven-stocks-gary-black-says-this-tech-giant-is-cheaper",
+            "time_published": "20260910T151310",
+            "authors": [
+                "Chris Katje"
+            ],
+            "summary": "Gary Black, Managing Partner at Future Fund, suggests that Broadcom (NASDAQ: AVGO) is a cheaper investment compared to the Magnificent Seven stocks, based on its valuation metrics after a recent earnings dip. He highlights Broadcom's low price-to-earnings growth (PEG) ratio of 0.9x for 2026, making it the most affordable among what he terms the \"Mag 8.\" Despite a post-earnings share drop, Black anticipates a recovery due to strong AI revenue growth, with third-quarter AI revenue up 221% year-over-year and promising guidance for fiscal 2026.",
+            "banner_image": "https://cdn.benzinga.com/cdn-cgi/image/width=3840,format=auto,quality=85/files/images/story/2026/09/10/Los-Angeles--California---20-January-202.jpg",
+            "source": "Benzinga",
+            "category_within_source": "General",
+            "source_domain": "Benzinga",
+            "topics": [
+                {
+                    "topic": "earnings",
+                    "relevance_score": "0.830020"
+                },
+                {
+                    "topic": "financial_markets",
+                    "relevance_score": "0.924849"
+                },
+                {
+                    "topic": "technology",
+                    "relevance_score": "1.000000"
+                }
+            ],
+            "overall_sentiment_score": 0.128545,
+            "overall_sentiment_label": "Neutral",
+            "ticker_sentiment": [
+                {
+                    "ticker": "AVGO",
+                    "relevance_score": "1.000000",
+                    "ticker_sentiment_score": "0.422887",
+                    "ticker_sentiment_label": "Bullish"
+                },
+                {
+                    "ticker": "NVDA",
+                    "relevance_score": "0.811580",
+                    "ticker_sentiment_score": "0.273888",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                },
+                {
+                    "ticker": "TSLA",
+                    "relevance_score": "0.734305",
+                    "ticker_sentiment_score": "-0.419930",
+                    "ticker_sentiment_label": "Bearish"
+                },
+                {
+                    "ticker": "GOOGL",
+                    "relevance_score": "0.631101",
+                    "ticker_sentiment_score": "0.247536",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                },
+                {
+                    "ticker": "AAPL",
+                    "relevance_score": "0.632128",
+                    "ticker_sentiment_score": "0.147570",
+                    "ticker_sentiment_label": "Neutral"
+                }
+            ]
+        },
+        {
+            "title": "Form 8K Ivanhoe Electric Inc For: 10 September By Investing.com",
+            "url": "https://ca.investing.com/news/stock-market-news/form-8k-ivanhoe-electric-inc-for-10-september-93CH-4835175",
+            "time_published": "20260910T143954",
+            "authors": [],
+            "summary": "This article announces the filing of a Form 8K by Ivanhoe Electric Inc. on September 10. The filing is provided by Investing.com, a financial markets platform.",
+            "banner_image": "https://content-media.investing.com/news/moved_LYNXMPEM3Q0V4_1200_L.jpg",
+            "source": "Investing.com Canada",
+            "category_within_source": "General",
+            "source_domain": "Investing.com Canada",
+            "topics": [
+                {
+                    "topic": "financial_markets",
+                    "relevance_score": "0.906006"
+                },
+                {
+                    "topic": "finance",
+                    "relevance_score": "0.741259"
+                }
+            ],
+            "overall_sentiment_score": -0.075755,
+            "overall_sentiment_label": "Neutral",
+            "ticker_sentiment": [
+                {
+                    "ticker": "IE",
+                    "relevance_score": "1.000000",
+                    "ticker_sentiment_score": "-0.203333",
+                    "ticker_sentiment_label": "Somewhat-Bearish"
+                },
+                {
+                    "ticker": "AVGO",
+                    "relevance_score": "0.641449",
+                    "ticker_sentiment_score": "-0.135618",
+                    "ticker_sentiment_label": "Neutral"
+                },
+                {
+                    "ticker": "AAPL",
+                    "relevance_score": "0.604016",
+                    "ticker_sentiment_score": "0.220655",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                }
+            ]
+        },
+        {
+            "title": "UBS reiterates Gartner stock rating citing contract value trends",
+            "url": "https://www.investing.com/news/analyst-ratings/ubs-reiterates-gartner-stock-rating-citing-contract-value-trends-93CH-4896235",
+            "time_published": "20260910T143919",
+            "authors": [
+                "Investing.com"
+            ],
+            "summary": "UBS has reiterated a Neutral rating and $196.00 price target for Gartner (NYSE:IT) shares, following investor meetings where the company expressed optimism about contract value re-acceleration. Despite a 33% year-to-date decline in stock price, InvestingPro analysis suggests Gartner is undervalued. The company anticipates ex-Federal contract value growth to re-accelerate in the second half of the year, although buybacks are expected to be more moderate in Q3 due to recent stock appreciation.",
+            "banner_image": "https://content-media.investing.com/news/moved_LYNXMPEM3T1AG_1200_L.jpg",
+            "source": "Investing.com",
+            "category_within_source": "General",
+            "source_domain": "Investing.com",
+            "topics": [
+                {
+                    "topic": "earnings",
+                    "relevance_score": "0.928117"
+                },
+                {
+                    "topic": "financial_markets",
+                    "relevance_score": "0.808437"
+                },
+                {
+                    "topic": "technology",
+                    "relevance_score": "0.719077"
+                },
+                {
+                    "topic": "economy_macro",
+                    "relevance_score": "0.644228"
+                },
+                {
+                    "topic": "finance",
+                    "relevance_score": "0.643269"
+                }
+            ],
+            "overall_sentiment_score": 0.03466,
+            "overall_sentiment_label": "Neutral",
+            "ticker_sentiment": [
+                {
+                    "ticker": "IT",
+                    "relevance_score": "1.000000",
+                    "ticker_sentiment_score": "0.214727",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                },
+                {
+                    "ticker": "ORCL",
+                    "relevance_score": "0.582189",
+                    "ticker_sentiment_score": "-0.181727",
+                    "ticker_sentiment_label": "Somewhat-Bearish"
+                },
+                {
+                    "ticker": "AAPL",
+                    "relevance_score": "0.550039",
+                    "ticker_sentiment_score": "0.269105",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                },
+                {
+                    "ticker": "NVDA",
+                    "relevance_score": "0.564629",
+                    "ticker_sentiment_score": "-0.137552",
+                    "ticker_sentiment_label": "Neutral"
+                },
+                {
+                    "ticker": "GOOGL",
+                    "relevance_score": "0.573287",
+                    "ticker_sentiment_score": "-0.109411",
+                    "ticker_sentiment_label": "Neutral"
+                }
+            ]
+        },
+        {
+            "title": "UBS reiterates Apple stock neutral rating on foldable iPhone launch",
+            "url": "https://www.investing.com/news/analyst-ratings/ubs-reiterates-apple-stock-neutral-rating-on-foldable-iphone-launch-93CH-4896197",
+            "time_published": "20260910T141913",
+            "authors": [
+                "Investing.com"
+            ],
+            "summary": "UBS has reiterated a Neutral rating and a $296.00 price target for Apple Inc. following the company's product announcement, which included a new foldable iPhone called the Duo, starting at $1,999. The stock is currently trading above this target at $319.60, and InvestingPro analysis suggests it is overvalued with a P/E ratio of 36.25. Apple also raised prices for its Pro and Pro Max models by $100, a move UBS believes doesn't fully offset higher memory costs but avoids impacting demand too heavily.",
+            "banner_image": "https://content-media.investing.com/news/apple_800x533_L_1411373495.jpg",
+            "source": "Investing.com",
+            "category_within_source": "General",
+            "source_domain": "Investing.com",
+            "topics": [
+                {
+                    "topic": "technology",
+                    "relevance_score": "0.909102"
+                },
+                {
+                    "topic": "financial_markets",
+                    "relevance_score": "0.831035"
+                },
+                {
+                    "topic": "earnings",
+                    "relevance_score": "0.727253"
+                }
+            ],
+            "overall_sentiment_score": 0.065957,
+            "overall_sentiment_label": "Neutral",
+            "ticker_sentiment": [
+                {
+                    "ticker": "AAPL",
+                    "relevance_score": "0.970965",
+                    "ticker_sentiment_score": "0.075395",
+                    "ticker_sentiment_label": "Neutral"
+                }
+            ]
+        },
+        {
+            "title": "ATIF Holdings completes acquisition of GoldCoin Labs By Investing.com",
+            "url": "https://ca.investing.com/news/stock-market-news/atif-holdings-completes-acquisition-of-goldcoin-labs-93CH-4834629",
+            "time_published": "20260910T123118",
+            "authors": [
+                "Investing.com"
+            ],
+            "summary": "ATIF Holdings Limited (NASDAQ:ATIF) has completed its acquisition of GoldCoin Labs Limited, a British Virgin Islands company focused on developing gold-backed digital asset issuance infrastructure. The acquisition involved ATIF issuing 2,815,005 ordinary shares, valued at approximately $20 million, to GoldCoin's sole shareholder. GoldCoin is developing Metra Gold (GOLDM), a tokenized digital representation of physical gold, with each token intended to be backed 1:1 by one gram of fine gold.",
+            "banner_image": "https://content-media.investing.com/news/gold_2_800x533_L_1411976874.jpg",
+            "source": "Investing.com Canada",
+            "category_within_source": "General",
+            "source_domain": "Investing.com Canada",
+            "topics": [
+                {
+                    "topic": "mergers_and_acquisitions",
+                    "relevance_score": "1.000000"
+                },
+                {
+                    "topic": "blockchain",
+                    "relevance_score": "0.805362"
+                },
+                {
+                    "topic": "finance",
+                    "relevance_score": "0.643645"
+                }
+            ],
+            "overall_sentiment_score": 0.132519,
+            "overall_sentiment_label": "Neutral",
+            "ticker_sentiment": [
+                {
+                    "ticker": "AUC",
+                    "relevance_score": "0.332402",
+                    "ticker_sentiment_score": "0.010572",
+                    "ticker_sentiment_label": "Neutral"
+                },
+                {
+                    "ticker": "AAPL",
+                    "relevance_score": "0.627578",
+                    "ticker_sentiment_score": "0.240185",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                }
+            ]
+        },
+        {
+            "title": "Prediction: Apple Stock Could Be Headed for a Big Move After Yesterday’s Event",
+            "url": "https://247wallst.com/investing/2026/09/10/prediction-apple-stock-could-be-headed-for-a-big-move-after-yesterdays-event/",
+            "time_published": "20260910T121913",
+            "authors": [
+                "Vandita Jadeja"
+            ],
+            "summary": "Following Apple's fall product event, options traders are anticipating a significant stock swing, roughly three times the typical post-event movement. 24/7 Wall St. maintains a \"Buy\" rating for Apple with a price target of $362.61, implying a 15.07% upside, primarily driven by a predicted Siri AI upgrade cycle. However, potential bear risks include memory inflation affecting gross margins and regulatory friction for Siri AI.",
+            "banner_image": "https://247wallst.com/wp-content/uploads/2026/08/shutterstock_2615731483-400x225.jpg",
+            "source": "24/7 Wall St.",
+            "category_within_source": "General",
+            "source_domain": "24/7 Wall St.",
+            "topics": [
+                {
+                    "topic": "financial_markets",
+                    "relevance_score": "0.944694"
+                },
+                {
+                    "topic": "earnings",
+                    "relevance_score": "0.802435"
+                },
+                {
+                    "topic": "technology",
+                    "relevance_score": "0.705394"
+                },
+                {
+                    "topic": "economy_macro",
+                    "relevance_score": "0.607163"
+                }
+            ],
+            "overall_sentiment_score": 0.167852,
+            "overall_sentiment_label": "Somewhat-Bullish",
+            "ticker_sentiment": [
+                {
+                    "ticker": "AAPL",
+                    "relevance_score": "1.000000",
+                    "ticker_sentiment_score": "0.459615",
+                    "ticker_sentiment_label": "Bullish"
+                },
+                {
+                    "ticker": "MSFT",
+                    "relevance_score": "0.647989",
+                    "ticker_sentiment_score": "0.111930",
+                    "ticker_sentiment_label": "Neutral"
+                },
+                {
+                    "ticker": "GOOGL",
+                    "relevance_score": "0.623348",
+                    "ticker_sentiment_score": "-0.141711",
+                    "ticker_sentiment_label": "Neutral"
+                }
+            ]
+        },
+        {
+            "title": "Apple Prioritizing Volume Over Margins With Modest Pricing Strategy, Morgan Stanley Says",
+            "url": "https://finance.yahoo.com/markets/stocks/articles/apple-prioritizing-volume-over-margins-154818404.html",
+            "time_published": "20260910T114800",
+            "authors": [
+                "MT Newswires"
+            ],
+            "summary": "Morgan Stanley suggests that Apple is prioritizing sales volume over higher profit margins by implementing a modest pricing strategy. This approach implies that Apple is aiming to sell more units at a potentially lower per-unit profit rather than focusing on maximizing profit from each sale. The full details of this analysis are available to premium subscribers.",
+            "banner_image": "https://s.yimg.com/lo/mysterio/api/53c49fddf33509f464cd39ea82754da143d423cb49bae59a4b0f2bc48c6389d5/lightyear_networkapi/resizefill_h48%3Bquality_100%3Bformat_webp/https%3A%2F%2Fs.yimg.com%2Fos%2Fcreatr-uploaded-images%2F2024-04%2F574923e0-f0fc-11ee-974b-71130e999eaa",
+            "source": "Yahoo Finance",
+            "category_within_source": "General",
+            "source_domain": "Yahoo Finance",
+            "topics": [
+                {
+                    "topic": "financial_markets",
+                    "relevance_score": "0.833457"
+                },
+                {
+                    "topic": "technology",
+                    "relevance_score": "0.740026"
+                },
+                {
+                    "topic": "retail_wholesale",
+                    "relevance_score": "0.602761"
+                }
+            ],
+            "overall_sentiment_score": 0.09527,
+            "overall_sentiment_label": "Neutral",
+            "ticker_sentiment": [
+                {
+                    "ticker": "MS-P-P",
+                    "relevance_score": "0.325271",
+                    "ticker_sentiment_score": "0.031656",
+                    "ticker_sentiment_label": "Neutral"
+                },
+                {
+                    "ticker": "AAPL",
+                    "relevance_score": "0.931318",
+                    "ticker_sentiment_score": "0.128711",
+                    "ticker_sentiment_label": "Neutral"
+                },
+                {
+                    "ticker": "MS",
+                    "relevance_score": "0.737841",
+                    "ticker_sentiment_score": "0.100347",
+                    "ticker_sentiment_label": "Neutral"
+                },
+                {
+                    "ticker": "COIN",
+                    "relevance_score": "0.620156",
+                    "ticker_sentiment_score": "0.133496",
+                    "ticker_sentiment_label": "Neutral"
+                }
+            ]
+        },
+        {
+            "title": "VIAV: Viavi Solutions Inc Latest Stock Price, Analysis, News and Trading Ideas",
+            "url": "https://stocktwits.com/symbol/VIAV",
+            "time_published": "20260910T113035",
+            "authors": [],
+            "summary": "This article provides an overview of Viavi Solutions Inc. (VIAV), including its latest stock price, key financial metrics, and recent news. VIAV is trading at $37.25 with a market cap of $9.67 billion, and the company is scheduled to report earnings on October 28. Recent news highlights VIAV's plans to showcase its data center testing portfolio at ECOC 2026 and its stock performance since the last earnings report.",
+            "banner_image": null,
+            "source": "Stocktwits",
+            "category_within_source": "General",
+            "source_domain": "Stocktwits",
+            "topics": [
+                {
+                    "topic": "earnings",
+                    "relevance_score": "0.948859"
+                },
+                {
+                    "topic": "financial_markets",
+                    "relevance_score": "0.941157"
+                },
+                {
+                    "topic": "technology",
+                    "relevance_score": "0.806710"
+                }
+            ],
+            "overall_sentiment_score": 0.141433,
+            "overall_sentiment_label": "Neutral",
+            "ticker_sentiment": [
+                {
+                    "ticker": "VIAV",
+                    "relevance_score": "1.000000",
+                    "ticker_sentiment_score": "-0.169268",
+                    "ticker_sentiment_label": "Somewhat-Bearish"
+                },
+                {
+                    "ticker": "ORCL",
+                    "relevance_score": "0.616058",
+                    "ticker_sentiment_score": "0.338118",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                },
+                {
+                    "ticker": "ADBE",
+                    "relevance_score": "0.559117",
+                    "ticker_sentiment_score": "0.267973",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                },
+                {
+                    "ticker": "AAPL",
+                    "relevance_score": "0.632490",
+                    "ticker_sentiment_score": "0.022662",
+                    "ticker_sentiment_label": "Neutral"
+                }
+            ]
+        },
+        {
+            "title": "ZenaTech increases stake in Boardwalktecktech to 19.9% By Investing.com",
+            "url": "https://ca.investing.com/news/stock-market-news/zenatech-increases-stake-in-boardwalktecktech-to-199-93CH-4834442",
+            "time_published": "20260910T112914",
+            "authors": [],
+            "summary": "ZenaTech, Inc. has increased its stake in Boardwalktecktech Software Corp. to approximately 19.9% by purchasing 1,518,126 common shares between August 28 and September 8 at $0.03 per share. Including warrants, ZenaTech's potential ownership could reach 28.02%, though they have agreed to a restriction preventing ownership from exceeding 19.9% of outstanding common shares through warrant exercise. The shares were acquired for investment purposes, with ZenaTech reserving the right to adjust its holdings based on market conditions.",
+            "banner_image": "https://content-media.investing.com/news/LYNXMPEM3C1A3_1200_L.jpg",
+            "source": "Investing.com Canada",
+            "category_within_source": "General",
+            "source_domain": "Investing.com Canada",
+            "topics": [
+                {
+                    "topic": "mergers_and_acquisitions",
+                    "relevance_score": "0.910554"
+                },
+                {
+                    "topic": "financial_markets",
+                    "relevance_score": "0.830216"
+                },
+                {
+                    "topic": "technology",
+                    "relevance_score": "0.714880"
+                }
+            ],
+            "overall_sentiment_score": 0.113525,
+            "overall_sentiment_label": "Neutral",
+            "ticker_sentiment": [
+                {
+                    "ticker": "ZENA",
+                    "relevance_score": "1.000000",
+                    "ticker_sentiment_score": "0.395815",
+                    "ticker_sentiment_label": "Bullish"
+                },
+                {
+                    "ticker": "AVGO",
+                    "relevance_score": "0.514201",
+                    "ticker_sentiment_score": "0.023411",
+                    "ticker_sentiment_label": "Neutral"
+                },
+                {
+                    "ticker": "IBM",
+                    "relevance_score": "0.541871",
+                    "ticker_sentiment_score": "0.030630",
+                    "ticker_sentiment_label": "Neutral"
+                },
+                {
+                    "ticker": "AAPL",
+                    "relevance_score": "0.549141",
+                    "ticker_sentiment_score": "0.029436",
+                    "ticker_sentiment_label": "Neutral"
+                }
+            ]
+        },
+        {
+            "title": "I Said Apple Would Never Ship a Foldable. Then I Saw the iPhone Duo",
+            "url": "https://www.inc.com/jason-aten/i-said-apple-would-never-ship-a-foldable-then-i-saw-the-iphone-duo/91403508",
+            "time_published": "20260910T111928",
+            "authors": [
+                "JASON ATEN"
+            ],
+            "summary": "The author, who previously argued against Apple releasing a foldable iPhone, has changed his stance after the introduction of the iPhone Duo. Priced at $1,999, the device aims to transform the foldable phone concept from a novelty into a mainstream product. The iPhone Duo features a 5.4-inch front screen and opens to a 7.6-inch inner screen, offering a significantly larger display than the iPhone 18 Pro Max.",
+            "banner_image": "https://img-cdn.inc.com/image/upload/f_webp,c_fit,w_1920,q_auto/vip/2026/09/iPhone_Duo.jpg",
+            "source": "Inc.com",
+            "category_within_source": "General",
+            "source_domain": "Inc.com",
+            "topics": [
+                {
+                    "topic": "technology",
+                    "relevance_score": "1.000000"
+                }
+            ],
+            "overall_sentiment_score": 0.451516,
+            "overall_sentiment_label": "Bullish",
+            "ticker_sentiment": [
+                {
+                    "ticker": "AAPL",
+                    "relevance_score": "1.000000",
+                    "ticker_sentiment_score": "0.461284",
+                    "ticker_sentiment_label": "Bullish"
+                }
+            ]
+        },
+        {
+            "title": "BofA cuts Apple stock price target to $370 on margin pressure",
+            "url": "https://www.investing.com/news/analyst-ratings/bofa-cuts-apple-stock-price-target-to-370-on-margin-pressure-93CH-4895440",
+            "time_published": "20260910T110231",
+            "authors": [
+                "Investing.com"
+            ],
+            "summary": "BofA Securities has lowered its price target for Apple Inc. (NASDAQ:AAPL) to $370 from $380, citing potential gross margin pressure from lower-than-expected new iPhone pricing despite higher unit sales. The firm maintained a Buy rating, adjusting its 2027 earnings estimate and valuing the stock at 37 times this revised estimate. This comes amidst varied analyst opinions following Apple's recent product launches, including the iPhone Duo, with some analysts highlighting revenue potential while others express concerns over pricing strategy and supply chain challenges.",
+            "banner_image": "https://content-media.investing.com/news/apple_800x533_L_1411373495.jpg",
+            "source": "Investing.com",
+            "category_within_source": "General",
+            "source_domain": "Investing.com",
+            "topics": [
+                {
+                    "topic": "earnings",
+                    "relevance_score": "0.910079"
+                },
+                {
+                    "topic": "financial_markets",
+                    "relevance_score": "0.934975"
+                },
+                {
+                    "topic": "technology",
+                    "relevance_score": "0.846731"
+                }
+            ],
+            "overall_sentiment_score": -0.122277,
+            "overall_sentiment_label": "Neutral",
+            "ticker_sentiment": [
+                {
+                    "ticker": "AAPL",
+                    "relevance_score": "1.000000",
+                    "ticker_sentiment_score": "-0.292234",
+                    "ticker_sentiment_label": "Somewhat-Bearish"
+                },
+                {
+                    "ticker": "GOOGL",
+                    "relevance_score": "0.589284",
+                    "ticker_sentiment_score": "-0.132540",
+                    "ticker_sentiment_label": "Neutral"
+                },
+                {
+                    "ticker": "NVDA",
+                    "relevance_score": "0.589587",
+                    "ticker_sentiment_score": "-0.115507",
+                    "ticker_sentiment_label": "Neutral"
+                },
+                {
+                    "ticker": "META",
+                    "relevance_score": "0.583424",
+                    "ticker_sentiment_score": "0.143042",
+                    "ticker_sentiment_label": "Neutral"
+                },
+                {
+                    "ticker": "AMZN",
+                    "relevance_score": "0.591283",
+                    "ticker_sentiment_score": "-0.124672",
+                    "ticker_sentiment_label": "Neutral"
+                }
+            ]
+        },
+        {
+            "title": "Tim Cook’s Brief Appearance at the iPhone Duo Event Was Apple Stagecraft at Its Best",
+            "url": "https://www.inc.com/jason-aten/tim-cooks-brief-appearance-at-the-iphone-duo-event-was-apple-stagecraft-at-its-best/91403503",
+            "time_published": "20260910T105031",
+            "authors": [
+                "JASON ATEN"
+            ],
+            "summary": "During the recent iPhone keynote, Apple's former CEO Tim Cook made a brief, strategic appearance that effectively passed the torch to John Ternus without dwelling on Cook's extensive 15-year tenure. This moment, described as Apple stagecraft, acknowledged Cook's significant contributions while signaling a clear transition in leadership. The article highlights how Apple used a creative video sequence to introduce Ternus, reinforcing the company's forward-looking approach.",
+            "banner_image": "https://img-cdn.inc.com/image/upload/f_webp,c_fit,w_1920,q_auto/vip/2026/09/Tim_Cook_John_Ternus.png",
+            "source": "Inc.com",
+            "category_within_source": "General",
+            "source_domain": "Inc.com",
+            "topics": [
+                {
+                    "topic": "technology",
+                    "relevance_score": "0.930620"
+                }
+            ],
+            "overall_sentiment_score": 0.307871,
+            "overall_sentiment_label": "Somewhat-Bullish",
+            "ticker_sentiment": [
+                {
+                    "ticker": "AAPL",
+                    "relevance_score": "1.000000",
+                    "ticker_sentiment_score": "0.312738",
+                    "ticker_sentiment_label": "Somewhat-Bullish"
+                }
+            ]
+        }
+    ]
+}

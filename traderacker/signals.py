@@ -153,6 +153,18 @@ RE_TARGET_MIXED = re.compile(
     r'(?:AT\s+|ON\s+|NEAR\s+)?' + NUM, re.IGNORECASE)
 RE_RANGE = re.compile(r'₹?\s*' + NUM + r'\s*[-–]\s*' + NUM)  # entry-target "₹250-320"
 RE_HOLDING = re.compile(r'\b(HOLDING|HOLD)\b', re.IGNORECASE)
+# a one-line "<option leg> \n\n <entry> TO <exit>" recap with a rupee PROFIT
+# figure nearby, e.g. "BSE 3500 CE\n\n85 TO 114\n\n5,800+++++ PROFIT" (Options
+# Train's end-of-day recap posts, sometimes the ONLY message for a trade).
+# Case-insensitive since a couple of these recaps use mixed-case symbols
+# ("Paytm 1720 CE"); harmless when broadened since it only feeds the boolean
+# parse_exit() signal, gated on the literal word PROFIT following shortly
+# after — verified empirically against all 76 channels' full history to
+# match ONLY this channel (other channels' "<price> TO <price>" recaps use
+# "POINT DONE" / "ROI ... DONE" phrasing without the word PROFIT nearby).
+RE_TO_RANGE_OPT = re.compile(
+    r'\b[A-Z]+\s?\d[\d,]*(?:\.\d+)?\s*(?:CE|PE|CALL|PUT)\b\s*\n+\s*' + NUM +
+    r'\s*(?:TO|-)\s*' + NUM, re.IGNORECASE)
 
 # promotional / PR / news posts that are never a trade signal (req 1.c)
 PROMO = re.compile(
@@ -226,6 +238,16 @@ def parse_message(text, style=None):
             option_roots.add(root_word)
         right = {'CALL': 'CE', 'PUT': 'PE'}.get(right, right)
         entry = _f(prem) if prem else None
+        # a stray number that is really the running-profit figure, not a
+        # price, e.g. "IDEA 15 CE \n\n3500++ Profit" (Options Train one-line
+        # recap with no "@" premium marker at all) — only discard when there
+        # was no explicit "@"/":" price marker in the match, since genuine
+        # cross-newline entries in other channels ("SEP 230000 CE\n\n9300 TO
+        # 10500++") are never followed immediately by "++"/PROFIT.
+        if entry is not None and '@' not in m.group(0) and ':' not in m.group(0):
+            tail = text[m.end():m.end() + 15]
+            if re.match(r'\s*\+{1,3}', tail) or re.match(r'\s*PROFIT', tail, re.IGNORECASE):
+                entry = None
         sig = {'trade': f'{root} {right}',
                'direction': 'CALL (up)' if right == 'CE' else 'PUT (down)',
                'entry': entry, 'target': None, 'stop_loss': None, 'status': 'Open'}
@@ -446,7 +468,16 @@ def parse_profit(text):
 
 def parse_exit(text):
     """True when the message explicitly books/exits (SAFE BOOK, TARGET HIT, …)."""
-    return bool(text and RE_EXIT.search(text))
+    if not text:
+        return False
+    if RE_EXIT.search(text):
+        return True
+    # "<option leg>\n\n<entry> TO <exit>" recap with a rupee PROFIT figure
+    # shortly after — see RE_TO_RANGE_OPT.
+    m = RE_TO_RANGE_OPT.search(text)
+    if m and re.search(r'PROFIT', text[m.end():m.end() + 80], re.IGNORECASE):
+        return True
+    return False
 
 
 def parse_exit_price(text):

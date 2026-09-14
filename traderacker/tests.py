@@ -475,6 +475,56 @@ class SignalParserTests(TestCase):
         self.assertTrue(parse_exit(text))  # RE_EXIT still matches "BOOK
         # PROFIT" in prose, but book() no-ops since profit is None
 
+    def test_options_train_end_of_day_recap_closes_at_true_final_profit(self):
+        # Options Train ( SEBI REGISTERED) posts an "ENTRY TO EXIT" recap,
+        # sometimes as the ONLY message for a trade (no separate "@ premium"
+        # entry line ever posted) -- see migration 0009 style_notes. The
+        # option leg + entry price is still parsed by the shared RE_OPT
+        # regex; separately, parse_exit() must recognize the "<entry> TO
+        # <exit>" + nearby PROFIT wording as an explicit close so
+        # parse_signals' book() locks in the real final profit instead of
+        # leaving the trade open forever with only peak_profit set.
+        from traderacker.signals import parse_message, parse_exit, parse_profit
+        text = 'BSE 3500  CE\n\n85 TO 114\n\n5,800+++++ PROFIT 💰💰💰\n\nROI 34%\n\n🥳'
+        sigs = parse_message(text)
+        self.assertEqual(sigs[0]['trade'], 'BSE 3500 CE')
+        self.assertEqual(sigs[0]['entry'], 85.0)
+        self.assertTrue(parse_exit(text))
+        self.assertEqual(parse_profit(text), 5800.0)
+
+    def test_options_train_to_range_recap_without_profit_word_is_not_an_exit(self):
+        # a handful of OTHER channels post superficially similar "<option
+        # leg>\n<price> TO <price>" recaps but phrase their close-out as
+        # "...POINT DONE...% ROI DONE" with no literal PROFIT word nearby
+        # (e.g. "BANKNIFTY 55700 CALL 940 TO 1020..... 80 POINT DONE 8% ROI
+        # DONE") -- these must stay untouched by the Options Train fix.
+        from traderacker.signals import parse_exit
+        text = 'SUPER DUPER DAY OVER\n\nBANKNIFTY 55700 CALL 940 TO 1020..... 80 POINT DONE 8% ROI DONE'
+        self.assertFalse(parse_exit(text))
+
+    def test_options_train_stray_profit_number_is_not_mistaken_for_entry(self):
+        # a one-line "Premium Call" post with no "@ premium" marker at all,
+        # e.g. "IDEA 15 CE\n\n3500++ Profit" -- the shared option regex used
+        # to grab the *profit* figure across the blank line as if it were
+        # the entry price (entry=3500). Now left as entry=None: there is no
+        # confident entry price in this shape, and no exit phrase either,
+        # so it stays Open per the "never guess a close" product rule.
+        from traderacker.signals import parse_message
+        sigs = parse_message('Premium Call ❤️❤️\n\nIDEA 15 CE \n\n3500++ Profit❤️❤️❤️')
+        self.assertEqual(sigs[0]['trade'], 'IDEA 15 CE')
+        self.assertIsNone(sigs[0]['entry'])
+
+    def test_options_train_safe_can_book_is_not_a_generic_exit(self):
+        # "SAFE CAN BOOK" is this channel's other running-update phrasing
+        # (interchangeable with "SAFE BOOK HERE" in the channel's own
+        # usage) but was deliberately NOT added to the shared RE_EXIT: doing
+        # so verifiably made realized profit *more* understated for this
+        # channel (it would lock in the first, usually smallest, booking
+        # figure). Confirmed unique to this channel, so this is a no-op for
+        # every other channel either way.
+        from traderacker.signals import parse_exit
+        self.assertFalse(parse_exit('94++ 🔥🔥🔥\n\n6,175++ PROFIT💰💰💰\n\nSAFE CAN BOOK'))
+
 
 class MarketServiceTests(TestCase):
     """Symbol→ticker mapping and provider fallback (no real network)."""

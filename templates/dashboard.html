@@ -7,11 +7,18 @@
   <title>Telegram Trade Tracker</title>
   <meta name="csrf-token" content="{{ csrf_token }}">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
     :root {
-      --tt-indigo:#4f46e5; --tt-blue:#2563eb; --tt-green:#059669;
-      --tt-red:#dc2626; --tt-amber:#d97706; --tt-purple:#7c3aed;
-      --tt-teal:#0d9488; --tt-slate:#475569;
+      --tt-ink:#14162b; --tt-paper:#f5f4fb; --tt-line:#e4e2f0;
+      --tt-indigo:#4338ca; --tt-blue:#2563eb; --tt-green:#0f7a4e;
+      --tt-red:#c22a2a; --tt-amber:#a2620b; --tt-purple:#7c3aed;
+      --tt-teal:#0d9488; --tt-slate:#5b5e76;
+      --tt-font-display:"Manrope",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      --tt-font-body:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      --tt-font-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
       --tt-radius:.85rem; --tt-radius-sm:.55rem;
       --tt-shadow:0 1px 2px rgba(15,23,42,.06), 0 2px 8px rgba(15,23,42,.06);
       --tt-shadow-hover:0 4px 10px rgba(15,23,42,.08), 0 8px 24px rgba(15,23,42,.1);
@@ -19,10 +26,13 @@
     }
     * { box-sizing:border-box; }
     body {
-      background:linear-gradient(180deg,#eef1f8 0%,#f6f7fb 240px);
-      font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-      -webkit-font-smoothing:antialiased; color:#1c1e21;
+      background:linear-gradient(180deg,var(--tt-paper) 0%,#f6f7fb 240px);
+      font-family:var(--tt-font-body);
+      -webkit-font-smoothing:antialiased; color:var(--tt-ink);
     }
+    h1,h2,h3,h4,h5,h6,.navbar-brand,.section-head h6 { font-family:var(--tt-font-display); }
+    .table td.text-end, .table th.text-end, .pulse-card .value, .kpi .v,
+    .trust-card .value, .board td.num, .num { font-family:var(--tt-font-mono); font-variant-numeric:tabular-nums; }
     a { transition:color .15s var(--tt-ease); }
     .navbar-tt { background:linear-gradient(90deg,#1e1b4b 0%,#312e81 55%,#1d4ed8 100%); }
     .navbar-tt .container-fluid { flex-wrap:wrap; row-gap:.5rem; }

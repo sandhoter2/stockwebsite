@@ -6,9 +6,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Login · Telegram Trade Tracker</title>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@700;800&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
-    body { background: linear-gradient(135deg,#0f172a,#1e293b); min-height:100vh; }
-    .card-login { max-width: 400px; }
+    body {
+      background: linear-gradient(135deg,#14162b,#312e81 55%,#1d4ed8);
+      min-height:100vh; font-family:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    }
+    .card-login { max-width: 400px; border:0; border-radius:.85rem;
+                  box-shadow:0 10px 30px rgba(15,16,40,.35); }
+    .card-login h1 { font-family:"Manrope",-apple-system,sans-serif; font-weight:800; }
+    .brand-mark { width:44px; height:44px; border-radius:.6rem; display:inline-flex;
+                  align-items:center; justify-content:center; font-size:1.4rem; font-weight:700;
+                  background:linear-gradient(135deg,#4338ca,#2563eb); color:#fff; }
   </style>
 </head>
 <body class="d-flex align-items-center">
@@ -52,8 +63,8 @@
             <div className="card card-login mx-auto shadow">
               <div className="card-body p-4">
                 <div className="text-center mb-3">
-                  <span style={{fontSize:'2rem'}}>₹</span>
-                  <h1 className="h4 mt-1 mb-0">Telegram Trade Tracker</h1>
+                  <span className="brand-mark">₹</span>
+                  <h1 className="h4 mt-2 mb-0">Telegram Trade Tracker</h1>
                   <div className="text-muted small">Django · DRF · React</div>
                 </div>
                 {error && <div className="alert alert-danger py-2 small">{error}</div>}

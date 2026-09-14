@@ -1041,17 +1041,17 @@
                                 onClick={()=>{if(tSortKey===key)setTDesc(!tDesc);else{setTSortKey(key);setTDesc(true);}}}>
                               {label} {on?(tDesc?'▾':'▴'):''}</th>); };
                           return (<>
-                            {tth('Date','date',null,'d-none d-xl-table-cell')}
-                            <th className="d-none d-xl-table-cell">Posted (IST)</th>
+                            {tth('Date','date',null,'d-none d-xxl-table-cell')}
+                            <th className="d-none d-xxl-table-cell">Posted (IST)</th>
                             {tth('Channel','channel_name')}
-                            {tth('Sector','asset_class',null,'d-none d-lg-table-cell')}
+                            {tth('Sector','asset_class',null,'d-none d-xxl-table-cell')}
                             {tth('Trade','trade')}<th>Dir</th>
                             {tth('Entry','entry','text-end')}<th className="text-end">Target</th><th className="text-end">SL</th>
-                            <th className="text-end d-none d-lg-table-cell">LTP/Exit</th>
-                            {tth('Unreal ₹','unrealized','text-end','d-none d-lg-table-cell')}
+                            <th className="text-end d-none d-xxl-table-cell">LTP/Exit</th>
+                            {tth('Unreal ₹','unrealized','text-end','d-none d-xxl-table-cell')}
                             {tth('P/L ₹','realized','text-end')}
                             {tth('Status','status')}
-                            <th className="d-none d-xl-table-cell">Note</th>
+                            <th className="d-none d-xxl-table-cell">Note</th>
                           </>);
                         })()}
                       </tr></thead>
@@ -1059,18 +1059,18 @@
                         {loading && <tr><td colSpan="10" className="text-center py-4">Loading…</td></tr>}
                         {!loading && tradesPage.map(t=>(
                           <tr key={t.id}>
-                            <td className="d-none d-xl-table-cell">{t.date||'—'}</td>
-                            <td className="text-muted d-none d-xl-table-cell">{IST(t.posted_at)||'—'}</td>
+                            <td className="d-none d-xxl-table-cell">{t.date||'—'}</td>
+                            <td className="text-muted d-none d-xxl-table-cell">{IST(t.posted_at)||'—'}</td>
                             <td className="text-truncate" style={{maxWidth:'9rem'}} title={t.channel_name}>{t.channel_name}</td>
-                            <td className="d-none d-lg-table-cell"><SectorTag ac={t.asset_class} /></td>
+                            <td className="d-none d-xxl-table-cell"><SectorTag ac={t.asset_class} /></td>
                             <td><strong>{t.trade}</strong></td><td>{t.direction}</td>
                             <td className="text-end">{t.entry ?? '—'}</td><td className="text-end">{t.target ?? '—'}</td>
                             <td className="text-end">{t.stop_loss ?? '—'}</td>
-                            <td className="text-end d-none d-lg-table-cell">{t.ltp_exit ?? '—'}</td>
-                            <td className={'text-end d-none d-lg-table-cell '+cls(t.unrealized)}>{t.unrealized!=null?INR(t.unrealized):'—'}</td>
+                            <td className="text-end d-none d-xxl-table-cell">{t.ltp_exit ?? '—'}</td>
+                            <td className={'text-end d-none d-xxl-table-cell '+cls(t.unrealized)}>{t.unrealized!=null?INR(t.unrealized):'—'}</td>
                             <td className={'text-end '+cls(t.realized)}>{t.realized!=null?INR(t.realized):'—'}</td>
                             <td><span className={'badge '+(t.status==='Open'?'badge-open':'badge-closed')}>{t.status}</span></td>
-                            <td className="text-truncate d-none d-xl-table-cell" style={{maxWidth:'12rem'}} title={t.note}>{t.note}</td>
+                            <td className="text-truncate d-none d-xxl-table-cell" style={{maxWidth:'12rem'}} title={t.note}>{t.note}</td>
                           </tr>))}
                         {!loading && shown.length===0 && <tr><td colSpan="10" className="text-center text-muted py-4">No trades match.</td></tr>}
                       </tbody>

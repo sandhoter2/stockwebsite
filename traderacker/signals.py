@@ -41,7 +41,7 @@ STOP_WORDS = {
     'POSITIONS', 'LONGTERM', 'SHORTTERM', 'GOLDEN', 'PLEASE', 'KINDLY',
     'ALSO', 'GET', 'OUR', 'YOU', 'YOUR', 'ALL', 'ANY', 'OUT', 'OFF', 'UP',
     'DOWN', 'NOW', 'RESULT', 'RESULTS', 'GOOD', 'JOIN', 'WHATSAPP',
-    'WEBSITE', 'DISCLOSE', 'IN', 'ON', 'AT',
+    'WEBSITE', 'DISCLOSE', 'IN', 'ON', 'AT', 'POSITIONAL',
 }
 
 
@@ -83,8 +83,10 @@ def classify(trade_str, direction, text):
 # ---- signal regexes --------------------------------------------------------
 RE_CASH = re.compile(
     SYM + r'\s+(?:\w+\s+)*?(?:CASH\s+)?(BREAKOUT\s+)?(ABOVE|BELOW)\s+' + NUM)
+# root/strike may be joined by an underscore instead of (or in addition to)
+# whitespace, e.g. "NIFTY\xa0 _23650PE" (Stock Thunder's entry-message shape)
 RE_OPT = re.compile(
-    r'\b([A-Z]+\s?\d[\d,]*(?:\.\d+)?)\s*(CE|PE|CALL|PUT)\b'
+    r'\b([A-Z]+\s*_?\s*\d[\d,]*(?:\.\d+)?)\s*(CE|PE|CALL|PUT)\b'
     r'[\s:,@]*' + NUM + r'?')
 # broker-style option order with an expiry date between the index and the
 # strike, and a lot-size clause between the CE/PE and the premium, e.g.
@@ -108,10 +110,20 @@ RE_SUPPORT = re.compile(
     r'\b(?:SUPPORT|S/L|S/T|SL\b|STOP[\s\-]?LOSS|STOP|STCP)\s*[:\-]?\s*'
     r'(?:AT\s+|BELOW\s+|ABOVE\s+|NEAR\s+|ON\s+)?' + NUM, re.IGNORECASE)
 RE_TARGET = re.compile(
-    r'\b(?:VIEW|VIEWS|TARGETS?|TGT|SHT)\s*[:\-]?\s*'
+    r'\b(?:VIEW|VIEWS|TARGETS?|TGT|TRG|SHT)\s*[:\-]?\s*'
     r'(?:AT\s+|ON\s+|NEAR\s+)?' + NUM, re.IGNORECASE)
 RE_RANGE = re.compile(r'₹?\s*' + NUM + r'\s*[-–]\s*' + NUM)  # entry-target "₹250-320"
 RE_HOLDING = re.compile(r'\b(HOLDING|HOLD)\b', re.IGNORECASE)
+# "ABOVE 190-200" / "ABOVE 10" immediately after an option strike with no
+# premium of its own — the number right after ABOVE/BELOW is the entry
+# trigger (Stock Thunder: "Buy NIFTY _23650PE Above 190-200", "BUY BIOCON
+# 400 CE ABOVE 10 TRG - ..."). NUM stops at the first non-digit, so this
+# naturally ignores a trailing "-200" range without a separate branch.
+RE_ABOVE_BELOW = re.compile(r'\b(?:ABOVE|BELOW)\s+' + NUM, re.IGNORECASE)
+# a running price-update recap that restates an already-open option leg
+# rather than posting a fresh order, e.g. "170 TO 199#NIFTY 23650PE" —
+# the option match immediately follows the "#" here, not a BUY/SELL verb.
+RE_PROGRESS_UPDATE = re.compile(r'\d[\d,.]*\s*TO\s*\d[\d,.]*\s*#', re.IGNORECASE)
 
 # promotional / PR / news posts that are never a trade signal (req 1.c)
 PROMO = re.compile(
@@ -146,6 +158,10 @@ def parse_message(text, style=None):
     # close-out being mis-read as a fresh order, not a new position.
     exit_price_spans = [m.span() for m in RE_EXIT_PRICE.finditer(text)]
     exit_price_spans += [m.span() for m in RE_EXIT_PRICE_BOOK.finditer(text)]
+    # spans of "<price> TO <price>#" progress recaps — an option match that
+    # starts right after one of these is the same leg being restated with a
+    # running LTP, not a fresh order (Stock Thunder's update posts)
+    progress_spans = [m.span() for m in RE_PROGRESS_UPDATE.finditer(text)]
 
     def add(sig):
         ac = classify(sig['trade'], sig['direction'], text)
@@ -157,19 +173,30 @@ def parse_message(text, style=None):
     # 1. options: "BANKNIFTY 57000 PE @ 505", "SENSEX 73,900 PE"
     for m in RE_OPT.finditer(text):
         root, right, prem = m.group(1).strip().upper(), m.group(2).upper(), m.group(3)
-        root = re.sub(r'\s+', ' ', root).replace(',', '')
+        root = re.sub(r'\s+', ' ', root).replace(',', '').replace('_', ' ')
+        root = re.sub(r'\s+', ' ', root).strip()
         root_word = root.split()[0] if root.split() else root
         if root_word in STOP_WORDS:
             continue
         if any(s[0] < m.end() and s[1] > m.start() for s in exit_price_spans):
             continue
+        if any(abs(s[1] - m.start()) <= 1 for s in progress_spans):
+            continue
+        option_roots.add(root_word)
         right = {'CALL': 'CE', 'PUT': 'PE'}.get(right, right)
         entry = _f(prem) if prem else None
         sig = {'trade': f'{root} {right}',
                'direction': 'CALL (up)' if right == 'CE' else 'PUT (down)',
                'entry': entry, 'target': None, 'stop_loss': None, 'status': 'Open'}
-        # range entry "₹250-320" when no explicit premium
+        # "ABOVE 190-200" / "ABOVE 10" entry trigger right after the strike
+        # (checked before the bare dash-range fallback below, since NUM stops
+        # at the first non-digit and so already handles a trailing "-200")
         if entry is None:
+            ab = RE_ABOVE_BELOW.search(text[m.end():m.end() + 20])
+            if ab:
+                sig['entry'] = _f(ab.group(1))
+        # range entry "₹250-320" when no explicit premium
+        if entry is None and sig['entry'] is None:
             rng = RE_RANGE.search(text[m.end():m.end() + 20])
             if rng:
                 sig['entry'] = _f(rng.group(1))
@@ -254,6 +281,9 @@ def parse_message(text, style=None):
 RE_PROFIT_POST = re.compile(NUM + r'\s*\+*\s*(?:K)?\s*PROFIT', re.IGNORECASE)   # "2,175+ PROFIT"
 RE_PROFIT_PRE = re.compile(r'PROFIT\s*(?:₹|OF|:)?\s*₹?\s*' + NUM, re.IGNORECASE)  # "PROFIT ₹5000"
 RE_PIPS = re.compile(r'[₹+]?\s*' + NUM + r'\s*(?:Pips|POINTS|Pts)', re.IGNORECASE)
+# Stock Thunder's running-P&L phrasing: "GAINING RS- 4000/ 2 LOTS" (never
+# uses the word "profit" itself)
+RE_GAINING = re.compile(r'\bGAINING\s*RS[\s:\-]*' + NUM, re.IGNORECASE)
 RE_EXIT = re.compile(
     r'\b(SAFE BOOK|BOOK HERE|BOOKED|BOOK PROFIT|TARGET HIT|EXIT|EXITED|'
     r'STOPPED OUT|SL HIT|S/L HIT|STOP HIT|FULL BOOK|PARTIAL BOOK|SOLD)\b',
@@ -280,7 +310,8 @@ def parse_profit(text):
     """
     if not text:
         return None
-    m = RE_PROFIT_POST.search(text) or RE_PROFIT_PRE.search(text) or RE_PIPS.search(text)
+    m = (RE_PROFIT_POST.search(text) or RE_PROFIT_PRE.search(text)
+         or RE_PIPS.search(text) or RE_GAINING.search(text))
     if not m:
         return None
     val = _f(m.group(1))

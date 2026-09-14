@@ -206,6 +206,47 @@ class SignalParserTests(TestCase):
         self.assertEqual(n[0]['stop_loss'], 94.0)
         self.assertEqual(n[0]['target'], 135.0)
 
+    def test_option_with_expiry_date_no_phantom_root_trade(self):
+        # the broker-style expiry order ("BUY NIFTY 03 JUL 25 25700 CE ...")
+        # used to also match the looser verb-first regex, misreading the
+        # expiry day-of-month ("03") as a second, phantom "NIFTY" cash entry
+        # (Angel One Research)
+        from traderacker.signals import parse_message
+        sigs = parse_message('BUY BANKNIFTY 31 JUL 25 59000 CE 1 lots at 356.00.\n\n'
+                             'Expiry : 31-Jul-2025\n\nMessage : SL 317 TGT 420')
+        self.assertEqual(len(sigs), 1)
+        self.assertEqual(sigs[0]['trade'], 'BANKNIFTY 59000 CE')
+        self.assertEqual(sigs[0]['entry'], 356.0)
+
+    def test_exit_price_book_profit_in_phrasing(self):
+        # "BOOK PROFIT IN <SYMBOL> @ <PRICE>" is this channel's other exit
+        # phrasing alongside "EXIT ... @ PRICE" (Angel One Research)
+        from traderacker.signals import parse_exit_price
+        self.assertEqual(parse_exit_price('BOOK PROFIT IN GMDCLTD @422.5'),
+                         ('GMDCLTD', 422.5))
+        self.assertEqual(parse_exit_price('BOOK PROFIT IN RAYMOND @ 636.5'),
+                         ('RAYMOND', 636.5))
+
+    def test_exit_price_book_ignores_words_not_symbols(self):
+        # "BOOK PROFIT IN 57000 PE @ 583.5" has no confident symbol (the
+        # option strike, not a ticker) and "EXIT POSITIONS @106" is a
+        # generic word, not a symbol — both should stay unparsed rather
+        # than spawn a bogus close-out (Angel One Research)
+        from traderacker.signals import parse_exit_price
+        self.assertIsNone(parse_exit_price('BOOK PROFIT IN 57000 PE @ 583.5'))
+        self.assertIsNone(parse_exit_price('EXIT POSITIONS @106'))
+
+    def test_option_signal_not_reopened_by_its_own_exit_message(self):
+        # "EXIT BANKNIFTY 58500 CE @ 499" would previously ALSO match the
+        # plain option regex (RE_OPT) as if it were a fresh order at entry
+        # 499, leaving a phantom duplicate Open trade behind alongside the
+        # correct close-out of the original position (Angel One Research)
+        from traderacker.signals import parse_message, parse_exit_price
+        sigs = parse_message('EXIT BANKNIFTY 58500 CE @ 499')
+        self.assertEqual(sigs, [])
+        self.assertEqual(parse_exit_price('EXIT BANKNIFTY 58500 CE @ 499'),
+                         ('BANKNIFTY 58500 CE', 499.0))
+
     def test_comma_strike_range(self):
         from traderacker.signals import parse_message
         sigs = parse_message('✅SENSEX 73,900 PE✅\n₹250-320✅✅')

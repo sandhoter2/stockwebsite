@@ -38,9 +38,10 @@ STOP_WORDS = {
     'ONLY', 'THESE', 'THAT', 'WITH', 'FROM', 'NEW', 'LOCK', 'INTRA',
     'BTST', 'SWING', 'INVESTMENT', 'UNDER', 'OVER', 'ENTRY', 'ENTER',
     'SAFE', 'HERE', 'SELLING', 'BOUGHT', 'TRADE', 'TRADES', 'POSITION',
-    'LONGTERM', 'SHORTTERM', 'GOLDEN', 'PLEASE', 'KINDLY', 'ALSO', 'GET',
-    'OUR', 'YOU', 'YOUR', 'ALL', 'ANY', 'OUT', 'OFF', 'UP', 'DOWN', 'NOW',
-    'RESULT', 'RESULTS', 'GOOD', 'JOIN', 'WHATSAPP', 'WEBSITE', 'DISCLOSE',
+    'POSITIONS', 'LONGTERM', 'SHORTTERM', 'GOLDEN', 'PLEASE', 'KINDLY',
+    'ALSO', 'GET', 'OUR', 'YOU', 'YOUR', 'ALL', 'ANY', 'OUT', 'OFF', 'UP',
+    'DOWN', 'NOW', 'RESULT', 'RESULTS', 'GOOD', 'JOIN', 'WHATSAPP',
+    'WEBSITE', 'DISCLOSE', 'IN', 'ON', 'AT',
 }
 
 
@@ -134,6 +135,17 @@ def parse_message(text, style=None):
     if style == 'promo' or is_promo(text):
         return []
     out = []
+    # roots already claimed by an option match, e.g. "NIFTY" from
+    # "NIFTY 25700 CE" — a later cash/verb-first/buysell match on the same
+    # root is a false positive (see option_roots usage below), typically the
+    # option regex's own index/date tokens ("...25 25700 CE..." parsed as a
+    # bare "BUY NIFTY ... 03" cash order by a looser regex).
+    option_roots = set()
+    # spans already claimed by an explicit "EXIT/BOOK ... SYMBOL @ PRICE"
+    # close-out — an option match inside one of these spans is the same
+    # close-out being mis-read as a fresh order, not a new position.
+    exit_price_spans = [m.span() for m in RE_EXIT_PRICE.finditer(text)]
+    exit_price_spans += [m.span() for m in RE_EXIT_PRICE_BOOK.finditer(text)]
 
     def add(sig):
         ac = classify(sig['trade'], sig['direction'], text)
@@ -146,6 +158,11 @@ def parse_message(text, style=None):
     for m in RE_OPT.finditer(text):
         root, right, prem = m.group(1).strip().upper(), m.group(2).upper(), m.group(3)
         root = re.sub(r'\s+', ' ', root).replace(',', '')
+        root_word = root.split()[0] if root.split() else root
+        if root_word in STOP_WORDS:
+            continue
+        if any(s[0] < m.end() and s[1] > m.start() for s in exit_price_spans):
+            continue
         right = {'CALL': 'CE', 'PUT': 'PE'}.get(right, right)
         entry = _f(prem) if prem else None
         sig = {'trade': f'{root} {right}',
@@ -164,6 +181,7 @@ def parse_message(text, style=None):
     for m in RE_OPT_EXPIRY.finditer(text):
         root, strike, right, prem = m.group(1).upper(), m.group(2), m.group(3).upper(), m.group(4)
         trade = f'{root} {strike} {right}'
+        option_roots.add(root)
         if any(o['trade'] == trade for o in out):
             continue
         add({'trade': trade,
@@ -186,15 +204,18 @@ def parse_message(text, style=None):
     # 3. verb-after cash: "BLUESTARCO CASH ABOVE 1570"
     for m in RE_CASH.finditer(text):
         sym, side, level = m.group(1), m.group(3).upper(), m.group(4)
-        if not _is_symbol(sym) or any(o['trade'] == sym for o in out):
+        if not _is_symbol(sym) or sym in option_roots or any(o['trade'] == sym for o in out):
             continue
         add({'trade': sym, 'direction': 'BUY' if side == 'ABOVE' else 'SELL',
              'entry': _f(level), 'target': None, 'stop_loss': None, 'status': 'Open'})
 
-    # 4. verb-first: "Buy BHARTIHEXA above 1555"
+    # 4. verb-first: "Buy BHARTIHEXA above 1555" — also mis-fires on a
+    # broker-style option order ("BUY NIFTY 03 JUL 25 25700 CE ... at
+    # 109.00"), reading the expiry day-of-month as the entry price, so any
+    # root already claimed by an option match above is excluded.
     for m in RE_VERB_FIRST.finditer(text):
         side, sym, level = m.group(1).upper(), m.group(2), m.group(3)
-        if not _is_symbol(sym) or any(o['trade'] == sym for o in out):
+        if not _is_symbol(sym) or sym in option_roots or any(o['trade'] == sym for o in out):
             continue
         add({'trade': sym, 'direction': side, 'entry': _f(level),
              'target': None, 'stop_loss': None, 'status': 'Open'})
@@ -202,7 +223,7 @@ def parse_message(text, style=None):
     # 5. plain "PAYTM BUY 1815"
     for m in RE_BUYSELL.finditer(text):
         sym, side, level = m.group(1), m.group(2).upper(), m.group(3)
-        if not level or not _is_symbol(sym) or any(o['trade'] == sym for o in out):
+        if not level or not _is_symbol(sym) or sym in option_roots or any(o['trade'] == sym for o in out):
             continue
         add({'trade': sym, 'direction': side, 'entry': _f(level),
              'target': None, 'stop_loss': None, 'status': 'Open'})
@@ -241,6 +262,11 @@ RE_EXIT = re.compile(
 # figure, e.g. "EXIT RTNINDIA @ 63.3", "Exit from Banknifty 59000 ce @ 364"
 RE_EXIT_PRICE = re.compile(
     r'\bEXIT(?:\s+FROM)?\s+([A-Z][A-Z0-9 ]{1,24}?)\s*@\s*' + NUM, re.IGNORECASE)
+# broker-style close-out that names the symbol instead of giving a rupee
+# profit total, e.g. "BOOK PROFIT IN RAYMOND @ 636.5", "BOOK PROFIT IN
+# GMDCLTD @422.5" (Angel One Research)
+RE_EXIT_PRICE_BOOK = re.compile(
+    r'\bBOOK(?:\s+PROFIT)?\s+IN\s+([A-Z][A-Z0-9 ]{1,24}?)\s*@\s*' + NUM, re.IGNORECASE)
 JUNK = re.compile(
     r'good morning|account (handling|management)|disclaimer|webinar|'
     r'subscribe|premium|youtube|whatsapp|t\.me/|https?://', re.IGNORECASE)
@@ -269,14 +295,17 @@ def parse_exit(text):
 
 
 def parse_exit_price(text):
-    """(symbol, price) for a clean 'EXIT [FROM] SYMBOL @ PRICE' close-out,
-    else None. Distinct from parse_profit(): that looks for an explicit
-    rupee profit figure; this captures the raw exit price when the message
-    gives a price instead (no profit wording to match on)."""
+    """(symbol, price) for a clean 'EXIT [FROM] SYMBOL @ PRICE' or
+    'BOOK [PROFIT] IN SYMBOL @ PRICE' close-out, else None. Distinct from
+    parse_profit(): that looks for an explicit rupee profit figure; this
+    captures the raw exit price when the message gives a price instead
+    (no profit wording to match on)."""
     if not text:
         return None
-    m = RE_EXIT_PRICE.search(text)
+    m = RE_EXIT_PRICE.search(text) or RE_EXIT_PRICE_BOOK.search(text)
     if not m:
         return None
     sym = re.sub(r'\s+', ' ', m.group(1).strip().upper())
+    if sym.split()[0] in STOP_WORDS:
+        return None
     return sym, _f(m.group(2))

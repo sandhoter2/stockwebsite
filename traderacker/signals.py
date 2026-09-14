@@ -22,11 +22,20 @@ CRYPTO = {'BTC', 'ETH', 'XRP', 'SOL', 'BNB', 'DOGE', 'ADA', 'AVAX', 'DOT', 'LINK
           'AXS', 'CHZ', 'ENJ', 'FLOW', 'XTZ', 'EOS', 'ALGO', 'VET', 'WIF', 'PEPE',
           'SHIB', 'AERO', 'PENGU', 'FET', 'RENDER', 'WLD', 'ENA', 'PYTH', 'JTO'}
 METALS = {'GOLD', 'SILVER', 'PLATINUM', 'GOLDPETAL', 'SILVERPETAL', 'MCXGOLD',
-          'MCXSILVER', 'COPPER', 'ALUMINUM', 'ZINC', 'LEAD', 'NICKEL'}
-COMMODITY = {'CRUDE', 'CRUDEOIL', 'OIL', 'NATURALGAS', 'GAS', 'NG', 'LPG', 'COAL',
-             'URINEA', 'MENTHA', 'COTTON', 'GUARGOM', 'JOJOB', 'TIN', 'METHANOL'}
+          'MCXSILVER', 'SILVERM', 'COPPER', 'ALUMINUM', 'ZINC', 'LEAD', 'NICKEL'}
+COMMODITY = {'CRUDE', 'CRUDEOIL', 'OIL', 'NATURALGAS', 'NATGAS', 'GAS', 'NG',
+             'LPG', 'COAL', 'URINEA', 'MENTHA', 'COTTON', 'GUARGOM', 'JOJOB',
+             'TIN', 'METHANOL'}
 FOREX = {'USDINR', 'EURUSD', 'GBPUSD', 'USDJPY', 'EURINR', 'GBPINR', 'AUDINR',
          'USDCAD', 'EURGBP', 'FX', 'FOREX', 'CURRENCY'}
+
+# day + 3-letter-month expiry token used by Nirmal Bang Official, glued
+# together with no/optional space and an optional trailing "T" ("15SEP",
+# "29 SEP", "29SEPT") — sits between the index/symbol and the FUT/strike,
+# breaking the generic verb-first/cash regexes' assumption that the entry
+# price immediately follows the symbol.
+MONTH_ABBR = r'JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC'
+EXPIRY = r'\d{1,2}\s?(?:' + MONTH_ABBR + r')T?'
 
 STOP_WORDS = {
     'NOT', 'BUY', 'SELL', 'CALL', 'CALLS', 'PUT', 'PUTS', 'CASH', 'ABOVE',
@@ -100,15 +109,41 @@ RE_VERB_FIRST = re.compile(
     r'(?:\s+\d[\d,]*(?:\.\d+)?\s*(?:shares?|lots?|qty))?'
     r'\s*(?:ABOVE|BELOW|AT|CMP|@|>)?\s*' + NUM,
     re.IGNORECASE)
+# Nirmal Bang Official futures orders that put an expiry token ("29SEP",
+# "29 SEPT") either before or after the FUT/FUTURE(S) keyword, e.g. "Sell
+# AMBER  FUTURE 29SEPT below 7170" and "Buy NIFTY 29SEP Future above 23305".
+# Run BEFORE RE_CASH/RE_VERB_FIRST/RE_BUYSELL and its root is added to
+# option_roots — without this, the expiry token confuses those looser
+# regexes into either grabbing the wrong symbol or a bogus partial-digit
+# entry price parsed out of the expiry token itself (e.g. "29" from
+# "29SEP").
+RE_FUT = re.compile(
+    r'\b(?:BUY|SELL)\s+' + SYM + r'\s+(?:(?:' + EXPIRY + r')\s+)?'
+    r'(?:FUTURES?|FUT)\b\s*(?:(?:' + EXPIRY + r')\s+)?(ABOVE|BELOW)\s+' + NUM,
+    re.IGNORECASE)
+# Nirmal Bang Official options with a compact expiry token between the index
+# and the strike, e.g. "Buy NIFTY 15SEP 23300 CE above 85" — RE_OPT's root
+# pattern requires the strike immediately after the root (no room for an
+# expiry token) and its leading \b fails mid-word ("15SEP"), so this shape
+# is otherwise invisible to RE_OPT and gets misread by RE_VERB_FIRST instead
+# (partial-digit entry from the expiry token, e.g. "15" from "15SEP").
+RE_OPT_EXPIRY2 = re.compile(
+    r'\b(?:BUY|SELL)\s+([A-Z]+)\s+(?:' + EXPIRY + r')\s+' + NUM +
+    r'\s*(CE|PE)\b(?:\s*(?:ABOVE|BELOW|AT)\s*' + NUM + r')?',
+    re.IGNORECASE)
 RE_CRYPTO = re.compile(
     SYM + r'\s+(LONG|SHORT)\b\s*(\d+\s*[Xx])?')
 RE_ENTER = re.compile(r'(?:ENTER|ENTRY|ENT)\s*[-:]?\s*' + NUM, re.IGNORECASE)
 RE_PREMIUM = re.compile(r'(?:@\s*|ENTRY\s+|ENTER\s+(?:AT|IN)\s+)' + NUM, re.IGNORECASE)
 RE_SUPPORT = re.compile(
     r'\b(?:SUPPORT|S/L|S/T|SL\b|STOP[\s\-]?LOSS|STOP|STCP)\s*[:\-]?\s*'
-    r'(?:AT\s+|BELOW\s+|ABOVE\s+|NEAR\s+|ON\s+)?' + NUM, re.IGNORECASE)
+    # "ABV" is Nirmal Bang Official's abbreviation for ABOVE ("SL ABV 9677")
+    r'(?:AT\s+|BELOW\s+|ABOVE\s+|ABV\s+|NEAR\s+|ON\s+)?' + NUM, re.IGNORECASE)
 RE_TARGET = re.compile(
-    r'\b(?:VIEW|VIEWS|TARGETS?|TGT|SHT)\s*[:\-]?\s*'
+    # "TG" is Nirmal Bang Official's abbreviation for TARGET ("TG 520",
+    # "TG  9119-9000") — added alongside the existing TGT so this doesn't
+    # also swallow legitimate "TGT"-style channels' text differently.
+    r'\b(?:VIEW|VIEWS|TARGETS?|TGT|TG|SHT)\s*[:\-]?\s*'
     r'(?:AT\s+|ON\s+|NEAR\s+)?' + NUM, re.IGNORECASE)
 RE_RANGE = re.compile(r'₹?\s*' + NUM + r'\s*[-–]\s*' + NUM)  # entry-target "₹250-320"
 RE_HOLDING = re.compile(r'\b(HOLDING|HOLD)\b', re.IGNORECASE)
@@ -146,6 +181,14 @@ def parse_message(text, style=None):
     # close-out being mis-read as a fresh order, not a new position.
     exit_price_spans = [m.span() for m in RE_EXIT_PRICE.finditer(text)]
     exit_price_spans += [m.span() for m in RE_EXIT_PRICE_BOOK.finditer(text)]
+    exit_price_spans += [m.span() for m in RE_EXIT_PRICE_CLOSE.finditer(text)]
+    exit_price_spans += [m.span() for m in RE_CLOSE_EVENT.finditer(text)]
+    # spans already claimed by RE_FUT/RE_OPT_EXPIRY2 (Nirmal Bang Official's
+    # expiry-token orders) — a cash/verb-first match starting earlier in the
+    # same span (e.g. an unrelated all-caps filler word like "DAYS" bridged
+    # through to the real "ABOVE <price>") is a false positive, not a second
+    # signal.
+    claimed_spans = []
 
     def add(sig):
         ac = classify(sig['trade'], sig['direction'], text)
@@ -163,6 +206,12 @@ def parse_message(text, style=None):
             continue
         if any(s[0] < m.end() and s[1] > m.start() for s in exit_price_spans):
             continue
+        # claim the root so a later cash/verb-first/buysell match doesn't
+        # re-read this option order's own strike as a bare "BUY <ROOT>
+        # <STRIKE>" cash order, e.g. "OPTION BUY CRUDEOIL 9650 PE 395-385
+        # ..." also spuriously matching "BUY CRUDEOIL 9650" (Nirmal Bang
+        # Official commodity options with no expiry date).
+        option_roots.add(root_word)
         right = {'CALL': 'CE', 'PUT': 'PE'}.get(right, right)
         entry = _f(prem) if prem else None
         sig = {'trade': f'{root} {right}',
@@ -189,6 +238,35 @@ def parse_message(text, style=None):
              'entry': _f(prem) if prem else None,
              'target': None, 'stop_loss': None, 'status': 'Open'})
 
+    # 1c. Nirmal Bang Official futures orders with a compact expiry token,
+    # e.g. "Sell AMBER  FUTURE 29SEPT below 7170", "Buy NIFTY 29SEP Future
+    # above 23305".
+    for m in RE_FUT.finditer(text):
+        sym, side = m.group(1), m.group(2).upper()
+        if not _is_symbol(sym):
+            continue
+        option_roots.add(sym)
+        claimed_spans.append(m.span())
+        if any(o['trade'] == sym for o in out):
+            continue
+        add({'trade': sym, 'direction': 'BUY' if side == 'ABOVE' else 'SELL',
+             'entry': _f(m.group(3)), 'target': None, 'stop_loss': None,
+             'status': 'Open'})
+
+    # 1d. Nirmal Bang Official options with a compact expiry token between
+    # the root and the strike, e.g. "Buy NIFTY 15SEP 23300 CE above 85".
+    for m in RE_OPT_EXPIRY2.finditer(text):
+        root, strike, right, prem = m.group(1).upper(), m.group(2), m.group(3).upper(), m.group(4)
+        trade = f'{root} {strike.replace(",", "")} {right}'
+        option_roots.add(root)
+        claimed_spans.append(m.span())
+        if any(o['trade'] == trade for o in out):
+            continue
+        add({'trade': trade,
+             'direction': 'CALL (up)' if right == 'CE' else 'PUT (down)',
+             'entry': _f(prem) if prem else None,
+             'target': None, 'stop_loss': None, 'status': 'Open'})
+
     # 2. crypto futures: "ONDO LONG 20x"
     for m in RE_CRYPTO.finditer(text):
         sym, side = m.group(1), m.group(2).upper()
@@ -205,6 +283,13 @@ def parse_message(text, style=None):
     for m in RE_CASH.finditer(text):
         sym, side, level = m.group(1), m.group(3).upper(), m.group(4)
         if not _is_symbol(sym) or sym in option_roots or any(o['trade'] == sym for o in out):
+            continue
+        # RE_CASH's lazy word-bridge can latch onto an unrelated earlier
+        # all-caps filler word (e.g. "DAYS" in "1-2 DAYS ... BUY BANKNIFTY
+        # FUT 29 SEPT ABOVE 56120.4") instead of the real symbol, whenever
+        # that match's span reaches into text already claimed by RE_FUT/
+        # RE_OPT_EXPIRY2 above — skip it rather than trust the wrong root.
+        if any(s[0] < m.end() and s[1] > m.start() for s in claimed_spans):
             continue
         add({'trade': sym, 'direction': 'BUY' if side == 'ABOVE' else 'SELL',
              'entry': _f(level), 'target': None, 'stop_loss': None, 'status': 'Open'})
@@ -267,6 +352,42 @@ RE_EXIT_PRICE = re.compile(
 # GMDCLTD @422.5" (Angel One Research)
 RE_EXIT_PRICE_BOOK = re.compile(
     r'\bBOOK(?:\s+PROFIT)?\s+IN\s+([A-Z][A-Z0-9 ]{1,24}?)\s*@\s*' + NUM, re.IGNORECASE)
+# Nirmal Bang Official's plain close-out for an option leg, e.g. "NIFTY
+# 23600CE CLOSE @31" — without this, RE_OPT (asset-class step 1) reads the
+# option root/strike as a fresh order and the message-level RE_PREMIUM
+# fallback ("@ <price>") mis-fills its entry from the close price.
+RE_EXIT_PRICE_CLOSE = re.compile(
+    r'\b([A-Z]+)\s?(\d[\d,]*(?:\.\d+)?)\s*(CE|PE)\s*CLOSE\s*@\s*' + NUM,
+    re.IGNORECASE)
+# Nirmal Bang Official's "Book Partial Profit(s) in <SYM> at <PRICE>" /
+# "Target Achieved in <SYM> at <PRICE>" close-out phrasing — gives a raw
+# exit price (sometimes a small range, e.g. "387.7-389"; the first/lower
+# number is used as the representative exit price) rather than a rupee
+# profit figure or the "EXIT SYM @ PRICE" shape RE_EXIT_PRICE expects.
+RE_CLOSE_EVENT = re.compile(
+    r'\b(?:BOOK\s+(?:PARTIAL\s+)?PROFITS?|TARGET\s+ACHIEVED)\s+IN\s+'
+    r'([A-Z][A-Z0-9 ]{1,30}?)\s*(?:AT\b|@)\s*' + NUM, re.IGNORECASE)
+_EXPIRY_TOKEN = re.compile(r'\b' + EXPIRY + r'\b', re.IGNORECASE)
+
+
+def _normalize_close_symbol(raw):
+    """Normalize a raw 'in <SYM...>' phrase from a Nirmal Bang Official
+    Book-Partial-Profit(s)/Target-Achieved close message into the canonical
+    trade string parse_message() would have used at entry time — stripping
+    an expiry token ("15SEP") and any trailing FUT/FUTURE(S) suffix."""
+    raw = re.sub(r'\s+', ' ', (raw or '').strip().upper())
+    raw = _EXPIRY_TOKEN.sub('', raw)
+    raw = re.sub(r'\s+', ' ', raw).strip()
+    m = re.match(r'^([A-Z][A-Z0-9&\-]*)\s+(\d[\d,]*(?:\.\d+)?)\s*(CE|PE)$', raw)
+    if m:
+        return f'{m.group(1)} {m.group(2).replace(",", "")} {m.group(3)}'
+    m = re.match(r'^([A-Z][A-Z0-9&\-]*)\s+(?:FUTURES?|FUT)$', raw)
+    if m:
+        return m.group(1)
+    tok = raw.split()[0] if raw.split() else None
+    return tok if tok and tok not in STOP_WORDS else None
+
+
 JUNK = re.compile(
     r'good morning|account (handling|management)|disclaimer|webinar|'
     r'subscribe|premium|youtube|whatsapp|t\.me/|https?://', re.IGNORECASE)
@@ -283,6 +404,13 @@ def parse_profit(text):
     m = RE_PROFIT_POST.search(text) or RE_PROFIT_PRE.search(text) or RE_PIPS.search(text)
     if not m:
         return None
+    # "BOOK PROFIT 237400-BUY SILVERM 235700-400 SL BELOW 233400 TG 238000"
+    # (Nirmal Bang Official) restates the original order right after the
+    # number — that number is a commodity price level, not a rupee profit
+    # total, so treat it as no confident profit figure rather than booking
+    # a wildly wrong "profit".
+    if re.match(r'\s*-\s*(?:BUY|SELL)\b', text[m.end():], re.IGNORECASE):
+        return None
     val = _f(m.group(1))
     if m.re.match(text[m.start():]) and 'K' in m.group(0).upper():
         val *= 1000
@@ -295,17 +423,27 @@ def parse_exit(text):
 
 
 def parse_exit_price(text):
-    """(symbol, price) for a clean 'EXIT [FROM] SYMBOL @ PRICE' or
-    'BOOK [PROFIT] IN SYMBOL @ PRICE' close-out, else None. Distinct from
-    parse_profit(): that looks for an explicit rupee profit figure; this
-    captures the raw exit price when the message gives a price instead
-    (no profit wording to match on)."""
+    """(symbol, price) for a clean 'EXIT [FROM] SYMBOL @ PRICE', 'BOOK
+    [PROFIT] IN SYMBOL @ PRICE', 'SYMBOL CLOSE @ PRICE', or Nirmal Bang
+    Official's 'Book Partial Profit(s)/Target Achieved in SYMBOL at PRICE'
+    close-out, else None. Distinct from parse_profit(): that looks for an
+    explicit rupee profit figure; this captures the raw exit price when the
+    message gives a price instead (no profit wording to match on)."""
     if not text:
         return None
     m = RE_EXIT_PRICE.search(text) or RE_EXIT_PRICE_BOOK.search(text)
-    if not m:
-        return None
-    sym = re.sub(r'\s+', ' ', m.group(1).strip().upper())
-    if sym.split()[0] in STOP_WORDS:
-        return None
-    return sym, _f(m.group(2))
+    if m:
+        sym = re.sub(r'\s+', ' ', m.group(1).strip().upper())
+        if sym.split()[0] in STOP_WORDS:
+            return None
+        return sym, _f(m.group(2))
+    m = RE_EXIT_PRICE_CLOSE.search(text)
+    if m:
+        root, strike, right = m.group(1).upper(), m.group(2).replace(',', ''), m.group(3).upper()
+        return f'{root} {strike} {right}', _f(m.group(4))
+    m = RE_CLOSE_EVENT.search(text)
+    if m:
+        sym = _normalize_close_symbol(m.group(1))
+        if sym:
+            return sym, _f(m.group(2))
+    return None

@@ -169,6 +169,30 @@ RE_TO_RANGE_OPT = re.compile(
     r'\b[A-Z]+\s?\d[\d,]*(?:\.\d+)?\s*(?:CE|PE|CALL|PUT)\b\s*\n+\s*' + NUM +
     r'\s*(?:TO|-)\s*' + NUM, re.IGNORECASE)
 
+# Stockpro Online writes its levels in lower/mixed case rather than the
+# ALL-CAPS "ABOVE"/"BELOW"/"BREAKOUT" the rest of the corpus uses, so the
+# channel-agnostic RE_CASH (case-sensitive on purpose, to avoid matching
+# ordinary prose sentences like "...that it looks good above 237" elsewhere)
+# never fires for it. These two patterns use a scoped (?i:...) group so only
+# the fixed keyword phrase is case-insensitive — the leading symbol token(s)
+# stay ALL-CAPS-only, keeping the same false-positive protection RE_CASH has.
+# 1. the standalone breakout call: "LUMINO fresh breakout above 112",
+#    "APOLLO MICRO fresh breakout above 418" (only the first word becomes the
+#    trade symbol, same shorthand-ticker convention as the rest of the file).
+RE_FRESH_BREAKOUT = re.compile(
+    r'\b([A-Z][A-Z0-9&\-]{1,20})\b(?:\s+[A-Z][A-Z0-9&\-]{1,20})*'
+    r'\s+(?i:fresh\s+breakout\s+(above|below))\s+' + NUM)
+# 2. the "we shared the research" recap/social-proof post that retrospectively
+#    documents an earlier call's entry level, e.g. "✅MILKYMIST 🔥 - We shared
+#    the research 2nd September 2026 only that it looks good above 237" or
+#    "✅DHOOTTRANS 🔥 - In morning we shared the research that it looks good
+#    above 1620" — the only record of that call in the tracked history, so
+#    treated as a real (if late) signal rather than ignored.
+RE_SHARED_RESEARCH = re.compile(
+    r'\b([A-Z][A-Z0-9&\-]{1,20})\b(?:\s+[A-Z][A-Z0-9&\-]{1,20})*.*?'
+    r'(?i:we\s+shared\s+the\s+research).*?'
+    r'(?i:it\s+looks\s+good\s+(above|below))\s*' + NUM, re.DOTALL)
+
 # promotional / PR / news posts that are never a trade signal (req 1.c)
 PROMO = re.compile(
     r'\b(offer\b|opens here|valid for first|slots only|join\b|'
@@ -372,6 +396,18 @@ def parse_message(text, style=None):
             continue
         add({'trade': sym, 'direction': side, 'entry': _f(level),
              'target': None, 'stop_loss': None, 'status': 'Open'})
+
+    # 6. Stockpro Online's lower/mixed-case level phrasing (see the comment
+    # above RE_FRESH_BREAKOUT/RE_SHARED_RESEARCH): "SYMBOL fresh breakout
+    # above N" and "SYMBOL ... we shared the research ... it looks good
+    # above N". Only runs if nothing above matched this symbol already.
+    for rx in (RE_FRESH_BREAKOUT, RE_SHARED_RESEARCH):
+        for m in rx.finditer(text):
+            sym, side, level = m.group(1), m.group(2).upper(), m.group(3)
+            if not _is_symbol(sym) or sym in option_roots or any(o['trade'] == sym for o in out):
+                continue
+            add({'trade': sym, 'direction': 'BUY' if side == 'ABOVE' else 'SELL',
+                 'entry': _f(level), 'target': None, 'stop_loss': None, 'status': 'Open'})
 
     if not out:
         return []

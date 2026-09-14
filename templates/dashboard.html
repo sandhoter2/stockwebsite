@@ -957,12 +957,118 @@
     }
 
     const CHANGE_BADGE = { new:'text-bg-success', increased:'text-bg-primary', decreased:'text-bg-warning', closed:'text-bg-danger' };
+    const BUY_SELL_BADGE = { Buy:'text-bg-success', Sell:'text-bg-danger' };
+    // 13F market values are reported in USD (SEC filings), unlike the rest
+    // of the dashboard's ₹ trade figures -- a dedicated formatter here
+    // keeps that honest instead of mislabeling the currency.
+    const USD = v => v == null ? '—' : (v < 0 ? '-$' : '$') + Math.abs(Number(v)).toLocaleString('en-US', {maximumFractionDigits: 0});
+    const PROFIT_TIP = 'Estimate only: 13F filings report share counts + quarter-end market value, not trade prices, so this isolates the price-driven value change on shares held across both quarters. New positions and full exits have no comparable prior basis, so profit is left blank rather than guessed.';
+
+    function ProfitCell({ estimate, isEstimated }) {
+      if (estimate == null) return <span className="text-muted" title={PROFIT_TIP}>n/a</span>;
+      return (
+        <span className={cls(estimate)} title={PROFIT_TIP}>
+          {estimate > 0 ? '+' : ''}{USD(estimate)}
+          {isEstimated && <span className="text-muted fw-normal small"> est.</span>}
+        </span>);
+    }
+
+    function MovesTable({ rows, showInvestor, onSelectInvestor }) {
+      if (rows.length === 0) return <div className="alert alert-light border">No notable moves in this window.</div>;
+      return (
+        <div className="table-responsive shadow-sm rounded bg-white">
+          <table className="table table-hover table-sm mb-0 align-middle">
+            <thead className="table-light"><tr>
+              <th>Time</th>
+              {showInvestor && <th>Resource</th>}
+              <th>Stock</th><th>Buy/Sell</th>
+              <th className="d-none d-md-table-cell">Quarter</th>
+              <th className="text-end d-none d-lg-table-cell">Δ %</th>
+              <th className="text-end">Profit</th>
+            </tr></thead>
+            <tbody>
+              {rows.map(r => (
+                <tr key={r.investor+'-'+r.cusip+'-'+r.filing_quarter} title={r.change_summary_line}>
+                  <td className="text-muted small text-nowrap">{r.filed_date}</td>
+                  {showInvestor && <td className="text-truncate" style={{maxWidth:'10rem', cursor:onSelectInvestor?'pointer':undefined}}
+                                       onClick={()=>onSelectInvestor && onSelectInvestor(r.investor)} title={'Open '+r.investor_short_label+"'s profile"}>
+                    {r.investor_short_label}</td>}
+                  <td><strong>{r.stock}</strong></td>
+                  <td>
+                    <span className={'badge '+(BUY_SELL_BADGE[r.buy_or_sell]||'text-bg-secondary')}>{r.buy_or_sell}</span>{' '}
+                    <span className={'badge '+(CHANGE_BADGE[r.change_kind]||'text-bg-secondary')} style={{fontSize:'.65rem'}}>{r.change_kind}</span>
+                  </td>
+                  <td className="text-muted small d-none d-md-table-cell">{r.filing_quarter}</td>
+                  <td className={'text-end d-none d-lg-table-cell '+cls(r.change_pct)}>{r.change_pct!=null?r.change_pct+'%':'—'}</td>
+                  <td className="text-end"><ProfitCell estimate={r.profit_estimate} isEstimated={r.profit_is_estimated} /></td>
+                </tr>))}
+            </tbody>
+          </table>
+        </div>);
+    }
+
+    const CONVICTION_BADGE_TIER = { established:'top', active:'solid', building:'building' };
+    function InvestorProfile({ investorId, investorLabel, onBack }) {
+      const [profile, setProfile] = useState(null);
+      const [err, setErr] = useState('');
+
+      useEffect(() => {
+        setProfile(null); setErr('');
+        api('/api/super-investors/investors/' + investorId + '/profile/')
+          .then(setProfile).catch(e => setErr(e.message));
+      }, [investorId]);
+
+      return (
+        <div>
+          <button className="btn btn-sm btn-outline-secondary mb-2" onClick={onBack}>← Back to all moves</button>
+          {err && <div className="alert alert-danger py-2">{err}</div>}
+          {!profile && !err && <div className="text-muted p-3">Loading profile…</div>}
+          {profile && <>
+            <div className="d-flex align-items-center flex-wrap gap-2 mb-3">
+              <h6 className="mb-0">{investorLabel}</h6>
+              <TierBadge tier={CONVICTION_BADGE_TIER[profile.conviction_tier]} label={profile.conviction_tier_label} />
+            </div>
+            <div className="row g-2 mb-3">
+              {[
+                ['Quarters tracked', profile.quarters_tracked],
+                ['Positions tracked', profile.positions_tracked],
+                ['New', profile.moves_new], ['Increased', profile.moves_increased],
+                ['Decreased', profile.moves_decreased], ['Closed', profile.moves_closed],
+              ].map(([label, val]) => (
+                <div className="col-4 col-md-2" key={label}>
+                  <div className="card pulse-card h-100"><div className="card-body py-2 px-2 text-center">
+                    <div className="label">{label}</div><div className="value">{val}</div>
+                  </div></div>
+                </div>))}
+            </div>
+            <div className="row g-2 mb-3">
+              <div className="col-md-6">
+                <div className="card pulse-card h-100" style={{'--accent':'#4f46e5'}}><div className="card-body py-2 px-3">
+                  <div className="label">Total estimated profit</div>
+                  <div className="value"><ProfitCell estimate={profile.total_estimated_profit} isEstimated={true} /></div>
+                  <div className="text-muted small">across {profile.profit_positions_count} position-quarters with a comparable prior basis</div>
+                </div></div>
+              </div>
+              <div className="col-md-6">
+                <div className="card pulse-card h-100"><div className="card-body py-2 px-3">
+                  <div className="label">Conviction</div>
+                  <div className="value">{profile.conviction_pct!=null?profile.conviction_pct+'%':'—'} <span className="text-muted small fw-normal">new positions</span></div>
+                  <div className="text-muted small">share of tracked moves that were brand-new bets, not adds to an existing position</div>
+                </div></div>
+              </div>
+            </div>
+            <MovesTable rows={profile.moves} showInvestor={false} />
+          </>}
+        </div>);
+    }
+
     function SuperInvestorsTab() {
       const [rows, setRows] = useState(null);
       const [err, setErr] = useState('');
       const [investors, setInvestors] = useState([]);
       const [investor, setInvestor] = useState('');
       const [quarters, setQuarters] = useState(2);
+      const [selected, setSelected] = useState(null); // investor id whose profile is open
 
       useEffect(() => {
         api('/api/super-investors/investors/').then(d => setInvestors(d.results || [])).catch(() => {});
@@ -979,6 +1085,11 @@
       }, [investor, quarters]);
       useEffect(() => { load(); }, [load]);
 
+      if (selected != null) {
+        const inv = investors.find(i => i.id === selected);
+        return <InvestorProfile investorId={selected} investorLabel={inv?inv.short_label:'Investor'} onBack={()=>setSelected(null)} />;
+      }
+
       return (
         <div>
           <div className="d-flex flex-wrap align-items-center gap-2 mb-2">
@@ -987,6 +1098,8 @@
               <option value="">All tracked investors</option>
               {investors.map(i => <option key={i.id} value={i.id}>{i.short_label}</option>)}
             </select>
+            {investor && <button className="btn btn-sm btn-outline-primary" onClick={()=>setSelected(Number(investor))}>
+              View profile →</button>}
             <div className="btn-group btn-group-sm">
               {[[1,'Latest Q'],[2,'2 Qs'],[4,'4 Qs']].map(([q,l]) => (
                 <button key={q} className={'btn '+(quarters===q?'btn-primary':'btn-outline-primary')} onClick={()=>setQuarters(q)}>{l}</button>))}
@@ -994,21 +1107,14 @@
             <button className="btn btn-sm btn-outline-secondary" onClick={load}>⟳ Refresh</button>
             <span className="text-muted small">New positions &amp; biggest changes first, across 8 tracked filers</span>
           </div>
+          <div className="mb-2 d-flex flex-wrap gap-1">
+            {investors.map(i => (
+              <span key={i.id} className="pill" style={{cursor:'pointer'}} onClick={()=>setSelected(i.id)} title={'Open '+i.short_label+"'s profile"}>
+                {i.short_label}</span>))}
+          </div>
           {err && <div className="alert alert-danger py-2">{err}</div>}
           {rows === null && <div className="text-muted p-3">Loading moves…</div>}
-          {rows !== null && rows.length === 0 &&
-            <div className="alert alert-light border">No notable moves in this window.</div>}
-          {rows !== null && rows.length > 0 &&
-            <div className="feed-list">
-              {rows.map((r,i) => (
-                <div key={r.investor+'-'+r.cusip+'-'+r.filing_quarter} className="feed-row d-flex justify-content-between align-items-center gap-2">
-                  <span>{r.change_summary_line}</span>
-                  <span className="d-flex align-items-center gap-2 text-nowrap">
-                    <span className={'badge '+(CHANGE_BADGE[r.change_kind]||'text-bg-secondary')} style={{fontSize:'.65rem'}}>{r.change_kind}</span>
-                    <span className="text-muted small">{r.filed_date}</span>
-                  </span>
-                </div>))}
-            </div>}
+          {rows !== null && <MovesTable rows={rows} showInvestor={true} onSelectInvestor={setSelected} />}
         </div>);
     }
 

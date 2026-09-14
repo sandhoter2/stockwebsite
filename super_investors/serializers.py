@@ -20,6 +20,9 @@ class HoldingSerializer(serializers.ModelSerializer):
     change_summary_line = serializers.CharField(read_only=True)
     change_kind = serializers.CharField(read_only=True)
     change_pct = serializers.FloatField(read_only=True)
+    buy_or_sell = serializers.CharField(read_only=True)
+    profit_estimate = serializers.FloatField(read_only=True)
+    profit_is_estimated = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = Holding
@@ -27,4 +30,4 @@ class HoldingSerializer(serializers.ModelSerializer):
                   'cusip', 'issuer_name', 'ticker', 'display_symbol',
                   'shares', 'market_value', 'filing_quarter', 'filed_date',
                   'accession_number', 'change_summary_line', 'change_kind',
-                  'change_pct']
+                  'change_pct', 'buy_or_sell', 'profit_estimate', 'profit_is_estimated']

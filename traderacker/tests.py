@@ -318,6 +318,66 @@ class SignalParserTests(TestCase):
         self.assertEqual(sigs[0]['entry'], 0.3514)
         self.assertEqual(sigs[0]['asset_class'], 'crypto')
 
+    def test_crypto_em_dash_long_short(self):
+        # Serezha Calls' other entry-signal shape: symbol and LONG/SHORT
+        # joined by an em-dash rather than a space, with "Entry price:" /
+        # "Targets:" / "Stop loss:" labels instead of Enter/Target/Stop.
+        from traderacker.signals import parse_message
+        sigs = parse_message(
+            'AVAX – SHORT\n\n✅Entry price: 42.500\n'
+            '📌Targets: 42.100/ 41.600 / 40.900\n❌Stop loss: 43.800\n\n'
+            'AVAX swept the upper liquidity pool, expecting a correction.')
+        self.assertEqual(len(sigs), 1)
+        self.assertEqual(sigs[0]['trade'], 'AVAX')
+        self.assertEqual(sigs[0]['direction'], 'SELL')
+        self.assertEqual(sigs[0]['entry'], 42.5)
+        self.assertEqual(sigs[0]['target'], 42.1)
+        self.assertEqual(sigs[0]['stop_loss'], 43.8)
+        self.assertEqual(sigs[0]['asset_class'], 'crypto')
+
+    def test_crypto_bare_symbol_price_labels_no_long_short(self):
+        # Serezha Calls' rarest shape: no LONG/SHORT keyword anywhere, just
+        # prose naming a known crypto ticker plus fully-labeled Entry/Target
+        # Price(s)/Stop Loss Price lines. Direction is inferred from
+        # target-vs-entry, never from the prose wording itself.
+        from traderacker.signals import parse_message
+        sigs = parse_message(
+            '#SOL\n\nSOL has taken out liquidity at the bottom of the range, '
+            'expecting the same move at the top.\n\n'
+            '✅Entry Price: 145.20\n📌Target Prices: 147.50 / 150.10 / 153.00\n'
+            '❌Stop Loss Price: 141.80')
+        self.assertEqual(len(sigs), 1)
+        self.assertEqual(sigs[0]['trade'], 'SOL')
+        self.assertEqual(sigs[0]['direction'], 'BUY')
+        self.assertEqual(sigs[0]['entry'], 145.2)
+        self.assertEqual(sigs[0]['target'], 147.5)
+        self.assertEqual(sigs[0]['stop_loss'], 141.8)
+        self.assertEqual(sigs[0]['asset_class'], 'crypto')
+
+    def test_crypto_prose_mention_without_price_labels_stays_unparsed(self):
+        # A bare crypto ticker mentioned in market commentary, with no
+        # Entry/Target/Stop-loss labels at all, must never become a phantom
+        # trade (the tight 3-label gate on the bare-symbol fallback).
+        from traderacker.signals import parse_message
+        sigs = parse_message(
+            'According to CryptoQuant, the recent rise in ETH has been '
+            'driven by short covering rather than new demand.')
+        self.assertEqual(sigs, [])
+
+    def test_crypto_repeat_header_followup_produces_no_phantom_signal(self):
+        # A status-update post that re-quotes the original "<SYM> LONG 10x"
+        # header (this channel's normal follow-up shape) must not create a
+        # second, entry-less signal — that upserts as a phantom duplicate
+        # Open trade in parse_signals (upsert key is channel+trade+entry).
+        from traderacker.signals import parse_message
+        sigs = parse_message('STX LONG 10x\n1 TP secured ⚡')
+        self.assertEqual(sigs, [])
+        sigs2 = parse_message(
+            'JUP LONG 10x\nHello friends\n\n'
+            'Unfortunately, our position got stopped out. '
+            'We will make up for the loss fast.')
+        self.assertEqual(sigs2, [])
+
     def test_exit_detection(self):
         from traderacker.signals import parse_exit
         self.assertTrue(parse_exit('2,175+ PROFIT💰 SAFE BOOK HERE'))

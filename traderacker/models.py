@@ -537,7 +537,8 @@ class Quote(models.Model):
     name = models.CharField(max_length=128, blank=True)
     kind = models.CharField(max_length=16, blank=True)   # LTP / OPT
     ltp = models.FloatField(null=True, blank=True)
-    asof = models.CharField(max_length=64, blank=True)
+    asof = models.DateTimeField(null=True, blank=True,
+                                help_text="When this quote was fetched from the market provider")
 
     class Meta:
         ordering = ['symbol']

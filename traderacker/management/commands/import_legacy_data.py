@@ -7,9 +7,11 @@ import datetime as dt
 import glob
 import json
 import os
+import re
 
 from django.core.management.base import BaseCommand
 from django.db import transaction
+from django.utils import timezone as dj_timezone
 from django.utils.dateparse import parse_datetime
 
 from traderacker.models import Channel, QuantityRule, Quote, TelegramMessage, Trade
@@ -46,6 +48,41 @@ def as_date(v):
         return None
 
 
+# legacy market.json 'asof' strings look like "2026-09-13 00:12 IST" (a plain
+# timestamp in the app's configured TIME_ZONE, with a trailing tz label that
+# isn't a parseable tz abbreviation on its own) or occasionally an ISO string.
+_ASOF_TZ_SUFFIX = re.compile(r'\s+[A-Za-z]{2,5}$')
+
+
+def as_asof_datetime(v):
+    """Best-effort parse of a legacy 'asof' value into an aware datetime.
+
+    Returns None (never raises) for empty/unparseable values so a handful of
+    garbage rows never abort the whole import.
+    """
+    if v is None or v == '':
+        return None
+    if isinstance(v, dt.datetime):
+        return dj_timezone.make_aware(v) if dj_timezone.is_naive(v) else v
+    s = str(v).strip()
+    if not s:
+        return None
+    parsed = parse_datetime(s)
+    if parsed is None:
+        # strip a trailing tz label ("IST", "UTC", ...) that parse_datetime
+        # can't handle, and parse the remaining naive timestamp
+        stripped = _ASOF_TZ_SUFFIX.sub('', s)
+        parsed = parse_datetime(stripped) or parse_datetime(stripped.replace(' ', 'T'))
+    if parsed is None:
+        try:
+            parsed = dt.datetime.fromisoformat(s[:19])
+        except ValueError:
+            return None
+    if dj_timezone.is_naive(parsed):
+        parsed = dj_timezone.make_aware(parsed)
+    return parsed
+
+
 class Command(BaseCommand):
     help = 'Import legacy Telegram Trade Tracker data (ledger.xlsx, states/, market.json…) into the database.'
 
@@ -61,7 +98,8 @@ class Command(BaseCommand):
             self.stderr.write(f'Not a directory: {base}')
             return
 
-        stats = {'channels': 0, 'trades': 0, 'quotes': 0, 'qty_rules': 0, 'messages': 0}
+        stats = {'channels': 0, 'trades': 0, 'quotes': 0, 'qty_rules': 0, 'messages': 0,
+                 'quotes_asof_unparsed': 0}
 
         # ---- channels from groups.json -------------------------------------
         name_by_short = {}
@@ -147,12 +185,16 @@ class Command(BaseCommand):
                 for sym, info in syms.items():
                     if not isinstance(info, dict):
                         continue
+                    raw_asof = info.get('asof')
+                    asof = as_asof_datetime(raw_asof)
+                    if raw_asof and asof is None:
+                        stats['quotes_asof_unparsed'] += 1
                     Quote.objects.update_or_create(
                         channel=ch, symbol=sym,
                         defaults={'name': info.get('name', ''),
                                   'kind': info.get('kind', ''),
                                   'ltp': as_float(info.get('ltp')),
-                                  'asof': str(info.get('asof', ''))},
+                                  'asof': asof},
                     )
                     stats['quotes'] += 1
 

@@ -53,8 +53,23 @@ class Command(BaseCommand):
             trade.peak_profit = peak
             trail_hit = peak > 0 and profit < peak * TRAILING
             if (exiting or trail_hit) and trade.status != 'Closed':
+                realized = max(trade.realized or 0, peak)
+                # Another row may already occupy this (channel, date, trade, entry,
+                # Closed) slot, e.g. two Open rows for the same re-posted signal both
+                # getting closed. Merge into the existing closed twin instead of
+                # violating uniq_trade_row, and drop this duplicate.
+                dup = Trade.objects.filter(channel=trade.channel, date=trade.date,
+                                           trade=trade.trade, entry=trade.entry,
+                                           status='Closed').exclude(pk=trade.pk).first()
+                if dup:
+                    if dup.realized is None or realized > dup.realized:
+                        dup.realized = realized
+                        dup.save(update_fields=['realized'])
+                    trade.delete()
+                    closed += 1
+                    return
                 trade.status = 'Closed'
-                trade.realized = max(trade.realized or 0, peak)
+                trade.realized = realized
                 closed += 1
                 trade.save(update_fields=['peak_profit', 'status', 'realized'])
             else:
@@ -71,10 +86,24 @@ class Command(BaseCommand):
             if trade is None or trade.entry is None:
                 return
             is_buy = (trade.direction or '').upper() in BUY_DIRECTIONS
-            realized = (price - trade.entry) if is_buy else (trade.entry - price)
+            realized = round((price - trade.entry) if is_buy else (trade.entry - price), 2)
+            # Another row may already occupy this (channel, date, trade, entry, Closed)
+            # slot, e.g. two Open rows for the same re-posted signal both getting closed.
+            # Flipping this one to Closed would collide with uniq_trade_row — merge into
+            # the existing closed twin instead of crashing, and drop this duplicate.
+            dup = Trade.objects.filter(channel=channel, date=trade.date, trade=trade.trade,
+                                       entry=trade.entry, status='Closed').exclude(pk=trade.pk).first()
+            if dup:
+                if dup.realized is None or realized > dup.realized:
+                    dup.ltp_exit = price
+                    dup.realized = realized
+                    dup.save(update_fields=['ltp_exit', 'realized'])
+                trade.delete()
+                closed_at_price += 1
+                return
             trade.status = 'Closed'
             trade.ltp_exit = price
-            trade.realized = round(realized, 2)
+            trade.realized = realized
             closed_at_price += 1
             trade.save(update_fields=['status', 'ltp_exit', 'realized'])
 

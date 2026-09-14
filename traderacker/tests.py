@@ -639,6 +639,62 @@ class SignalParserTests(TestCase):
         from traderacker.signals import parse_exit
         self.assertFalse(parse_exit('94++ 🔥🔥🔥\n\n6,175++ PROFIT💰💰💰\n\nSAFE CAN BOOK'))
 
+    def test_underscore_joined_strike_entry_range(self):
+        # "Buy NIFTY _23650PE Above 190-200" joins the index name to the
+        # strike+right with an underscore rather than a space, and "Above
+        # 190-200" is an entry TRIGGER range (not an entry/target pair like
+        # other channels' "₹250-320" shorthand) — the first number is the
+        # entry, the real target comes later from "Target : ..." (Stock
+        # Thunder)
+        from traderacker.signals import parse_message
+        sigs = parse_message('Buy NIFTY\xa0 _23800PE Above 210-220\n\n'
+                             'Target : 260/330/380\n\nStoploss : Paid')
+        self.assertEqual(len(sigs), 1)
+        s = sigs[0]
+        self.assertEqual(s['trade'], 'NIFTY 23800 PE')
+        self.assertEqual(s['direction'], 'PUT (down)')
+        self.assertEqual(s['entry'], 210.0)
+        self.assertEqual(s['target'], 260.0)
+        self.assertIsNone(s['stop_loss'])
+        self.assertEqual(s['asset_class'], 'option')
+
+    def test_progress_recap_does_not_duplicate_open_position(self):
+        # "<price> TO <price>#<SYM> <strike><right>" is a running LTP recap
+        # on an already-open leg, posted with no BUY/SELL verb — it used to
+        # also match the plain option regex as if it were a fresh order at
+        # entry=None, leaving a phantom duplicate Trade behind alongside the
+        # correctly-entered original (Stock Thunder). "GAINING RS-" is this
+        # channel's own profit phrasing, fed into parse_profit() via
+        # RE_GAINING; the "TARGET ALMOST/FULL HIT" wording is deliberately
+        # not an explicit close-out (no SOLD/BOOKED/"TARGET HIT" as a literal
+        # phrase), so it must not trip parse_exit either.
+        from traderacker.signals import parse_message, parse_profit, parse_exit
+        text = ('210 TO 248#NIFTY 23800PE \n\nGAINING RS- 3800/ 2 LOTS \n\n'
+               'FIRST TARGET ALMOST HIT 🎯 \n\nBOOK PARTIAL PROFIT OR TRAIL SL ✅')
+        self.assertEqual(parse_message(text), [])
+        self.assertEqual(parse_profit(text), 3800.0)
+        self.assertFalse(parse_exit(text))
+
+    def test_positional_stock_option_trade_no_phantom_cash_trade(self):
+        # "POSITIONAL STOCK OPTION TRADE\n\nBUY <SYM> <strike> CE|PE ABOVE
+        # <price> TRG - <t1>-<t2>-<t3> SL PAID" used to also fire the looser
+        # ABOVE/BELOW cash regex twice: once treating the "POSITIONAL"
+        # label itself as a phantom symbol, and once treating the option's
+        # own strike as a bogus cash entry price for the real ticker
+        # (Stock Thunder). "TRG" needed adding as a RE_TARGET alias
+        # alongside VIEW/TARGETS?/TGT/SHT to pick up the first of the
+        # dash-separated target list.
+        from traderacker.signals import parse_message
+        sigs = parse_message('POSITIONAL STOCK OPTION TRADE  \n\n'
+                             'BUY RELIANCE 3000 CE ABOVE 45 TRG - 55-65-80 '
+                             'SL PAID \n\nSEP EXPIRY')
+        self.assertEqual(len(sigs), 1)
+        s = sigs[0]
+        self.assertEqual(s['trade'], 'RELIANCE 3000 CE')
+        self.assertEqual(s['entry'], 45.0)
+        self.assertEqual(s['target'], 55.0)
+        self.assertEqual(s['asset_class'], 'option')
+
 
 class MarketServiceTests(TestCase):
     """Symbol→ticker mapping and provider fallback (no real network)."""

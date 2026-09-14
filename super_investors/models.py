@@ -51,7 +51,7 @@ class HoldingQuerySet(models.QuerySet):
 
         # figure out, per investor, which `quarters` most-recent filing_quarter
         # values are in scope (so we diff exactly that trailing window)
-        investor_ids = qs.values_list('investor_id', flat=True).distinct()
+        investor_ids = qs.order_by().values_list('investor_id', flat=True).distinct()
         scoped_quarters = {}
         for inv_id in investor_ids:
             qtrs = list(self.filter(investor_id=inv_id)

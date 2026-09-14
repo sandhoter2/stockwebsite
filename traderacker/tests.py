@@ -247,6 +247,60 @@ class SignalParserTests(TestCase):
         self.assertEqual(parse_exit_price('EXIT BANKNIFTY 58500 CE @ 499'),
                          ('BANKNIFTY 58500 CE', 499.0))
 
+    def test_conviction_delivery_idea_full_signal(self):
+        # "Conviction Delivery Idea" is this channel's swing/delivery-tip
+        # header, identical CMP/SL/TGT body shape to "MOSt Overnight"
+        # (Motilal Oswal - Official)
+        from traderacker.signals import parse_message
+        sigs = parse_message(
+            'Conviction Delivery Idea  \n\nBUY EXAMPLETICK  \n\nCMP 500.25  \n'
+            'SL 480 \nTGT 540\n- Range breakout on daily chart.\n\n'
+            'Disclaimer- https://ftp.motilaloswal.com/emailer/Marketdiary/'
+            'Disclaimer/Disclaimer.pdf')
+        self.assertEqual(len(sigs), 1)
+        s = sigs[0]
+        self.assertEqual(s['trade'], 'EXAMPLETICK')
+        self.assertEqual(s['direction'], 'BUY')
+        self.assertEqual(s['entry'], 500.25)
+        self.assertEqual(s['stop_loss'], 480.0)
+        self.assertEqual(s['target'], 540.0)
+        self.assertEqual(s['asset_class'], 'stock')
+
+    def test_daily_digest_technical_pick_not_parsed(self):
+        # the daily "3 Things That Will Decide the Market Today" digest ends
+        # with a "Technical Pick" naming a mixed-case, sometimes multi-word
+        # company name ("Sai Life Sciences Ltd") rather than the ALL-CAPS
+        # ticker this codebase relies on for symbol detection, and gives no
+        # stop-loss — deliberately left unparsed rather than guessing a
+        # ticker (Motilal Oswal - Official; see migration 0008 style_notes)
+        from traderacker.signals import parse_message
+        text = (
+            '📊 3 Things That Will Decide the Market Today\n\n'
+            'Fundamental Picks (for more than a year)\n'
+            '1.Titan- Target 6000 (19%)\n2. Granules- Target 1010(21%)\n\n'
+            'Technical Pick -\nSAI LIFE SCIENCES Ltd BUY\n'
+            'Previous Close: 1587\nTarget: 1667\nPotential upside: ~5%'
+        )
+        self.assertEqual(parse_message(text), [])
+
+    def test_join_now_promo_and_prose_exit_word_are_harmless(self):
+        # bare "Join Now" campaign links are promo (no trade verb); a quiz/
+        # engagement post that happens to use the word "exit" in prose must
+        # not parse as a signal or exit (Motilal Oswal - Official)
+        from traderacker.signals import parse_message, is_promo, parse_exit
+        promo_text = ('Join Now : https://www.motilaloswal.com/campaign/'
+                     'Registrationoffers/e2e/SubBrokers/e2e-telegram.html')
+        self.assertTrue(is_promo(promo_text))
+        self.assertEqual(parse_message(promo_text), [])
+        quiz_text = ('Gap up but close below the open = trapped sellers '
+                    'were waiting for a bounce to exit. The earnings beat '
+                    'gave them the gift.')
+        self.assertEqual(parse_message(quiz_text), [])
+        self.assertTrue(parse_exit(quiz_text))  # matches RE_EXIT in prose...
+        from traderacker.signals import parse_profit
+        self.assertIsNone(parse_profit(quiz_text))  # ...but no profit figure,
+        # so parse_signals' book() never acts on it (profit is None -> no-op)
+
     def test_comma_strike_range(self):
         from traderacker.signals import parse_message
         sigs = parse_message('✅SENSEX 73,900 PE✅\n₹250-320✅✅')

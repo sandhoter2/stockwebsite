@@ -1,5 +1,24 @@
 from django.db import models
 
+# 13F filings report POSITION SNAPSHOTS (shares + market value at quarter
+# end), not individual buy/sell transactions. `change_kind` (computed by
+# diffing consecutive quarters) is the closest thing we have to a trade
+# direction, so we map it onto a simple Buy/Sell label for display:
+#   new / increased  -> "Buy"  (the filer added shares this quarter)
+#   decreased / closed -> "Sell" (the filer reduced/exited the position)
+# This is a simplification: a "decreased" position isn't literally one sell
+# transaction, it's a net reduction that could hide interim buys and sells.
+BUY_OR_SELL = {'new': 'Buy', 'increased': 'Buy', 'decreased': 'Sell', 'closed': 'Sell'}
+
+# Conviction/activity tiers for an investor's tracked history. 13F data
+# doesn't support a literal win-rate tier (we don't know cost basis or exit
+# price), so this is a much softer "how much signal do we have, and how
+# often do they open brand-new positions" framing rather than a
+# performance judgment.
+CONVICTION_TIER_LABELS = {
+    'established': 'Established · deep history', 'active': 'Active filer', 'building': 'Building track record',
+}
+
 
 class SuperInvestor(models.Model):
     """A well-known investor/fund whose SEC Form 13F filings we track.
@@ -85,12 +104,14 @@ class HoldingQuerySet(models.QuerySet):
                 summary, kind, pct = h._compute_change(prior)
                 if kind == 'unchanged':
                     continue
+                profit_estimate, is_estimated = h._profit_estimate(prior)
                 results.append({
                     'investor': h.investor_id,
                     'investor_name': h.investor.name,
                     'investor_short_label': h.investor.short_label,
                     'ticker': h.ticker or None,
                     'issuer_name': h.issuer_name,
+                    'stock': h.ticker or h.issuer_name,
                     'cusip': h.cusip,
                     'filing_quarter': h.filing_quarter,
                     'filed_date': h.filed_date,
@@ -100,6 +121,9 @@ class HoldingQuerySet(models.QuerySet):
                     'change_kind': kind,
                     'change_pct': pct,
                     'change_summary_line': summary,
+                    'buy_or_sell': BUY_OR_SELL.get(kind),
+                    'profit_estimate': profit_estimate,
+                    'profit_is_estimated': is_estimated,
                 })
 
         # notable-first ordering: new positions and closes before increases/
@@ -108,6 +132,61 @@ class HoldingQuerySet(models.QuerySet):
         results.sort(key=lambda r: (kind_rank.get(r['change_kind'], 2),
                                     -(abs(r['change_pct']) if r['change_pct'] is not None else 10**9)))
         return results[:limit]
+
+    def investor_profile(self, investor_id):
+        """Per-investor profile: activity/conviction stats + full move
+        history, mirroring traderacker's Channel.stats()/breakdown()
+        pattern (quick-glance numbers + a detail list) for one filer.
+        Reuses moves() so the Buy/Sell + profit-estimate logic lives in one
+        place; quarters=50 / limit=1000 is effectively "all history" for a
+        quarterly filing (comfortably covers 12+ years).
+        """
+        all_moves = self.moves(investor=investor_id, quarters=50, limit=1000)
+
+        # distinct-on-a-field queries: order_by() clears the model's default
+        # multi-field Meta.ordering first so .distinct() dedupes on exactly
+        # the projected column, not the full default order (the same fix
+        # applied to moves() for its N-squared blowup).
+        quarters_tracked = (self.filter(investor_id=investor_id).order_by()
+                            .values_list('filing_quarter', flat=True).distinct().count())
+        positions_tracked = (self.filter(investor_id=investor_id).order_by()
+                             .values_list('cusip', flat=True).distinct().count())
+
+        counts = {'new': 0, 'increased': 0, 'decreased': 0, 'closed': 0}
+        total_profit = 0.0
+        profit_rows = 0
+        for m in all_moves:
+            counts[m['change_kind']] = counts.get(m['change_kind'], 0) + 1
+            if m['profit_estimate'] is not None:
+                total_profit += m['profit_estimate']
+                profit_rows += 1
+
+        total_moves = sum(counts.values())
+        conviction_pct = round(100 * counts['new'] / total_moves, 1) if total_moves else None
+
+        if quarters_tracked < 2 or positions_tracked < 3:
+            tier = 'building'
+        elif quarters_tracked >= 4 and positions_tracked >= 15:
+            tier = 'established'
+        else:
+            tier = 'active'
+
+        return {
+            'investor': investor_id,
+            'quarters_tracked': quarters_tracked,
+            'positions_tracked': positions_tracked,
+            'moves_new': counts['new'],
+            'moves_increased': counts['increased'],
+            'moves_decreased': counts['decreased'],
+            'moves_closed': counts['closed'],
+            'total_moves': total_moves,
+            'total_estimated_profit': round(total_profit, 2) if profit_rows else None,
+            'profit_positions_count': profit_rows,
+            'conviction_pct': conviction_pct,
+            'conviction_tier': tier,
+            'conviction_tier_label': CONVICTION_TIER_LABELS.get(tier),
+            'moves': all_moves,
+        }
 
 
 class Holding(models.Model):
@@ -181,6 +260,36 @@ class Holding(models.Model):
         return (f"{label}: decreased {sym} position by {abs(pct)}% (~${mv:,.0f} now)",
                 'decreased', pct)
 
+    def _profit_estimate(self, prior):
+        """Rough, clearly-labeled profit ESTIMATE for this position vs.
+        `prior` quarter's row (same investor+cusip). 13F filings report
+        share counts + point-in-time market value, not trade prices or
+        cost basis, so this is never an exact P&L figure.
+
+        Approach: isolate the price-driven change in value from the
+        share-count-driven change by applying the per-share value delta to
+        only the shares held across BOTH quarters (`base_shares` = the
+        smaller of the two share counts):
+            price_prior = prior.market_value / prior.shares
+            price_now   = self.market_value / self.shares
+            profit ~= (price_now - price_prior) * min(prior.shares, self.shares)
+        When shares are unchanged this reduces to the exact market_value
+        delta (an "unrealized gain/loss this quarter" reading). When shares
+        changed, it's a fuzzier approximation that ignores gains/losses on
+        the newly added/removed shares themselves.
+
+        Returns (profit_estimate, is_estimated). profit_estimate is None
+        (never a fabricated guess) when there's no comparable basis: a
+        brand-new position (no prior quarter) or a fully closed position
+        (13F doesn't report the sale price, so we can't estimate proceeds).
+        """
+        if prior is None or not prior.shares or not self.shares:
+            return None, True
+        base_shares = min(prior.shares, self.shares)
+        price_prior = prior.market_value / prior.shares
+        price_now = self.market_value / self.shares
+        return round((price_now - price_prior) * base_shares, 2), True
+
     @property
     def change_summary_line(self):
         summary, _, _ = self._compute_change(self._prior_holding())
@@ -195,3 +304,17 @@ class Holding(models.Model):
     def change_pct(self):
         _, _, pct = self._compute_change(self._prior_holding())
         return pct
+
+    @property
+    def buy_or_sell(self):
+        return BUY_OR_SELL.get(self.change_kind)
+
+    @property
+    def profit_estimate(self):
+        estimate, _ = self._profit_estimate(self._prior_holding())
+        return estimate
+
+    @property
+    def profit_is_estimated(self):
+        _, is_estimated = self._profit_estimate(self._prior_holding())
+        return is_estimated

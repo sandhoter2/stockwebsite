@@ -1,4 +1,5 @@
 from rest_framework import routers, viewsets
+from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -7,9 +8,32 @@ from .models import Holding, SuperInvestor
 from .serializers import HoldingSerializer, SuperInvestorSerializer
 
 
+def _iso_moves(results):
+    """Mutate a list of moves()/investor_profile() row dicts in place,
+    turning their date objects into ISO strings for JSON."""
+    for r in results:
+        r['filing_quarter'] = r['filing_quarter'].isoformat() if r['filing_quarter'] else None
+        r['filed_date'] = r['filed_date'].isoformat() if r['filed_date'] else None
+    return results
+
+
 class SuperInvestorViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = SuperInvestor.objects.all()
     serializer_class = SuperInvestorSerializer
+
+    @action(detail=True, methods=['get'])
+    def profile(self, request, pk=None):
+        """GET /api/super-investors/investors/<id>/profile/
+
+        Per-investor profile mirroring traderacker's Channel stats pattern:
+        quarters/positions tracked, a breakdown of move kinds, total
+        estimated profit across positions where it's computable, a simple
+        conviction/activity tier, and the full move history for this filer.
+        """
+        self.get_object()  # 404s cleanly if the investor id doesn't exist
+        data = Holding.objects.investor_profile(int(pk))
+        data['moves'] = _iso_moves(data['moves'])
+        return Response(data)
 
 
 class HoldingViewSet(viewsets.ReadOnlyModelViewSet):
@@ -62,10 +86,7 @@ class MovesView(APIView):
             quarters=quarters,
             limit=limit,
         )
-        # dates -> ISO strings for JSON
-        for r in results:
-            r['filing_quarter'] = r['filing_quarter'].isoformat() if r['filing_quarter'] else None
-            r['filed_date'] = r['filed_date'].isoformat() if r['filed_date'] else None
+        results = _iso_moves(results)
 
         return Response({'results': results, 'count': len(results), 'quarters': quarters})
 

@@ -62,6 +62,18 @@ class SuperInvestorModelTests(TestCase):
             filing_quarter=date(2025, 6, 30), filed_date=date(2025, 8, 14))
         self.assertEqual(h2.change_kind, 'closed')
         self.assertIn('closed position in AAPL', h2.change_summary_line)
+        self.assertEqual(h2.buy_or_sell, 'Sell')
+        # 13F doesn't report a sale price, so profit is never fabricated
+        # for a closed position -- None, not a guessed number.
+        self.assertIsNone(h2.profit_estimate)
+
+    def test_new_position_has_no_profit_estimate(self):
+        h = Holding.objects.create(
+            investor=self.investor, cusip='037833100', issuer_name='APPLE INC',
+            ticker='AAPL', shares=100000, market_value=20000000,
+            filing_quarter=date(2025, 6, 30), filed_date=date(2025, 8, 14))
+        self.assertEqual(h.buy_or_sell, 'Buy')
+        self.assertIsNone(h.profit_estimate)
 
     def test_uniqueness_constraint_upsert_key(self):
         Holding.objects.create(
@@ -111,6 +123,36 @@ class MovesQuerySetTests(TestCase):
         results = Holding.objects.moves(quarters=2, ticker='MSFT')
         self.assertTrue(all(r['ticker'] == 'MSFT' for r in results))
         self.assertTrue(len(results) >= 1)
+
+    def test_moves_buy_sell_and_profit_estimate(self):
+        results = Holding.objects.moves(quarters=2)
+        by_ticker = {r['ticker']: r for r in results}
+        # MSFT is a brand-new position: Buy, but no comparable prior quarter
+        # so profit can't be estimated (not fabricated as 0).
+        self.assertEqual(by_ticker['MSFT']['buy_or_sell'], 'Buy')
+        self.assertIsNone(by_ticker['MSFT']['profit_estimate'])
+        # AAPL doubled shares (100k->200k) at the same $200/share market
+        # value implied both quarters ($20M/100k == $40M/200k): pure
+        # share-count growth, no price movement, so the isolated
+        # price-driven profit estimate is correctly $0 -- all the added
+        # market value there is new capital, not gain.
+        self.assertEqual(by_ticker['AAPL']['buy_or_sell'], 'Buy')
+        self.assertEqual(by_ticker['AAPL']['profit_estimate'], 0.0)
+        self.assertTrue(by_ticker['AAPL']['profit_is_estimated'])
+
+    def test_investor_profile_aggregates(self):
+        profile = Holding.objects.investor_profile(self.investor.id)
+        self.assertEqual(profile['quarters_tracked'], 2)
+        self.assertEqual(profile['positions_tracked'], 2)  # AAPL + MSFT
+        # AAPL's first-ever quarter (Q1, no prior to diff against) and
+        # MSFT (opened in Q2) both surface as 'new'; AAPL's Q2 row is the
+        # separate 'increased' diff against its own Q1 -- moves() emits one
+        # row per in-scope quarter, not one row per ticker.
+        self.assertEqual(profile['moves_new'], 2)
+        self.assertEqual(profile['moves_increased'], 1)
+        self.assertEqual(profile['total_moves'], 3)
+        self.assertEqual(len(profile['moves']), 3)
+        self.assertIn('conviction_tier', profile)
 
 
 class ParseInfoTableTests(TestCase):
@@ -196,3 +238,16 @@ class ApiEndpointTests(TestCase):
         resp = self.client.get(f'/api/super-investors/holdings/?investor={self.investor.id}')
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.json()['count'], 1)
+
+    def test_investor_profile_endpoint(self):
+        resp = self.client.get(f'/api/super-investors/investors/{self.investor.id}/profile/')
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(data['investor'], self.investor.id)
+        self.assertEqual(data['moves_new'], 1)
+        self.assertIn('moves', data)
+        self.assertEqual(data['moves'][0]['filing_quarter'], '2025-06-30')
+
+    def test_investor_profile_404_for_unknown_investor(self):
+        resp = self.client.get('/api/super-investors/investors/999999/profile/')
+        self.assertEqual(resp.status_code, 404)

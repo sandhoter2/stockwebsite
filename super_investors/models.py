@@ -104,7 +104,7 @@ class HoldingQuerySet(models.QuerySet):
                 summary, kind, pct = h._compute_change(prior)
                 if kind == 'unchanged':
                     continue
-                profit_estimate, is_estimated = h._profit_estimate(prior)
+                profit_estimate, is_estimated, profit_kind = h._profit_estimate(prior)
                 results.append({
                     'investor': h.investor_id,
                     'investor_name': h.investor.name,
@@ -122,8 +122,12 @@ class HoldingQuerySet(models.QuerySet):
                     'change_pct': pct,
                     'change_summary_line': summary,
                     'buy_or_sell': BUY_OR_SELL.get(kind),
+                    'price_at_filing': h.price_at_filing,
+                    'current_price': h.current_price,
+                    'current_price_as_of': h.current_price_as_of,
                     'profit_estimate': profit_estimate,
                     'profit_is_estimated': is_estimated,
+                    'profit_kind': profit_kind,
                 })
 
         # notable-first ordering: new positions and closes before increases/
@@ -205,6 +209,10 @@ class Holding(models.Model):
     filing_quarter = models.DateField(help_text="Quarter-end date this holding was reported as of (e.g. 2025-06-30)")
     filed_date = models.DateField(help_text="Date the 13F-HR was actually filed with the SEC (~45 days after quarter end)")
     accession_number = models.CharField(max_length=32, blank=True, help_text="SEC EDGAR accession number of the source filing")
+    current_price = models.FloatField(null=True, blank=True,
+        help_text="Live market price as of the last `update_current_prices` run (mark-to-market for unrealized P/L); null until computed or if the ticker can't be resolved")
+    current_price_as_of = models.DateTimeField(null=True, blank=True,
+        help_text="When current_price was last fetched")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -260,35 +268,56 @@ class Holding(models.Model):
         return (f"{label}: decreased {sym} position by {abs(pct)}% (~${mv:,.0f} now)",
                 'decreased', pct)
 
+    @property
+    def price_at_filing(self):
+        """Implied per-share price at this filing's quarter-end (market_value
+        / shares) -- not a real trade price, but the best proxy 13F gives us."""
+        if not self.shares:
+            return None
+        return round(self.market_value / self.shares, 4)
+
     def _profit_estimate(self, prior):
-        """Rough, clearly-labeled profit ESTIMATE for this position vs.
-        `prior` quarter's row (same investor+cusip). 13F filings report
-        share counts + point-in-time market value, not trade prices or
-        cost basis, so this is never an exact P&L figure.
+        """Rough, clearly-labeled profit ESTIMATE for this position.
+        13F filings report share counts + point-in-time market value, not
+        trade prices or cost basis, so this is never an exact P&L figure.
 
-        Approach: isolate the price-driven change in value from the
-        share-count-driven change by applying the per-share value delta to
-        only the shares held across BOTH quarters (`base_shares` = the
-        smaller of the two share counts):
-            price_prior = prior.market_value / prior.shares
-            price_now   = self.market_value / self.shares
-            profit ~= (price_now - price_prior) * min(prior.shares, self.shares)
-        When shares are unchanged this reduces to the exact market_value
-        delta (an "unrealized gain/loss this quarter" reading). When shares
-        changed, it's a fuzzier approximation that ignores gains/losses on
-        the newly added/removed shares themselves.
+        Two estimate kinds, tried in order:
 
-        Returns (profit_estimate, is_estimated). profit_estimate is None
-        (never a fabricated guess) when there's no comparable basis: a
-        brand-new position (no prior quarter) or a fully closed position
-        (13F doesn't report the sale price, so we can't estimate proceeds).
+        1. 'quarter_over_quarter' -- when there's a `prior` quarter row for
+           the same investor+cusip, isolate the price-driven change in value
+           from the share-count-driven change by applying the per-share
+           value delta to only the shares held across BOTH quarters
+           (`base_shares` = the smaller of the two share counts):
+               profit ~= (price_now - price_prior) * min(prior.shares, self.shares)
+           When shares are unchanged this reduces to the exact market_value
+           delta. When shares changed, it ignores gains/losses on the newly
+           added/removed shares themselves.
+
+        2. 'since_filing' -- when there's no prior quarter (a brand-new
+           position) but we have a live `current_price` (see
+           `update_current_prices` management command), mark the position
+           to market since the filing: what would today's price mean for
+           the shares disclosed at quarter-end.
+               profit ~= (current_price - price_at_filing) * shares
+
+        Returns (profit_estimate, is_estimated, kind). profit_estimate is
+        None (never a fabricated guess) when neither basis is available: a
+        brand-new position with no priced ticker yet, or a fully closed
+        position (13F doesn't report the sale price, so we can't estimate
+        proceeds either way).
         """
-        if prior is None or not prior.shares or not self.shares:
-            return None, True
-        base_shares = min(prior.shares, self.shares)
-        price_prior = prior.market_value / prior.shares
-        price_now = self.market_value / self.shares
-        return round((price_now - price_prior) * base_shares, 2), True
+        if prior is not None and prior.shares and self.shares:
+            base_shares = min(prior.shares, self.shares)
+            price_prior = prior.market_value / prior.shares
+            price_now = self.market_value / self.shares
+            return round((price_now - price_prior) * base_shares, 2), True, 'quarter_over_quarter'
+
+        if (prior is None or not prior.shares) and self.shares and self.current_price is not None:
+            price_filed = self.price_at_filing
+            if price_filed is not None:
+                return round((self.current_price - price_filed) * self.shares, 2), True, 'since_filing'
+
+        return None, True, None
 
     @property
     def change_summary_line(self):
@@ -311,10 +340,15 @@ class Holding(models.Model):
 
     @property
     def profit_estimate(self):
-        estimate, _ = self._profit_estimate(self._prior_holding())
+        estimate, _, _ = self._profit_estimate(self._prior_holding())
         return estimate
 
     @property
     def profit_is_estimated(self):
-        _, is_estimated = self._profit_estimate(self._prior_holding())
+        _, is_estimated, _ = self._profit_estimate(self._prior_holding())
         return is_estimated
+
+    @property
+    def profit_kind(self):
+        _, _, kind = self._profit_estimate(self._prior_holding())
+        return kind

@@ -14,6 +14,8 @@ def _iso_moves(results):
     for r in results:
         r['filing_quarter'] = r['filing_quarter'].isoformat() if r['filing_quarter'] else None
         r['filed_date'] = r['filed_date'].isoformat() if r['filed_date'] else None
+        if 'current_price_as_of' in r:
+            r['current_price_as_of'] = r['current_price_as_of'].isoformat() if r['current_price_as_of'] else None
     return results
 
 

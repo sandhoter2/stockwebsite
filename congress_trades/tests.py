@@ -110,3 +110,138 @@ class CongressTradeApiTests(TestCase):
         self.assertEqual(r.status_code, 200)
         data = r.json()
         self.assertEqual(data['results'][0]['ticker'], 'NVDA')
+
+    def test_list_row_has_table_shape(self):
+        """Table needs time/resource/stock/buy_or_sell/profit per row."""
+        r = self.client.get('/api/congress/trades/')
+        row = r.json()['results'][0]
+        for key in ('time', 'resource', 'ticker', 'buy_or_sell', 'profit', 'profit_kind'):
+            self.assertIn(key, row)
+        self.assertEqual(row['time'], row['transaction_date'])
+
+
+class ProfitEstimateTests(TestCase):
+    """Use fake price functions (no network) to pin down the FIFO-matching
+    and profit-estimate math deterministically."""
+
+    def _fake_prices(self, price_by_date):
+        def historical_fn(ticker, on_date):
+            return price_by_date.get((ticker, on_date))
+
+        def price_fn(ticker):
+            return price_by_date.get((ticker, 'current')), 'fake'
+        return price_fn, historical_fn
+
+    def test_realized_profit_on_matched_buy_sell(self):
+        buy = _make(ticker='NVDA', transaction_type='buy',
+                    amount_min=1_000_001, amount_max=5_000_000,   # mid 3,000,000.5
+                    transaction_date=dt.date(2026, 1, 1), source_doc_id='b1')
+        sell = _make(ticker='NVDA', transaction_type='sell',
+                     amount_min=1_000_001, amount_max=5_000_000,
+                     transaction_date=dt.date(2026, 2, 1), source_doc_id='s1')
+        price_fn, hist_fn = self._fake_prices({
+            ('NVDA', dt.date(2026, 1, 1)): 100.0,
+            ('NVDA', dt.date(2026, 2, 1)): 110.0,   # +10%
+        })
+        n = CongressTrade.objects.compute_profit_estimates(price_fn=price_fn, historical_fn=hist_fn)
+        self.assertEqual(n, 2)
+        buy.refresh_from_db(); sell.refresh_from_db()
+        self.assertEqual(buy.profit_kind, 'realized')
+        self.assertEqual(sell.profit_kind, 'realized')
+        self.assertAlmostEqual(buy.realized_profit, 300_000.05, places=2)
+        self.assertEqual(buy.realized_profit, sell.realized_profit)
+        self.assertEqual(buy.matched_trade_id, sell.id)
+        self.assertIsNone(buy.unrealized_profit)
+
+    def test_unrealized_profit_on_open_buy(self):
+        buy = _make(ticker='AAPL', transaction_type='buy',
+                    amount_min=15_001, amount_max=50_000,   # mid 32,500.5
+                    transaction_date=dt.date(2026, 1, 1), source_doc_id='b2')
+        price_fn, hist_fn = self._fake_prices({
+            ('AAPL', dt.date(2026, 1, 1)): 200.0,
+            ('AAPL', 'current'): 180.0,   # -10%
+        })
+        CongressTrade.objects.compute_profit_estimates(price_fn=price_fn, historical_fn=hist_fn)
+        buy.refresh_from_db()
+        self.assertEqual(buy.profit_kind, 'unrealized')
+        self.assertAlmostEqual(buy.unrealized_profit, -3250.05, places=2)
+        self.assertIsNone(buy.realized_profit)
+
+    def test_sell_without_matching_buy_left_unpriced(self):
+        sell = _make(ticker='MSFT', transaction_type='sell', source_doc_id='s3')
+        price_fn, hist_fn = self._fake_prices({})
+        CongressTrade.objects.compute_profit_estimates(price_fn=price_fn, historical_fn=hist_fn)
+        sell.refresh_from_db()
+        self.assertEqual(sell.profit_kind, '')
+        self.assertIsNone(sell.profit)
+
+    def test_fifo_matches_oldest_buy_first(self):
+        buy1 = _make(ticker='TSLA', transaction_type='buy', amount_min=1_001, amount_max=15_000,
+                     transaction_date=dt.date(2026, 1, 1), source_doc_id='fb1')
+        _make(ticker='TSLA', transaction_type='buy', amount_min=1_001, amount_max=15_000,
+             transaction_date=dt.date(2026, 1, 10), source_doc_id='fb2')
+        sell = _make(ticker='TSLA', transaction_type='sell', amount_min=1_001, amount_max=15_000,
+                     transaction_date=dt.date(2026, 2, 1), source_doc_id='fs1')
+        price_fn, hist_fn = self._fake_prices({
+            ('TSLA', dt.date(2026, 1, 1)): 50.0,
+            ('TSLA', dt.date(2026, 1, 10)): 60.0,
+            ('TSLA', dt.date(2026, 2, 1)): 55.0,
+        })
+        CongressTrade.objects.compute_profit_estimates(price_fn=price_fn, historical_fn=hist_fn)
+        sell.refresh_from_db()
+        self.assertEqual(sell.matched_trade_id, buy1.id)   # FIFO: oldest buy closed first
+
+    def test_exchange_rows_skipped(self):
+        ex = _make(ticker='IBM', transaction_type='exchange', source_doc_id='ex1')
+        price_fn, hist_fn = self._fake_prices({})
+        CongressTrade.objects.compute_profit_estimates(price_fn=price_fn, historical_fn=hist_fn)
+        ex.refresh_from_db()
+        self.assertEqual(ex.profit_kind, '')
+
+
+class PoliticianBreakdownTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user('tester2', password='pw12345!')
+        self.client.force_login(self.user)
+        self.buy = _make(politician_name='Nancy Pelosi', party='D', ticker='NVDA',
+                         transaction_type='buy', amount_min=1_000_001, amount_max=5_000_000,
+                         transaction_date=dt.date(2026, 1, 1), source_doc_id='pb1')
+        self.sell = _make(politician_name='Nancy Pelosi', party='D', ticker='NVDA',
+                          transaction_type='sell', amount_min=1_000_001, amount_max=5_000_000,
+                          transaction_date=dt.date(2026, 2, 1), source_doc_id='ps1')
+
+        def price_fn(ticker):
+            return None, None
+
+        def hist_fn(ticker, on_date):
+            return {dt.date(2026, 1, 1): 100.0, dt.date(2026, 2, 1): 120.0}.get(on_date)
+        CongressTrade.objects.compute_profit_estimates(price_fn=price_fn, historical_fn=hist_fn)
+
+    def test_politician_breakdown_win_rate_and_tier(self):
+        rows = CongressTrade.objects.politician_breakdown()
+        row = next(r for r in rows if r['politician_name'] == 'Nancy Pelosi')
+        self.assertEqual(row['closed'], 1)
+        self.assertEqual(row['wins'], 1)
+        self.assertEqual(row['win_rate'], 100.0)
+        self.assertGreater(row['realized_profit'], 0)
+
+    def test_politicians_endpoint(self):
+        r = self.client.get('/api/congress/trades/politicians/')
+        self.assertEqual(r.status_code, 200)
+        names = [row['politician_name'] for row in r.json()['results']]
+        self.assertIn('Nancy Pelosi', names)
+
+    def test_politician_profile_endpoint(self):
+        r = self.client.get('/api/congress/trades/politician-profile/?politician=Nancy Pelosi')
+        self.assertEqual(r.status_code, 200)
+        data = r.json()
+        self.assertEqual(data['profile']['politician_name'], 'Nancy Pelosi')
+        self.assertEqual(len(data['trades']), 2)
+
+    def test_politician_profile_requires_param(self):
+        r = self.client.get('/api/congress/trades/politician-profile/')
+        self.assertEqual(r.status_code, 400)
+
+    def test_politician_profile_unknown_politician(self):
+        r = self.client.get('/api/congress/trades/politician-profile/?politician=Nobody')
+        self.assertEqual(r.status_code, 404)

@@ -449,7 +449,7 @@ class SignalParserTests(TestCase):
         sigs = parse_message(text, style='mixed')
         self.assertEqual(len(sigs), 1)
         sig = sigs[0]
-        self.assertEqual(sig['trade'], 'GOODSTOCKLTD')
+        self.assertEqual(sig['trade'], 'GOOD STOCK LTD')
         self.assertEqual(sig['entry'], 628.0)
         self.assertEqual(sig['stop_loss'], 600.0)
         self.assertEqual(sig['target'], 640.0)
@@ -475,7 +475,7 @@ class SignalParserTests(TestCase):
         sigs = parse_message(text, style='mixed')
         self.assertEqual(len(sigs), 1)
         sig = sigs[0]
-        self.assertEqual(sig['trade'], 'SOMEFINANCE')
+        self.assertEqual(sig['trade'], 'SOME FINANCE')
         self.assertEqual(sig['entry'], 378.0)
         self.assertEqual(sig['stop_loss'], 355.0)
         self.assertEqual(sig['target'], 383.0)  # 378 + 5, not 5.0
@@ -494,7 +494,7 @@ class SignalParserTests(TestCase):
         )
         sigs = parse_message(text, style='mixed')
         self.assertEqual(len(sigs), 1)
-        self.assertEqual(sigs[0]['trade'], 'SOMEMICROLTD')
+        self.assertEqual(sigs[0]['trade'], 'SOME MICRO LTD')
         self.assertEqual(sigs[0]['stop_loss'], 380.0)
 
     def test_ladder_shape_short_alias_in_parens(self):

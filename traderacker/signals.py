@@ -326,7 +326,12 @@ def _stockpro_ladder_signal(text):
     if alias_m:
         sym = re.sub(r'[^A-Za-z0-9]', '', alias_m.group('short')).upper()
     else:
-        sym = re.sub(r'[^A-Za-z0-9]', '', cand).upper()
+        # keep a single space between words for a multi-word name ("CENTURY
+        # ENKA", "MANKIND PHARMA") — stripping it entirely (as a bare
+        # [^A-Za-z0-9] scrub would) glues them into one unrecognizable
+        # token ("CENTURYENKA") that matches no message in the corpus.
+        sym = re.sub(r'[^A-Za-z0-9\s]', '', cand)
+        sym = re.sub(r'\s+', ' ', sym).strip().upper()
     if not sym or not sym[0].isalpha():
         return None
     if not _is_symbol(sym):

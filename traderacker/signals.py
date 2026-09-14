@@ -137,12 +137,18 @@ RE_ENTER = re.compile(r'(?:ENTER|ENTRY|ENT)\s*[-:]?\s*' + NUM, re.IGNORECASE)
 RE_PREMIUM = re.compile(r'(?:@\s*|ENTRY\s+|ENTER\s+(?:AT|IN)\s+)' + NUM, re.IGNORECASE)
 RE_SUPPORT = re.compile(
     r'\b(?:SUPPORT|S/L|S/T|SL\b|STOP[\s\-]?LOSS|STOP|STCP)\s*[:\-]?\s*'
-    # "ABV" is Nirmal Bang Official's abbreviation for ABOVE ("SL ABV 9677")
-    r'(?:AT\s+|BELOW\s+|ABOVE\s+|ABV\s+|NEAR\s+|ON\s+)?' + NUM, re.IGNORECASE)
+    r'(?:AT\s+|BELOW\s+|ABOVE\s+|NEAR\s+|ON\s+)?' + NUM, re.IGNORECASE)
 RE_TARGET = re.compile(
-    # "TG" is Nirmal Bang Official's abbreviation for TARGET ("TG 520",
-    # "TG  9119-9000") — added alongside the existing TGT so this doesn't
-    # also swallow legitimate "TGT"-style channels' text differently.
+    r'\b(?:VIEW|VIEWS|TARGETS?|TGT|SHT)\s*[:\-]?\s*'
+    r'(?:AT\s+|ON\s+|NEAR\s+)?' + NUM, re.IGNORECASE)
+# Nirmal Bang Official abbreviates STOP LOSS as "SL ABV <price>" (ABV =
+# above) and TARGET as "TG <price>" — kept as separate style-gated patterns
+# (checked only when style == 'mixed') rather than folded into RE_SUPPORT/
+# RE_TARGET above, so other channels' text can never match on "ABV"/"TG".
+RE_SUPPORT_MIXED = re.compile(
+    r'\b(?:SUPPORT|S/L|S/T|SL\b|STOP[\s\-]?LOSS|STOP|STCP)\s*[:\-]?\s*'
+    r'(?:AT\s+|BELOW\s+|ABOVE\s+|ABV\s+|NEAR\s+|ON\s+)?' + NUM, re.IGNORECASE)
+RE_TARGET_MIXED = re.compile(
     r'\b(?:VIEW|VIEWS|TARGETS?|TGT|TG|SHT)\s*[:\-]?\s*'
     r'(?:AT\s+|ON\s+|NEAR\s+)?' + NUM, re.IGNORECASE)
 RE_RANGE = re.compile(r'₹?\s*' + NUM + r'\s*[-–]\s*' + NUM)  # entry-target "₹250-320"
@@ -181,8 +187,12 @@ def parse_message(text, style=None):
     # close-out being mis-read as a fresh order, not a new position.
     exit_price_spans = [m.span() for m in RE_EXIT_PRICE.finditer(text)]
     exit_price_spans += [m.span() for m in RE_EXIT_PRICE_BOOK.finditer(text)]
-    exit_price_spans += [m.span() for m in RE_EXIT_PRICE_CLOSE.finditer(text)]
-    exit_price_spans += [m.span() for m in RE_CLOSE_EVENT.finditer(text)]
+    if style == 'mixed':
+        # Nirmal Bang Official-specific close-out shapes — gated so another
+        # channel's text can never lose a signal to this exclusion.
+        exit_price_spans += [m.span() for m in RE_EXIT_PRICE_CLOSE.finditer(text)]
+        exit_price_spans += [m.span() for m in RE_CLOSE_EVENT.finditer(text)]
+        exit_price_spans += [m.span() for m in RE_EXIT_PRICE_SL_TRIGGER.finditer(text)]
     # spans already claimed by RE_FUT/RE_OPT_EXPIRY2 (Nirmal Bang Official's
     # expiry-token orders) — a cash/verb-first match starting earlier in the
     # same span (e.g. an unrelated all-caps filler word like "DAYS" bridged
@@ -210,8 +220,10 @@ def parse_message(text, style=None):
         # re-read this option order's own strike as a bare "BUY <ROOT>
         # <STRIKE>" cash order, e.g. "OPTION BUY CRUDEOIL 9650 PE 395-385
         # ..." also spuriously matching "BUY CRUDEOIL 9650" (Nirmal Bang
-        # Official commodity options with no expiry date).
-        option_roots.add(root_word)
+        # Official commodity options with no expiry date). Style-gated so
+        # no other channel's trade count shifts from this exclusion.
+        if style == 'mixed':
+            option_roots.add(root_word)
         right = {'CALL': 'CE', 'PUT': 'PE'}.get(right, right)
         entry = _f(prem) if prem else None
         sig = {'trade': f'{root} {right}',
@@ -238,34 +250,38 @@ def parse_message(text, style=None):
              'entry': _f(prem) if prem else None,
              'target': None, 'stop_loss': None, 'status': 'Open'})
 
-    # 1c. Nirmal Bang Official futures orders with a compact expiry token,
-    # e.g. "Sell AMBER  FUTURE 29SEPT below 7170", "Buy NIFTY 29SEP Future
-    # above 23305".
-    for m in RE_FUT.finditer(text):
-        sym, side = m.group(1), m.group(2).upper()
-        if not _is_symbol(sym):
-            continue
-        option_roots.add(sym)
-        claimed_spans.append(m.span())
-        if any(o['trade'] == sym for o in out):
-            continue
-        add({'trade': sym, 'direction': 'BUY' if side == 'ABOVE' else 'SELL',
-             'entry': _f(m.group(3)), 'target': None, 'stop_loss': None,
-             'status': 'Open'})
+    # 1c/1d only apply to Nirmal Bang Official's expiry-token shapes
+    # (style == 'mixed') — the day+month token these rely on ("15SEP",
+    # "29 SEP") is specific enough to this channel's format that gating
+    # keeps every other channel's parsing byte-for-byte unchanged.
+    if style == 'mixed':
+        # 1c. futures orders with a compact expiry token, e.g. "Sell AMBER
+        # FUTURE 29SEPT below 7170", "Buy NIFTY 29SEP Future above 23305".
+        for m in RE_FUT.finditer(text):
+            sym, side = m.group(1), m.group(2).upper()
+            if not _is_symbol(sym):
+                continue
+            option_roots.add(sym)
+            claimed_spans.append(m.span())
+            if any(o['trade'] == sym for o in out):
+                continue
+            add({'trade': sym, 'direction': 'BUY' if side == 'ABOVE' else 'SELL',
+                 'entry': _f(m.group(3)), 'target': None, 'stop_loss': None,
+                 'status': 'Open'})
 
-    # 1d. Nirmal Bang Official options with a compact expiry token between
-    # the root and the strike, e.g. "Buy NIFTY 15SEP 23300 CE above 85".
-    for m in RE_OPT_EXPIRY2.finditer(text):
-        root, strike, right, prem = m.group(1).upper(), m.group(2), m.group(3).upper(), m.group(4)
-        trade = f'{root} {strike.replace(",", "")} {right}'
-        option_roots.add(root)
-        claimed_spans.append(m.span())
-        if any(o['trade'] == trade for o in out):
-            continue
-        add({'trade': trade,
-             'direction': 'CALL (up)' if right == 'CE' else 'PUT (down)',
-             'entry': _f(prem) if prem else None,
-             'target': None, 'stop_loss': None, 'status': 'Open'})
+        # 1d. options with a compact expiry token between the root and the
+        # strike, e.g. "Buy NIFTY 15SEP 23300 CE above 85".
+        for m in RE_OPT_EXPIRY2.finditer(text):
+            root, strike, right, prem = m.group(1).upper(), m.group(2), m.group(3).upper(), m.group(4)
+            trade = f'{root} {strike.replace(",", "")} {right}'
+            option_roots.add(root)
+            claimed_spans.append(m.span())
+            if any(o['trade'] == trade for o in out):
+                continue
+            add({'trade': trade,
+                 'direction': 'CALL (up)' if right == 'CE' else 'PUT (down)',
+                 'entry': _f(prem) if prem else None,
+                 'target': None, 'stop_loss': None, 'status': 'Open'})
 
     # 2. crypto futures: "ONDO LONG 20x"
     for m in RE_CRYPTO.finditer(text):
@@ -319,6 +335,9 @@ def parse_message(text, style=None):
     # message-level levels attach to signals that lack them
     sl = RE_SUPPORT.search(text)
     tg = RE_TARGET.search(text)
+    if style == 'mixed':
+        sl = sl or RE_SUPPORT_MIXED.search(text)
+        tg = tg or RE_TARGET_MIXED.search(text)
     prem = RE_PREMIUM.search(text)
     enter = RE_ENTER.search(text)
     for sig in out:
@@ -359,6 +378,14 @@ RE_EXIT_PRICE_BOOK = re.compile(
 RE_EXIT_PRICE_CLOSE = re.compile(
     r'\b([A-Z]+)\s?(\d[\d,]*(?:\.\d+)?)\s*(CE|PE)\s*CLOSE\s*@\s*' + NUM,
     re.IGNORECASE)
+# Nirmal Bang Official's stop-loss-hit close-out, e.g. "VEDL 280CE SL
+# TRIGGER @3", "HINDALCO SL Triggered @1005", "AMBER FUTURE SL TRIGGER
+# @7230" — confirmed empirically unique to this channel across the full
+# tracked history of all 76 channels (no other channel phrases a stop-loss
+# exit this way), so left ungated/global like the sibling RE_EXIT_PRICE*
+# patterns above.
+RE_EXIT_PRICE_SL_TRIGGER = re.compile(
+    r'\b([A-Z][A-Z0-9 \xa0]{1,24}?)\s+(?i:SL\s+TRIGGER(?:ED)?)\s*@\s*' + NUM)
 # Nirmal Bang Official's "Book Partial Profit(s) in <SYM> at <PRICE>" /
 # "Target Achieved in <SYM> at <PRICE>" close-out phrasing — gives a raw
 # exit price (sometimes a small range, e.g. "387.7-389"; the first/lower
@@ -366,7 +393,7 @@ RE_EXIT_PRICE_CLOSE = re.compile(
 # profit figure or the "EXIT SYM @ PRICE" shape RE_EXIT_PRICE expects.
 RE_CLOSE_EVENT = re.compile(
     r'\b(?:BOOK\s+(?:PARTIAL\s+)?PROFITS?|TARGET\s+ACHIEVED)\s+IN\s+'
-    r'([A-Z][A-Z0-9 ]{1,30}?)\s*(?:AT\b|@)\s*' + NUM, re.IGNORECASE)
+    r'([A-Z][A-Z0-9 \xa0]{1,30}?)\s*(?:AT\b|@)\s*' + NUM, re.IGNORECASE)
 _EXPIRY_TOKEN = re.compile(r'\b' + EXPIRY + r'\b', re.IGNORECASE)
 
 
@@ -442,6 +469,11 @@ def parse_exit_price(text):
         root, strike, right = m.group(1).upper(), m.group(2).replace(',', ''), m.group(3).upper()
         return f'{root} {strike} {right}', _f(m.group(4))
     m = RE_CLOSE_EVENT.search(text)
+    if m:
+        sym = _normalize_close_symbol(m.group(1))
+        if sym:
+            return sym, _f(m.group(2))
+    m = RE_EXIT_PRICE_SL_TRIGGER.search(text)
     if m:
         sym = _normalize_close_symbol(m.group(1))
         if sym:

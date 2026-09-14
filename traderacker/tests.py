@@ -342,6 +342,139 @@ class SignalParserTests(TestCase):
                           'apply now https://youtu.be/x'), [])
         self.assertTrue(parse_message('Buy BHARTIHEXA above 1555 Target 1612'))
 
+    # -- NIRMAL BANG OFFICIAL (style='mixed') --------------------------------
+    # This channel glues a compact day+month expiry token ("29SEP", "15SEP")
+    # directly between the symbol and the FUT/strike, which the generic
+    # regexes can't place — RE_FUT/RE_OPT_EXPIRY2 and the TG/ABV/close-out
+    # abbreviations below are all gated behind style='mixed' so no other
+    # channel's parsing is affected (see migration 0009's style_notes).
+
+    def test_future_order_with_compact_expiry_token(self):
+        from traderacker.signals import parse_message
+        # expiry token AFTER the FUT keyword, lowercase ABOVE/BELOW
+        sigs = parse_message(
+            'Sell EXAMPLESTK  FUTURE 29SEPT below 7170 with SL 7230, '
+            'Target 7060(ANALYST AMIT). Visit our website for disclosure. '
+            '(Nirmal Bang).', style='mixed')
+        self.assertEqual(len(sigs), 1)
+        self.assertEqual(sigs[0]['trade'], 'EXAMPLESTK')
+        self.assertEqual(sigs[0]['direction'], 'SELL')
+        self.assertEqual(sigs[0]['entry'], 7170.0)
+        self.assertEqual(sigs[0]['stop_loss'], 7230.0)
+        self.assertEqual(sigs[0]['target'], 7060.0)
+        # expiry token BEFORE the FUT keyword, uppercase ABOVE — this shape
+        # used to also spawn a bogus "DAYS" trade (RE_CASH's lazy word-
+        # bridge latching onto the earlier all-caps filler word) plus a
+        # phantom real-symbol entry at a partial-digit price parsed out of
+        # the expiry token itself
+        sigs2 = parse_message(
+            '1-2 DAYS Call Technical call BUY BANKNIFTY FUT 29 SEPT ABOVE '
+            '56120.4 with SL 55750 Target 57100 (ANALYST SWATI). Visit our '
+            'website for disclosure (Nirmal Bang)', style='mixed')
+        self.assertEqual(len(sigs2), 1)
+        self.assertEqual(sigs2[0]['trade'], 'BANKNIFTY')
+        self.assertEqual(sigs2[0]['direction'], 'BUY')
+        self.assertEqual(sigs2[0]['entry'], 56120.4)
+        self.assertEqual(sigs2[0]['asset_class'], 'index')
+
+    def test_option_order_with_compact_expiry_token(self):
+        from traderacker.signals import parse_message
+        sigs = parse_message(
+            'Intraday Derivatives Call Buy NIFTY 15SEP 23300 CE above 85 '
+            'with SL 40 Target 170 (ANALYST NIRAV) Visit our website for '
+            'disclosure (Nirmal Bang)', style='mixed')
+        self.assertEqual(len(sigs), 1)
+        s = sigs[0]
+        self.assertEqual(s['trade'], 'NIFTY 23300 CE')
+        self.assertEqual(s['direction'], 'CALL (up)')
+        self.assertEqual(s['entry'], 85.0)
+        self.assertEqual(s['stop_loss'], 40.0)
+        self.assertEqual(s['target'], 170.0)
+        self.assertEqual(s['asset_class'], 'option')
+
+    def test_commodity_option_no_expiry_no_phantom_cash_order(self):
+        # "OPTION BUY CRUDEOIL 9650 PE ..." previously also spawned a bogus
+        # second "BUY CRUDEOIL 9650" cash/commodity signal, since the
+        # option's own root wasn't excluded from the looser regexes. Also
+        # exercises the "TG"/"ABV" target/stop-loss abbreviations.
+        from traderacker.signals import parse_message
+        sigs = parse_message(
+            'OPTION BUY CRUDEOIL 9650 PE 395-385 SL BELOW 299 TG 520',
+            style='mixed')
+        self.assertEqual(len(sigs), 1)
+        self.assertEqual(sigs[0]['trade'], 'CRUDEOIL 9650 PE')
+        self.assertEqual(sigs[0]['target'], 520.0)
+        sigs2 = parse_message(
+            'RISKY SELL CRUDEOIL 9448-9468 SL ABV 9677\nTG  9119-9000',
+            style='mixed')
+        self.assertEqual(len(sigs2), 1)
+        self.assertEqual(sigs2[0]['trade'], 'CRUDEOIL')
+        self.assertEqual(sigs2[0]['stop_loss'], 9677.0)
+        self.assertEqual(sigs2[0]['target'], 9119.0)
+
+    def test_book_partial_profit_and_target_achieved_close_events(self):
+        # this channel never gives a rupee profit figure or the generic
+        # "EXIT SYM @ PRICE" shape — it names the symbol (sometimes with the
+        # same compact expiry token as the entry) and a raw exit price
+        # (occasionally a small range; the first number is used).
+        from traderacker.signals import parse_exit_price
+        self.assertEqual(
+            parse_exit_price(
+                '1-2 Days Technical Call Book Partial profits in '
+                'EXAMPLESTK at 387.7-389,  Target 396, BUY Call initiated '
+                'at 382.4 (ANALYST YADNESH). Visit our website for '
+                'disclosure. (Nirmal Bang).'),
+            ('EXAMPLESTK', 387.7))
+        self.assertEqual(
+            parse_exit_price(
+                'Intraday Derivatives Call Target Achieved in NIFTY 15SEP '
+                '23300 CE at 170, Call initiated at 85 (ANALYST NIRAV) '
+                'Visit our website for disclosure (Nirmal Bang)'),
+            ('NIFTY 23300 CE', 170.0))
+        self.assertEqual(
+            parse_exit_price(
+                '1-2 DAYS Technical Call book partial profit in BANKNIFTY '
+                'FUT 29 SEP @ 56500-56520  Target 57100 BUY call initiated '
+                '56120.40 (ANALYST SWATI). Visit our website for '
+                'disclosure (Nirmal Bang).'),
+            ('BANKNIFTY', 56500.0))
+
+    def test_option_close_and_sl_trigger_close_events(self):
+        from traderacker.signals import parse_exit_price, parse_message
+        # "SYM CLOSE @PRICE" — also must not spawn a phantom fresh option
+        # order at the close price (previously the message-level "@ price"
+        # premium fallback mis-filled a new Open trade from the close price)
+        self.assertEqual(
+            parse_exit_price('NIFTY 23600CE CLOSE @31 Visit our website '
+                             'for disclosure. (Nirmal Bang)'),
+            ('NIFTY 23600 CE', 31.0))
+        self.assertEqual(
+            parse_message('NIFTY 23600CE CLOSE @31 Visit our website for '
+                          'disclosure. (Nirmal Bang)', style='mixed'), [])
+        # "SYM SL Trigger(ed) @PRICE" stop-loss hit
+        self.assertEqual(
+            parse_exit_price('1-2 Days HINDALCO SL Triggered @1005 .  '
+                             'Visit our website for disclosure. (Nirmal '
+                             'Bang).'),
+            ('HINDALCO', 1005.0))
+        self.assertEqual(
+            parse_exit_price('1-2 days call VEDL 280CE SL TRIGGER @3 '
+                             'Visit our website for disclosure. (Nirmal '
+                             'Bang).'),
+            ('VEDL 280 CE', 3.0))
+
+    def test_book_profit_price_restated_order_is_not_a_rupee_profit(self):
+        # "BOOK PROFIT 237400-BUY SILVERM ..." restates the original
+        # commodity order right after a price level — that number is a
+        # price, not a rupee profit total, so parse_profit() must not treat
+        # it as one (it previously booked a bogus ~₹237,400 "profit").
+        from traderacker.signals import parse_profit, parse_exit
+        text = ('BOOK PROFIT 237400-BUY EXAMPLEM 235700-400 SL BELOW '
+                '233400 TG 238000')
+        self.assertIsNone(parse_profit(text))
+        self.assertTrue(parse_exit(text))  # RE_EXIT still matches "BOOK
+        # PROFIT" in prose, but book() no-ops since profit is None
+
 
 class MarketServiceTests(TestCase):
     """Symbol→ticker mapping and provider fallback (no real network)."""

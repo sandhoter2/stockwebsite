@@ -346,6 +346,8 @@ class UserPreference(models.Model):
     trailing_pct = models.FloatField(default=20.0)
     profit_target_pct = models.FloatField(default=50.0,
         help_text="Close a paper trade outright once unrealized profit reaches this %")
+    max_hold_days = models.PositiveIntegerField(default=60,
+        help_text="Force-close a paper trade after this many days, regardless of price")
     auto_consumers = models.ManyToManyField(
         Channel, blank=True, related_name='auto_pref_users',
         help_text="Consumers whose signals auto-open paper trades (top-10 default)")
@@ -430,6 +432,8 @@ class PaperTrade(models.Model):
     trailing_pct = models.FloatField(default=20.0)
     profit_target_pct = models.FloatField(default=50.0,
         help_text="Close outright once unrealized profit reaches this %")
+    max_hold_days = models.PositiveIntegerField(default=60,
+        help_text="Force-close after this many days, regardless of price")
     status = models.CharField(max_length=8, choices=STATUS_CHOICES,
                               default='Open', db_index=True)
     opened_at = models.DateTimeField(auto_now_add=True)
@@ -469,23 +473,36 @@ class PaperTrade(models.Model):
     def unrealized_inr(self, price=None):
         return round(self.notional_inr * self.unrealized_pct(price) / 100.0, 2)
 
+    def _max_hold_exceeded(self, now):
+        return bool(self.max_hold_days) and (now - self.opened_at).days >= self.max_hold_days
+
     def mark(self, price, now=None):
-        """Update to market price; close on SL hit, profit target reached, or
-        trailing drawdown, in that priority order (cap the loss first, then
-        lock in a win that already cleared the target, then let a smaller
-        win ride until it pulls back from its peak).
-        Returns True if the trade was closed by this mark."""
+        """Update to market price; close on max hold age, SL hit, profit
+        target reached, or trailing drawdown, in that priority order (the
+        hard time deadline overrides everything else -- "no matter what" --
+        then cap the loss, then lock in a win that already cleared the
+        target, then let a smaller win ride until it pulls back from peak).
+        Returns True if the trade was closed by this mark.
+
+        The max-hold deadline is enforced even with no fresh quote (price=
+        None), using the last known price, so a delisted/illiquid symbol
+        can't sit open forever just because live pricing stopped working."""
         from django.utils import timezone as tz
-        if price is None:
-            return False
         now = now or tz.now()
+        if price is None:
+            if self._max_hold_exceeded(now):
+                self._close(self.current_price or self.entry_price, now, 'max-hold')
+                return True
+            return False
         self.current_price = price
         self.highest_price = max(self.highest_price or price, price)
         self.lowest_price = min(self.lowest_price or price, price)
         pct = self._pct(price)
         closed = False
         reason = None
-        if pct <= -abs(self.stop_loss_pct):
+        if self._max_hold_exceeded(now):
+            closed, reason = True, 'max-hold'
+        elif pct <= -abs(self.stop_loss_pct):
             closed, reason = True, 'stop-loss'
         elif self.profit_target_pct and pct >= abs(self.profit_target_pct):
             closed, reason = True, 'profit-target'
@@ -536,7 +553,7 @@ class PaperTrade(models.Model):
             price_source=source, current_price=price,
             highest_price=price, lowest_price=price,
             stop_loss_pct=pref.stop_loss_pct, trailing_pct=pref.trailing_pct,
-            profit_target_pct=pref.profit_target_pct,
+            profit_target_pct=pref.profit_target_pct, max_hold_days=pref.max_hold_days,
             source_trade=source_trade, consumer_claimed_pct=consumer_claimed_pct)
 
 

@@ -67,7 +67,7 @@ class PaperTradeSerializer(serializers.ModelSerializer):
         fields = ['id', 'username', 'symbol', 'asset_class', 'side',
                   'notional_inr', 'entry_price', 'price_source', 'current_price',
                   'highest_price', 'lowest_price', 'stop_loss_pct', 'trailing_pct',
-                  'profit_target_pct',
+                  'profit_target_pct', 'max_hold_days',
                   'status', 'opened_at', 'closed_at', 'exit_price',
                   'realized_pct', 'realized_inr', 'unrealized_pct',
                   'unrealized_inr', 'accuracy', 'is_manual', 'notes',
@@ -87,7 +87,8 @@ class UserPreferenceSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserPreference
         fields = ['auto_paper', 'capital_per_trade', 'stop_loss_pct',
-                  'trailing_pct', 'profit_target_pct', 'auto_consumers']
+                  'trailing_pct', 'profit_target_pct', 'max_hold_days',
+                  'auto_consumers']
 
 
 class WatchlistSerializer(serializers.ModelSerializer):

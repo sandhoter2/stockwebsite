@@ -917,6 +917,45 @@ class PaperEngineTests(TestCase):
         pt = PaperTrade.open_for_user(self.user, 'X', 'stock', 'BUY', 100.0)
         self.assertEqual(pt.profit_target_pct, 35.0)
 
+    def test_max_hold_force_closes_no_matter_what(self):
+        # 61 days in, still comfortably inside every price-based threshold
+        # (only +2%), but the hard 60-day deadline closes it anyway.
+        import datetime as dt
+        from django.utils import timezone as tz
+        pt = PaperTrade.open_for_user(self.user, 'X', 'stock', 'BUY', 100.0)
+        self.assertEqual(pt.max_hold_days, 60)
+        future = pt.opened_at + dt.timedelta(days=61)
+        self.assertTrue(pt.mark(102.0, now=future))
+        pt.refresh_from_db()
+        self.assertEqual(pt.status, 'Closed')
+        self.assertIn('max-hold', pt.notes)
+        self.assertAlmostEqual(pt.realized_pct, 2.0)
+
+    def test_max_hold_force_closes_even_with_no_live_quote(self):
+        # "no matter what": a delisted/illiquid symbol with no fresh quote
+        # must still get force-closed past the deadline, using the last
+        # known price rather than sitting open forever.
+        import datetime as dt
+        pt = PaperTrade.open_for_user(self.user, 'X', 'stock', 'BUY', 100.0)
+        future = pt.opened_at + dt.timedelta(days=90)
+        self.assertTrue(pt.mark(None, now=future))
+        pt.refresh_from_db()
+        self.assertEqual(pt.status, 'Closed')
+        self.assertIn('max-hold', pt.notes)
+        self.assertEqual(pt.exit_price, 100.0)   # fell back to entry_price
+
+    def test_no_action_with_no_quote_before_deadline(self):
+        pt = PaperTrade.open_for_user(self.user, 'X', 'stock', 'BUY', 100.0)
+        self.assertFalse(pt.mark(None))
+        pt.refresh_from_db()
+        self.assertEqual(pt.status, 'Open')
+
+    def test_open_uses_pref_max_hold_days(self):
+        self.pref.max_hold_days = 30
+        self.pref.save(update_fields=['max_hold_days'])
+        pt = PaperTrade.open_for_user(self.user, 'X', 'stock', 'BUY', 100.0)
+        self.assertEqual(pt.max_hold_days, 30)
+
     def test_sell_side_profits_when_price_falls(self):
         pt = PaperTrade.open_for_user(self.user, 'X', 'stock', 'SELL', 100.0)
         self.assertFalse(pt.mark(90.0))

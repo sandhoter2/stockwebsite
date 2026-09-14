@@ -428,6 +428,132 @@ class SignalParserTests(TestCase):
         self.assertEqual(sigs[0]['entry'], 237.0)
         self.assertEqual(sigs[0]['direction'], 'BUY')
 
+    def test_ladder_shape_absolute_targets(self):
+        # Stockpro Online's DOMINANT shape (not caught by the narrow
+        # RE_FRESH_BREAKOUT/RE_SHARED_RESEARCH fix above): a multi-line
+        # "POSITIONAL/SCALPING ... TRADE|RESEARCH" header, symbol on its
+        # own line, "Looks Good ABOVE <ladder>", "SL <stop>", "Targets
+        # <ladder>", "Hold <duration>". Absolute-price targets (no "points
+        # from entry" suffix) — only the first rung of each ladder is kept.
+        from traderacker.signals import parse_message
+        text = (
+            'POSITIONAL RESEARCH\n\n'
+            'GOOD STOCK LTD\n\n'
+            'Looks good above 628-629\n\n'
+            'SL 600\n\n'
+            'Targets 640-650-660-675-685-700\n\n'
+            'Hold few weeks\n\n'
+            'Please consult your financial advisor before investing.\n'
+            'All research is for educational purposes only.'
+        )
+        sigs = parse_message(text, style='mixed')
+        self.assertEqual(len(sigs), 1)
+        sig = sigs[0]
+        self.assertEqual(sig['trade'], 'GOODSTOCKLTD')
+        self.assertEqual(sig['entry'], 628.0)
+        self.assertEqual(sig['stop_loss'], 600.0)
+        self.assertEqual(sig['target'], 640.0)
+        self.assertEqual(sig['direction'], 'BUY')
+        self.assertEqual(sig['status'], 'Open')
+
+    def test_ladder_shape_points_from_entry_targets(self):
+        # The same shape's other target-ladder unit: an offset ("N points
+        # from entry") rather than an absolute price — must be ADDED to
+        # entry, never compared to entry as if it were an absolute level
+        # (a raw offset like "5" read as an absolute target would silently
+        # produce a nonsensical below-entry "target").
+        from traderacker.signals import parse_message
+        text = (
+            'POSITIONAL TRADE\n\n'
+            'SOME FINANCE\n'
+            'Looks Good above 378\n\n'
+            'SL 355\n\n'
+            'TARGETS 5-10-15-20-25-30 points from entry\n\n'
+            'Hold few weeks\n\n'
+            'Please consult your financial advisor before investing.'
+        )
+        sigs = parse_message(text, style='mixed')
+        self.assertEqual(len(sigs), 1)
+        sig = sigs[0]
+        self.assertEqual(sig['trade'], 'SOMEFINANCE')
+        self.assertEqual(sig['entry'], 378.0)
+        self.assertEqual(sig['stop_loss'], 355.0)
+        self.assertEqual(sig['target'], 383.0)  # 378 + 5, not 5.0
+
+    def test_ladder_shape_sl_or_accumulation_zone(self):
+        # "SL or Accumulation Zone <price>" is this channel's stop-loss
+        # variant phrasing seen on some ladder-shape posts.
+        from traderacker.signals import parse_message
+        text = (
+            'SCALPING TRADE\n\n'
+            'SOME MICRO LTD\n'
+            'Looks Good ABOVE 405-407\n\n'
+            'SL or Accumulation Zone 380\n\n'
+            'Targets 412-420-430\n\n'
+            'Hold few days'
+        )
+        sigs = parse_message(text, style='mixed')
+        self.assertEqual(len(sigs), 1)
+        self.assertEqual(sigs[0]['trade'], 'SOMEMICROLTD')
+        self.assertEqual(sigs[0]['stop_loss'], 380.0)
+
+    def test_ladder_shape_short_alias_in_parens(self):
+        # A trailing "(SHORTALIAS)" gives the channel's own short ticker,
+        # used instead of concatenating the full multi-word name.
+        from traderacker.signals import parse_message
+        text = (
+            'POSITIONAL RESEARCH\n\n'
+            'SOME GOOD NAME LTD (SGNL)\n\n'
+            'Looks good above 100\n\n'
+            'SL 90\n\n'
+            'Targets 110-120-130\n\n'
+            'Hold few weeks'
+        )
+        sigs = parse_message(text, style='mixed')
+        self.assertEqual(len(sigs), 1)
+        self.assertEqual(sigs[0]['trade'], 'SGNL')
+
+    def test_ladder_shape_style_gated_to_mixed(self):
+        # The ladder shape must never fire for a channel whose style isn't
+        # 'mixed' — same gating discipline as the Nirmal Bang-specific
+        # 1c/1d expiry-token patterns above.
+        from traderacker.signals import parse_message
+        text = (
+            'POSITIONAL RESEARCH\n\n'
+            'GOOD STOCK LTD\n\n'
+            'Looks good above 628-629\n\n'
+            'SL 600\n\n'
+            'Targets 640-650-660\n\n'
+            'Hold few weeks'
+        )
+        self.assertEqual(parse_message(text, style=None), [])
+        self.assertEqual(parse_message(text, style='auto'), [])
+
+    def test_ladder_shape_never_fabricates_a_close(self):
+        # Per the no-auto-close product rule: only an explicit close-out
+        # phrase (SL hit / crossed all targets) may close a trade. A
+        # "MADE A HIGH OF" or "LOCKED IN UPPER CIRCUIT" follow-up on an
+        # already-open ladder call is pure price-tracking, not an exit —
+        # parse_exit/parse_exit_price must both stay silent on it.
+        from traderacker.signals import parse_exit, parse_exit_price
+        for text in ('GOODSTOCKLTD MADE A HIGH OF 674.85\U0001F680\U0001F680',
+                     'GOODSTOCKLTD LOCKED IN UPPER CIRCUIT \U0001F680'):
+            self.assertFalse(parse_exit(text))
+            self.assertIsNone(parse_exit_price(text))
+
+    def test_ladder_shape_explicit_crossed_all_targets_with_price_closes(self):
+        # "<SYMBOL> crossed all targets, currently at <PRICE>" is one of
+        # the rare explicit close-outs this channel does post — it names
+        # both the symbol and a price, so it's safe to close at. The far
+        # more common "<SYMBOL> crossed all targets" with NO price is
+        # deliberately left unhandled (never fabricate an exit price).
+        from traderacker.signals import parse_exit_price
+        self.assertEqual(
+            parse_exit_price('GOODSTOCKLTD crossed all targets, currently at 690'),
+            ('GOODSTOCKLTD', 690.0))
+        self.assertIsNone(parse_exit_price('GOODSTOCKLTD crossed all Targets'))
+        self.assertIsNone(parse_exit_price('GOODSTOCKLTD crossed all targets today'))
+
     def test_made_a_high_of_is_not_a_signal_or_exit(self):
         # a pure price-tracking follow-up on an already-open call — no
         # BUY/breakout keyword (no new signal) and no close-out wording

@@ -51,6 +51,16 @@ STOP_WORDS = {
     'ALSO', 'GET', 'OUR', 'YOU', 'YOUR', 'ALL', 'ANY', 'OUT', 'OFF', 'UP',
     'DOWN', 'NOW', 'RESULT', 'RESULTS', 'GOOD', 'JOIN', 'WHATSAPP',
     'WEBSITE', 'DISCLOSE', 'IN', 'ON', 'AT', 'POSITIONAL',
+    # header words from Stockpro Online's "POSITIONAL/SCALPING ... TRADE"
+    # ladder-shape header (see _stockpro_ladder_signal) — without these,
+    # RE_CASH's lazy word-bridge can latch onto the header word itself as a
+    # phantom "symbol" when a later line in the same message happens to use
+    # upper-case "ABOVE" (RE_CASH is case-sensitive on purpose elsewhere),
+    # e.g. "SCALPING TRADE\n\nAPOLLO Micro\nLooks Good ABOVE 405-407"
+    # otherwise mis-parsing as "BUY SCALPING ABOVE 405". Common English
+    # trading-prose words, not real tickers, so channel-agnostic safe (same
+    # rationale as the existing SWING/POSITIONAL entries above).
+    'SCALPING', 'BOTTOMED', 'INTRADAY',
 }
 
 
@@ -208,6 +218,139 @@ RE_ABOVE_BELOW = re.compile(r'\b(?:ABOVE|BELOW)\s+' + NUM, re.IGNORECASE)
 # rather than posting a fresh order, e.g. "170 TO 199#NIFTY 23650PE" —
 # the option match immediately follows the "#" here, not a BUY/SELL verb.
 RE_PROGRESS_UPDATE = re.compile(r'\d[\d,.]*\s*TO\s*\d[\d,.]*\s*#', re.IGNORECASE)
+
+# Stockpro Online's DOMINANT signal shape (found on the full 2000-message
+# tracked history, not just the 51-message sample the RE_FRESH_BREAKOUT/
+# RE_SHARED_RESEARCH fix above was built from): 279 of 2000 messages / 275
+# distinct symbol+entry+day calls, vs. ~13 caught by the shapes above. A
+# multi-line "POSITIONAL/SCALPING ... TRADE|RESEARCH" header, then on its
+# own line the symbol, then "Looks Good ABOVE <entry ladder>" (rarely
+# "<SYMBOL> fresh breakout above <ladder>" instead — a 2-of-279 variant of
+# the SAME shape, distinct from the single-line RE_FRESH_BREAKOUT case
+# above because here the symbol is NOT glued onto the same clause and the
+# message also carries SL/Targets), then "SL <stop>" (sometimes "SL or
+# Accumulation Zone <stop>"), then "Targets <ladder>" (absolute prices in
+# ~62% of rows, "<ladder> points from entry" offsets in ~38%), then "Hold
+# <duration>". All lower/mixed-case like the shapes above — gated to
+# style == 'mixed' so no other channel's text can ever reach this block.
+# Only the FIRST rung of each ladder is kept (entry = lowest trigger,
+# target = first target) to match this codebase's existing single
+# entry/target convention (see RE_TARGET's NUM taking only the first
+# number of a "TARGETS 640-650-660" ladder) — never averaged or guessed.
+RE_LADDER_ENTRY_LG = re.compile(r'(?i:looks\s+good\s+above)\s*[:\-]?\s*' + NUM)
+RE_LADDER_ENTRY_FB = re.compile(
+    r'(?i:fresh\s+breakout(?:\s+in\s+[A-Za-z&.\s]+)?\s+above)\s*[:\-]?\s*' + NUM)
+# "SL 600" / "SL or Accumulation Zone 73" — allow filler words between the
+# keyword and the number, but stay on the same clause (no newline).
+RE_LADDER_SL = re.compile(r'\bSL\b(?:[^\d\n]{0,40})' + NUM, re.IGNORECASE)
+# Ladder chars seen in the corpus as rung separators: '-', '&', '+', ';'.
+RE_LADDER_TARGETS = re.compile(
+    r'(?i:targets?)\s*[:\-]?\s*([0-9][0-9.,&+;\-\s]*?)'
+    r'(\s*(?i:points?\s*from\s*entry))?\s*(?:\n|$)')
+RE_LADDER_HEADER_LINE = re.compile(
+    r'^\s*(POSITIONAL|SCALPING|SWING|BOTTOMED\s+OUT|INTRADAY)\b', re.IGNORECASE)
+
+
+def _stockpro_ladder_signal(text):
+    """Stockpro Online's dominant ladder shape (see comment above). Returns
+    one sig dict or None — never a close: status is always 'Open', matching
+    this channel's confirmed behavior of (almost) never stating an explicit
+    exit (see parse_exit_price's RE_STOCKPRO_CROSSED_TARGETS for the rare
+    case that does)."""
+    m = RE_LADDER_ENTRY_LG.search(text)
+    fresh = False
+    if not m:
+        m = RE_LADDER_ENTRY_FB.search(text)
+        fresh = True
+    if not m:
+        return None
+    # require the full ladder structure (SL + a "target(s)" keyword
+    # somewhere) so this never fires on the single-line "<SYM> fresh
+    # breakout above N" case with no SL/Targets (that's RE_FRESH_BREAKOUT's
+    # job) or on a restated "we shared the research" recap.
+    if not (RE_LADDER_SL.search(text) and re.search(r'\btargets?\b', text, re.IGNORECASE)):
+        return None
+    if re.search(r'we\s+shared\s+the\s+research', text, re.IGNORECASE):
+        return None
+
+    lines = text.splitlines()
+    entry_line_idx = None
+    pos = 0
+    for i, line in enumerate(lines):
+        end = pos + len(line)
+        if pos <= m.start() <= end:
+            entry_line_idx = i
+            break
+        pos = end + 1  # +1 for the stripped '\n'
+    cand = None
+    if fresh:
+        # symbol is inline, immediately before "fresh breakout above" on
+        # the same line, e.g. "GRAPHITE Fresh breakout above 876-878" —
+        # or, when the line opens with "fresh breakout" itself, embedded
+        # in an "... in <SYMBOL> above" clause instead, e.g. "Fresh
+        # breakout in Bectorfood above 220".
+        line = lines[entry_line_idx] if entry_line_idx is not None else ''
+        mm = re.match(r'^\s*(.*?)\s*(?i:fresh\s+breakout)', line)
+        cand = mm.group(1).strip() if mm and mm.group(1) and mm.group(1).strip() else None
+        if not cand:
+            mm3 = re.search(r'(?i:fresh\s+breakout\s+in)\s+([A-Za-z&.\s]+?)\s+(?i:above)', line)
+            cand = mm3.group(1).strip() if mm3 else None
+    else:
+        # symbol sits on the nearest non-blank line ABOVE "Looks Good
+        # ABOVE", unless that line is the header itself (some variants
+        # repeat/omit it).
+        j = (entry_line_idx or 0) - 1
+        while j >= 0 and not lines[j].strip():
+            j -= 1
+        if j >= 0:
+            cand = lines[j].strip()
+            if RE_LADDER_HEADER_LINE.match(cand):
+                cand = None
+    if not cand:
+        return None
+    # Unlike RE_FRESH_BREAKOUT/RE_SHARED_RESEARCH's inline "SYMBOL fresh
+    # breakout above N" (where trailing words are ordinary sentence text,
+    # so only the first token is trusted as the ticker), this shape's
+    # symbol sits ALONE on its own dedicated line/clause, so the full
+    # line IS the name — concatenating every word avoids truncating a
+    # multi-word name down to a common English word that collides with
+    # this channel's own macro-commentary prose (e.g. "DATA PATTERN"
+    # truncated to "DATA" would collide with "Data positive/negative..."
+    # daily-outlook posts and get its profit/close state corrupted by
+    # parse_signals.py's substring-word profit-attribution fallback).
+    # A trailing "(SHORTALIAS)" gives the channel's own short ticker
+    # instead, e.g. "PN GADGIL (PNGJL)" -> "PNGJL", "SML MAHINDRA
+    # (SMLMAH)" -> "SMLMAH" (verified against every such row in the full
+    # tracked history).
+    alias_m = re.match(r'^(?P<full>.+?)\s*\((?P<short>[A-Za-z0-9&]{2,15})\)\s*$', cand)
+    if alias_m:
+        sym = re.sub(r'[^A-Za-z0-9]', '', alias_m.group('short')).upper()
+    else:
+        sym = re.sub(r'[^A-Za-z0-9]', '', cand).upper()
+    if not sym or not sym[0].isalpha():
+        return None
+    if not _is_symbol(sym):
+        return None
+
+    entry = _f(m.group(1))
+    sl_m = RE_LADDER_SL.search(text)
+    stop_loss = _f(sl_m.group(1)) if sl_m else None
+
+    target = None
+    tg_m = RE_LADDER_TARGETS.search(text)
+    if tg_m:
+        nums = re.findall(r'\d+\.?\d*', tg_m.group(1).replace(',', ''))
+        if nums:
+            first = float(nums[0])
+            # "N points from entry" offsets must be added to entry, never
+            # compared to it as if they were an absolute price (a raw
+            # offset like "10" read as an absolute target would silently
+            # produce a nonsensical below-entry "target").
+            target = entry + first if tg_m.group(2) else first
+
+    return {'trade': sym, 'direction': 'BUY', 'entry': entry,
+            'target': target, 'stop_loss': stop_loss, 'status': 'Open'}
+
 
 # promotional / PR / news posts that are never a trade signal (req 1.c)
 PROMO = re.compile(
@@ -440,6 +583,17 @@ def parse_message(text, style=None):
             add({'trade': sym, 'direction': 'BUY' if side == 'ABOVE' else 'SELL',
                  'entry': _f(level), 'target': None, 'stop_loss': None, 'status': 'Open'})
 
+    # 6b. Stockpro Online's dominant "POSITIONAL/SCALPING ... Looks Good
+    # ABOVE ... SL ... Targets ... Hold" ladder shape (see comment above
+    # _stockpro_ladder_signal) — style-gated to 'mixed'. Skipped if a
+    # symbol above already claimed this trade (e.g. the rare "fresh
+    # breakout above" ladder variant, already caught by RE_FRESH_BREAKOUT).
+    if style == 'mixed':
+        lsig = _stockpro_ladder_signal(text)
+        if lsig and lsig['trade'] not in option_roots and not any(
+                o['trade'] == lsig['trade'] for o in out):
+            add(lsig)
+
     if not out:
         return []
 
@@ -508,6 +662,18 @@ RE_EXIT_PRICE_CLOSE = re.compile(
 # patterns above.
 RE_EXIT_PRICE_SL_TRIGGER = re.compile(
     r'\b([A-Z][A-Z0-9 \xa0]{1,24}?)\s+(?i:SL\s+TRIGGER(?:ED)?)\s*@\s*' + NUM)
+# Stockpro Online's "<SYMBOL> crossed all targets, currently at <PRICE>"
+# close-out — one of only a handful of explicit close-outs this channel
+# ever posts (confirmed on the full tracked history: "crossed all targets"
+# appears a few times, but almost always with NO price, e.g. "IFCI crossed
+# all Targets" / "GRAPHITE crossed all Targets" — those are deliberately
+# left unhandled here rather than fabricating an exit price; only this
+# "currently at <price>" variant gives a real number to close at). Symbol
+# must be an ALL-CAPS token (this codebase's ticker convention) immediately
+# before the phrase, same false-positive protection as the patterns above.
+RE_STOCKPRO_CROSSED_TARGETS = re.compile(
+    r'\b([A-Z][A-Z0-9&\-]{1,20})\b[^.\n]{0,40}?crossed\s+all\s+targets?'
+    r'[^.\n]{0,40}?currently\s+at\s*' + NUM, re.IGNORECASE)
 # Nirmal Bang Official's "Book Partial Profit(s) in <SYM> at <PRICE>" /
 # "Target Achieved in <SYM> at <PRICE>" close-out phrasing — gives a raw
 # exit price (sometimes a small range, e.g. "387.7-389"; the first/lower
@@ -609,5 +775,10 @@ def parse_exit_price(text):
     if m:
         sym = _normalize_close_symbol(m.group(1))
         if sym:
+            return sym, _f(m.group(2))
+    m = RE_STOCKPRO_CROSSED_TARGETS.search(text)
+    if m:
+        sym = m.group(1).upper()
+        if sym not in STOP_WORDS:
             return sym, _f(m.group(2))
     return None

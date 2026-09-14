@@ -1,3 +1,9 @@
-from django.urls import path
+from django.urls import include, path
 
-urlpatterns = []
+from .views import CongressRouter
+
+router = CongressRouter()
+
+urlpatterns = [
+    path('', include(router.urls)),
+]

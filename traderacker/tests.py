@@ -1001,6 +1001,153 @@ class SignalParserTests(TestCase):
         self.assertEqual(len(up), 1)
         self.assertEqual(up[0]['direction'], 'BUY')
 
+    # -- Batch 3: Stock Gainers, Bnf_unicorn, Ritvi Taneja, Samco ----------
+
+    def test_stock_gainers_cmp_support_for_entry(self):
+        # "<SYMBOL>\n\nCMP <price>\n\nSupport <price>\n\nFor <range>" is
+        # Stock Gainers' dominant forward-call shape.
+        from traderacker.signals import parse_message
+        text = 'DIAMOND POWER\n\nCMP 356\n\nSupport 340\n\n\nFor 385-410'
+        sigs = parse_message(text, style='mixed')
+        self.assertEqual(len(sigs), 1)
+        s = sigs[0]
+        self.assertEqual(s['trade'], 'DIAMOND POWER')
+        self.assertEqual(s['entry'], 356.0)
+        self.assertEqual(s['stop_loss'], 340.0)
+        self.assertEqual(s['target'], 385.0)
+
+    def test_stock_gainers_recap_ignores_live_analysis_digest(self):
+        # The "N to M" recap shape requires the symbol alone on its own
+        # line; the daily digest crams "SYMBOL price TO price" onto one
+        # line per stock with no blank-line gap and must never match (it
+        # would otherwise mint dozens of phantom duplicate trades). The
+        # digest's individual lines DO still parse as ordinary option
+        # orders via the unrelated, pre-existing RE_OPT path -- this test
+        # is only about RE_STOCKGAINERS_RECAP itself never matching them.
+        from traderacker.signals import parse_message, RE_STOCKGAINERS_RECAP
+        recap = parse_message('Astra Micro\n\n1440 to 1480 \U0001F525', style='mixed')
+        self.assertEqual(len(recap), 1)
+        self.assertEqual(recap[0]['trade'], 'ASTRA MICRO')
+        self.assertEqual(recap[0]['entry'], 1440.0)
+        self.assertEqual(recap[0]['target'], 1480.0)
+
+        digest = ('Stock Gainers (SEBI REGISTERED)\n\U0001F31F Live Analysis of 16th JUNE\n\n'
+                  '1. OPTION ANALYSIS\n\n\nPGEL 520CE CE 14 TO 20\U0001F525\n'
+                  'BANDHANBANK 212.5CE 7.5 TO 9.75\U0001F525')
+        self.assertIsNone(RE_STOCKGAINERS_RECAP.search(digest))
+
+    def test_bnfunicorn_bullet_breakout_call(self):
+        # Nivisha Verma's "✅"-bulleted chart-commentary shape needs an
+        # explicit above/breakout-level trigger to produce a signal.
+        from traderacker.signals import parse_message
+        text = ('PIDILITE IND\n✅Breakout above 3280+ possible\n✅Strong chart\n'
+                '✅After breakout support will be 3160/3050\n'
+                '✅Target 3350/3475/3600++\n✅Keep on radar')
+        sigs = parse_message(text, style='mixed')
+        self.assertEqual(len(sigs), 1)
+        s = sigs[0]
+        self.assertEqual(s['trade'], 'PIDILITE IND')
+        self.assertEqual(s['entry'], 3280.0)
+        self.assertEqual(s['stop_loss'], 3160.0)
+        self.assertEqual(s['target'], 3350.0)
+
+        # a support+target call with no stated entry trigger stays unparsed
+        no_entry = parse_message(
+            'AEROFLEX\n\U0001F91D Promising chart breakout\n✅Strong weekly close\n'
+            '✅Support 160 & 147\n✅looks good for 190/200+\n✅Keep on radar',
+            style='mixed')
+        self.assertEqual(no_entry, [])
+
+    def test_ritvi_taneja_arrow_bullet_breakout_call(self):
+        # Same bullet shape as Bnf_unicorn but with "➡" markers.
+        from traderacker.signals import parse_message
+        text = ('HINDZINC\n➡ Re-creating Pole & Flag Pattern\n'
+                '➡ Breakout possible above 700\n➡ Support near 630\n'
+                '➡ Keep on radar')
+        sigs = parse_message(text, style='mixed')
+        self.assertEqual(len(sigs), 1)
+        s = sigs[0]
+        self.assertEqual(s['trade'], 'HINDZINC')
+        self.assertEqual(s['entry'], 700.0)
+        self.assertEqual(s['stop_loss'], 630.0)
+
+    def test_ritvi_taneja_symline_support_shape(self):
+        # "<SYMBOL> <PRICE>" alone on the first line, with a support figure
+        # and a "Can hit <ladder>" target elsewhere in the message.
+        from traderacker.signals import parse_message
+        text = 'SBIN 1011\nSupport 992\n\nAvg 1000-995\n\nCan hit 1025/1038/1050\n\nWeak below 992 closing'
+        sigs = parse_message(text, style='mixed')
+        self.assertEqual(len(sigs), 1)
+        s = sigs[0]
+        self.assertEqual(s['trade'], 'SBIN')
+        self.assertEqual(s['entry'], 1011.0)
+        self.assertEqual(s['stop_loss'], 992.0)
+        self.assertEqual(s['target'], 1025.0)
+
+    def test_samco_recommendation_alert_structured_block(self):
+        # Samco's formal broker template: "Symbol:" is the real ticker,
+        # "CMP:"/"Stop loss:"/"Target:" self-explanatory.
+        from traderacker.signals import parse_message
+        text = ('RECOMMENDATION ALERT \U0001F514\n\nStock Name: Pfizer Limited\n'
+                'Symbol: PFIZER\nRating: Buy \U0001F7E2\nCMP: ₹4130\n'
+                'Stop loss: ₹3890\nTarget: ₹4545\nDuration: 5-10 Days\n'
+                'Trade Date: 21-03-2025 02:21 PM\nTrade Type: Swing Trader\n'
+                'Name of RA: Om Mehra\n\nNote: Buy PFIZER at 4130 SL 3890 TGT 4545\n\n'
+                'Disclaimer: https://sam-co.in/6j/ Samco Securities Ltd')
+        sigs = parse_message(text, style='mixed')
+        self.assertEqual(len(sigs), 1)  # block + Note dedup to one row
+        s = sigs[0]
+        self.assertEqual(s['trade'], 'PFIZER')
+        self.assertEqual(s['entry'], 4130.0)
+        self.assertEqual(s['stop_loss'], 3890.0)
+        self.assertEqual(s['target'], 4545.0)
+
+    def test_samco_option_glued_expiry_symbol(self):
+        # "<ROOT><DD><MON><STRIKE>CE|PE" all glued together (e.g.
+        # "AUBANK25DEC980PE") is Samco's dominant options-order shape --
+        # the generic RE_VERB_FIRST fallback misreads the glued expiry's
+        # own digits ("25") as a bogus cash entry price if this doesn't
+        # claim the symbol first.
+        from traderacker.signals import parse_message
+        text = ('RECOMMENDATION ALERT \U0001F514\n\nStock Name: AU SMALL FINANCE BANK LTD\n'
+                'Symbol: AUBANK25DEC980PE\nRating: Buy \U0001F7E2\nCMP: ₹10.5\n'
+                'Stop loss: ₹7.3\nTarget: ₹14.2\nDuration: 1-5 Days\n'
+                'Trade Type: Positional Stock Options\nName of RA: Om Mehra\n\n'
+                'Note: Buy AUBANK 25DEC980PE at 10.5 SL 7.3 TGT 14.2\n\n'
+                'Disclaimer: https://sam-co.in/6j/ Samco Securities Ltd')
+        sigs = parse_message(text, style='mixed')
+        self.assertEqual(len(sigs), 1)
+        s = sigs[0]
+        self.assertEqual(s['trade'], 'AUBANK 980 PE')
+        self.assertEqual(s['entry'], 10.5)
+        self.assertNotEqual(s['entry'], 25.0)
+
+    def test_samco_weekly_numeric_expiry_no_phantom_duplicate(self):
+        # A strike with no letter month code at all ("NIFTY2540323300CE")
+        # must not also spawn a blank second row under the generic
+        # RE_OPT/RE_OPT_INDEX_CI >6-digit-strike misread.
+        from traderacker.signals import parse_message
+        text = ('RECOMMENDATION ALERT \U0001F514\n\nStock Name: NIFTY\n'
+                'Symbol: NIFTY2540323300CE\nRating: Buy \U0001F7E2\nCMP: ₹90\n'
+                'Stop loss: ₹65\nTarget: ₹130\nDuration: Intraday\n'
+                'Trade Type: Index Option Intraday Strategy\nName of RA: Dhupesh Dhameja\n\n'
+                'Disclaimer: https://sam-co.in/6j/ Samco Securities Ltd')
+        sigs = parse_message(text, style='mixed')
+        self.assertEqual(len(sigs), 1)
+        self.assertEqual(sigs[0]['entry'], 90.0)
+
+    def test_samco_month_abbreviation_root_rejected(self):
+        # A DDMMM expiry token with a SPACE before the strike ("BANKNIFTY
+        # MAR 49500 CE") makes RE_OPT's simple root+digits shape backtrack
+        # onto the month letters themselves as a bogus "MAR" ticker with no
+        # price data at all -- confirmed the same defect pre-existed (and
+        # is now fixed) in other channels, not just Samco.
+        from traderacker.signals import parse_message
+        sigs = parse_message(
+            'Intraday Index Option Sell BANKNIFTY MAR 49500 CE @ 361-365 SL 407 TGT 300',
+            style='mixed')
+        self.assertFalse(any(s['trade'].startswith('MAR ') for s in sigs), sigs)
+
 
 class MarketServiceTests(TestCase):
     """Symbol→ticker mapping and provider fallback (no real network)."""

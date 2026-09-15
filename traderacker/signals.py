@@ -61,6 +61,20 @@ STOP_WORDS = {
     # trading-prose words, not real tickers, so channel-agnostic safe (same
     # rationale as the existing SWING/POSITIONAL entries above).
     'SCALPING', 'BOTTOMED', 'INTRADAY',
+    # generic trading-jargon words that occasionally sit where a symbol
+    # normally would ("OPTION SELLING ALSO\n\n24100CE...", "FUT\n\nPAGEIND
+    # ONLY ABOVE 43500...") and get mis-read by RE_CASH/RE_VERB_FIRST/
+    # RE_BUYSELL as a phantom ticker -- confirmed empirically to never be a
+    # real symbol across all 82 channels' history (channels 49, 54, 70 each
+    # had a bogus "FUT"/"OPTION" Trade row from a prior parse before this
+    # fix). Same rationale as the SCALPING/BOTTOMED/INTRADAY entries above.
+    'FUT', 'OPTION',
+    # "KEEP ON RADAR ABOVE <price>" -- Nivisha Verma (Bnf_unicorn)'s recurring
+    # sign-off phrase after a call's bullet list -- RE_CASH's lazy word-bridge
+    # otherwise reads "KEEP" as the symbol when the real symbol/level sits on
+    # an earlier line with no ABOVE/BELOW of its own (e.g. "REC\n556+++\n\n
+    # KEEP ON RADAR ABOVE 570+"). Common English phrase words, not tickers.
+    'KEEP', 'RADAR',
 }
 
 
@@ -374,6 +388,290 @@ RE_LADDER_HEADER_LINE = re.compile(
     r'^\s*(POSITIONAL|SCALPING|SWING|BOTTOMED\s+OUT|INTRADAY)\b', re.IGNORECASE)
 
 
+# Nivisha Verma (Bnf_unicorn)'s and Ritvi Taneja (Passionate Trader)'s
+# shared dominant forward-call shape, found by checking coverage on their
+# full tracked histories (only 7 and 10 trades existed respectively before
+# this fix). A short symbol line (sometimes with a "(Weekly)" annotation),
+# then a "✅"- or "➡"-bulleted list of chart commentary that somewhere
+# states an entry trigger ("...above <price>" or "Breakout level <price>"),
+# a support level, and a target, e.g. "PIDILITE IND\n✅Breakout above
+# 3280+ possible\n✅Strong chart\n✅Large cap getting strong\n✅After
+# breakout support will be 3160/3050\n✅Target 3350/3475/3600++\n✅Keep on
+# radar" (Bnf_unicorn) / "HINDZINC\n➡ Re-creating Pole & Flag Pattern\n➡
+# Breakout possible above 700\n➡ Support near 630\n➡ Keep on radar" (Ritvi
+# Taneja). Loose (unlike RE_SUPPORT/RE_TARGET, tolerates arbitrary filler
+# words between the keyword and the number, e.g. "Support level is at
+# 475") but gated behind BOTH a bullet marker and the word "support"
+# appearing anywhere in the message, and requires an explicit
+# above/breakout-level entry trigger to even produce a signal (messages
+# with only a support+target and no stated entry, e.g. a bare "AEROFLEX"
+# call, are left deliberately unparsed rather than guessing an entry).
+# Style-gated to 'mixed'; verified empirically that no other 'mixed'
+# channel (Angel One Research, Ashika Calls, NIRMAL BANG OFFICIAL,
+# Stockpro Online, Stocky Mind, Stock Gainers) has any message combining
+# either bullet marker with the word "support" at all, so this can never
+# fire outside these two channels.
+RE_BNFU_ENTRY = re.compile(r'above\s*' + NUM, re.IGNORECASE)
+RE_BNFU_ENTRY_BOLVL = re.compile(r'breakout\s+level\s*' + NUM, re.IGNORECASE)
+RE_BNFU_SUPPORT = re.compile(r'support[^\d\n]{0,25}' + NUM, re.IGNORECASE)
+RE_BNFU_TARGET = re.compile(r'targets?\s*[-:]?\s*' + NUM, re.IGNORECASE)
+RE_BNFU_TARGET_FOR = re.compile(r'\bfor\s*' + NUM, re.IGNORECASE)
+RE_BNFU_TARGET_HOLD = re.compile(r'\bhold[^\d\n]{0,20}' + NUM, re.IGNORECASE)
+
+
+def _bnfunicorn_bullet_signal(text):
+    """Nivisha Verma (Bnf_unicorn)'s / Ritvi Taneja's
+    "<SYMBOL>\\n✅bullet...✅bullet..." (or "➡"-bulleted) breakout-call shape
+    (see comment above). Returns one sig dict or None."""
+    if ('✅' not in text and '➡' not in text) or not re.search(r'support', text, re.IGNORECASE):
+        return None
+    lines = [l.strip() for l in text.splitlines() if l.strip()]
+    if not lines:
+        return None
+    sym = re.sub(r'\(.*?\)', '', lines[0]).strip()
+    sym = re.sub(r'[^A-Za-z0-9 &\-]', '', sym).strip().upper()
+    # a real ticker line here is always 1-3 words ("AEROFLEX", "YATHARTH
+    # HOSP", "Gujarat Toolroom") -- longer than that means the first line is
+    # ordinary prose that happens to mention a ticker mid-sentence, e.g.
+    # "Place an alert in CENTRAL BANK above 42." (8 words).
+    if not sym or not sym[0].isalpha() or len(sym.split()) > 3:
+        return None
+    if not _is_symbol(sym.split()[0]):
+        return None
+    em = RE_BNFU_ENTRY.search(text) or RE_BNFU_ENTRY_BOLVL.search(text)
+    if not em:
+        return None
+    sm = RE_BNFU_SUPPORT.search(text)
+    tm = (RE_BNFU_TARGET.search(text) or RE_BNFU_TARGET_FOR.search(text)
+          or RE_BNFU_TARGET_HOLD.search(text))
+    return {'trade': sym, 'direction': 'BUY', 'entry': _f(em.group(1)),
+            'target': _f(tm.group(1)) if tm else None,
+            'stop_loss': _f(sm.group(1)) if sm else None, 'status': 'Open'}
+
+
+# Stock Gainers (SEBI Registered)'s and Ritvi Taneja (Passionate Trader)'s
+# shared "SYMBOL-line, then a blank-or-single-newline gap, then N to M"
+# recap shape, found by checking coverage on their full tracked histories
+# (1575 of 1950 / 1638 of 1927 messages were unparsed under the shapes that
+# already existed for these channels beforehand). The ticker sits ALONE on
+# its own line, followed by ONE OR MORE newlines, then the price data --
+# unlike Stock Gainers' own daily "Live Analysis of <date>" digest recap,
+# which lists many symbols back-to-back on the SAME line as their own
+# numbers ("PGEL 520CE CE 14 TO 20"), never symbol-alone-then-newline-then-
+# number, so the digest can never match this shape regardless of how many
+# newlines are required (verified empirically: 0 matches on every sampled
+# digest post).
+# A. retrospective recap stating the entry and already-hit level in one
+#    shot: "Astra Micro\n\n1440 to 1480", "AYE FINANCE \n\n153 To 166",
+#    "BLS \n372 to 396" (Ritvi Taneja's single-newline variant) -- same "no
+#    confident close, so stays Open" convention as RE_STOCKY_RECAP/
+#    RE_STMT_RECAP elsewhere in this file.
+# B. forward entry call with explicit levels: "DIAMOND POWER\n\nCMP 356\n\n
+#    Support 340\n\n\nFor 385" (sometimes an extra commentary line between
+#    CMP/Support/Support/For, e.g. "Support only 130" or "Can Accumulate
+#    till 1000" -- the optional non-capturing group between each label
+#    tolerates exactly one such line without swallowing a second symbol).
+#    Stock Gainers only.
+STOCKGAINERS_SYMWORD = r"[A-Za-z][A-Za-z&\-]{1,25}"
+STOCKGAINERS_SYM = (STOCKGAINERS_SYMWORD + r"(?:[ \t]+" + STOCKGAINERS_SYMWORD
+                     + r"){0,3}")
+# ordinary commentary/adjective words that sit alone on a line above a
+# blank-line-separated price -- verified false positives on these channels'
+# full history ("Breakout", "Locked", "Weekly Study", "PERFECT SETUP", the
+# generic post-type headers "BTST"/"Equity Pick"/etc., and Ritvi Taneja's
+# own "WEBELSOLAR\nAgain upper circuit\n\n590 to 1421++" two-line calls,
+# where the commentary line sits closer to the numbers than the real
+# symbol and so wins the "nearest line above" heuristic) -- checked against
+# only the FIRST word of the candidate line, same convention as STOP_WORDS.
+STOCKGAINERS_DENY = {
+    'AFTER', 'ALSO', 'BREAKOUT', 'LOCKED', 'MOVE', 'MOVED', 'PERFECT',
+    'SHOWING', 'STRENGTH', 'SLOWLY', 'TILL', 'TIMING', 'UNBELIEVABLE', 'WAS',
+    'WEEKLY', 'DOUBLE', 'REVERSAL', 'LOADING', 'POTENTIAL', 'SETUP', 'FAST',
+    'TOO', 'STUDY', 'HIT', 'BOTH', 'BIGGER', 'ANOTHER', 'FRESH', 'CAN',
+    'CONTINUOUSLY', 'ACCUMULATE', 'CLEAN', 'QUALITY', 'MOMENTUM', 'LOW',
+    'RISK', 'SHORT', 'LONG', 'TERM', 'SWING', 'TRADE', 'PORTFOLIO', 'EQUITY',
+    'PICK', 'CONVICTION', 'INTRA', 'BTST', 'VIEW', 'OPTION', 'BUYING',
+    'STOCK', 'GOOD', 'MORNING', 'BLOCKBUSTER', 'EXCELLENT', 'FRIDAY',
+    'GOING', 'IPO', 'MY', 'SOLID', 'VOLUMES', 'YESTERDAY', 'FOR', 'BEUTIFUL',
+    'AGAIN', 'TREND', 'UPPER', 'AMAZING',
+}
+
+# Ritvi Taneja's third shape (smaller, ~10-100 occurrences depending on
+# overlap with the recap/bullet shapes above): the symbol and its CMP/entry
+# sit together on the FIRST line with no other keyword ("SBIN 1011", "DLF
+# 663", "Central Bank 64.4"), and a "support" figure follows somewhere in
+# the message, e.g. "SBIN 1011\nSupport 992\n\nAvg 1000-995\n\nCan hit
+# 1025/1038/1050\n\nWeak below 992 closing". Style-gated to 'mixed';
+# verified empirically that the only other 'mixed' channels this fires on
+# at all are Stock Gainers and Bnf_unicorn (both already in this batch, and
+# both genuinely use the same "<SYMBOL> <PRICE>" first-line convention), 0
+# elsewhere.
+RE_SYMLINE_ENTRY = re.compile(
+    r'^(' + STOCKGAINERS_SYM + r')[ \t]+' + NUM + r'[ \t]*$', re.MULTILINE)
+RE_SYMLINE_TARGET = re.compile(
+    r'targets?\s*[-:]?\s*' + NUM + r'|can\s+hit\s*' + NUM + r'|towards\s*' + NUM,
+    re.IGNORECASE)
+
+
+def _symline_support_signal(text):
+    """"<SYMBOL> <PRICE>" alone on the first line, with a "support" figure
+    stated somewhere else in the message (see comment above). Returns one
+    sig dict or None."""
+    if not re.search(r'support', text, re.IGNORECASE):
+        return None
+    lines = text.splitlines()
+    if not lines:
+        return None
+    m = RE_SYMLINE_ENTRY.match(lines[0])
+    if not m:
+        return None
+    sym = m.group(1).strip().upper()
+    if not _is_symbol(sym.split()[0]) or sym.split()[0] in STOCKGAINERS_DENY:
+        return None
+    sm = RE_BNFU_SUPPORT.search(text)
+    tm = RE_SYMLINE_TARGET.search(text)
+    target = None
+    if tm:
+        target = _f(next(g for g in tm.groups() if g is not None))
+    return {'trade': sym, 'direction': 'BUY', 'entry': _f(m.group(2)),
+            'target': target, 'stop_loss': _f(sm.group(1)) if sm else None,
+            'status': 'Open'}
+
+
+# Samco's formal "RECOMMENDATION ALERT" broker template -- found by checking
+# coverage on the full 1927-message tracked history: this channel's 144
+# pre-existing trades were phantoms (garbage roots like "MAR 23500 CE" torn
+# out of a glued option ticker by the generic RE_VERB_FIRST/RE_CASH
+# fallbacks, e.g. reading the "25" of "AUBANK25DEC980PE" as the entry
+# price of a bogus cash trade named "AUBANK"), not real coverage. Two
+# independent parses of the SAME alert, each individually sufficient
+# (their (channel, trade, entry) upsert key collapses them into one Trade
+# row when both fire on the same message, so running both is free):
+# A. the structured field block itself, e.g. "Stock Name: Pfizer
+#    Limited\nSymbol: PFIZER\nRating: Buy 🟢\nCMP: ₹4130\nStop loss:
+#    ₹3890\nTarget: ₹4545\nDuration: 5-10 Days..." -- "Symbol:" is always
+#    the real ticker (unlike "Stock Name:", which is the full company name
+#    and sometimes blank for an index leg), "CMP:" the entry, "Stop loss:"/
+#    "Target:" self-explanatory. 829 of 1927 messages match. Only ever
+#    seen with Rating "Buy" (never "Sell"/"Hold") across the whole tracked
+#    history, so direction is always BUY. Deliberately rejects the rare
+#    (2 of 1927) multi-leg "Symbol: SELL BANKNIFTY 25APR 52000 CE CMP:
+#    ₹574\n   SELL BANKNIFTY..." straddle/strangle alert -- its "Stop
+#    loss"/"Target" are a total ₹ P&L figure across all four legs, not a
+#    per-share price, and cramming it through this per-leg parser would
+#    silently fabricate a wrong single-leg price.
+# B. the trailing "Note: Buy <SYM> at <price> SL <sl> TGT <tgt>" one-liner
+#    (or "... at CMP <price>...", "... at CMP of Rs.<price> with SL of
+#    Rs.<sl>" for the no-Target "Momentum/Quality/Delivery Pick" durations)
+#    -- kept as a second, independent path because a small number of
+#    alerts (2 of 1927, "GLENMARK 2020 CE" style) restate the option leg
+#    with different rounding between the two locations, and because A's
+#    field block is occasionally malformed enough (rare parsing edge cases
+#    not yet seen in this corpus) that a second read of the same
+#    information is cheap insurance. 63 of 79 "Note:" lines match; the
+#    other 16 are plain company-description prose the Note carries for the
+#    long-duration picks (correctly left to path A instead).
+# Both compact the option ticker's glued expiry token ("AUBANK25DEC980PE",
+# "NIFTY25DEC26200CE", spaced or not) down to this codebase's normal "ROOT
+# STRIKE CE/PE" convention via _parse_samco_symbol -- reusing the DDMMM
+# expiry shape (2-digit day + 3-letter month) that appears in every case
+# seen; the rare SENSEX weekly-numeric-expiry format ("SENSEX2561781500PE",
+# 1 of 1927) doesn't match and is deliberately left as an ugly-but-honest
+# literal symbol rather than guessing where the strike starts.
+# Style-gated to 'mixed'; verified empirically that neither "RECOMMENDATION
+# ALERT" field labels nor a "Note: Buy ... at/CMP ..." line appear in any
+# other 'mixed' channel's history.
+RE_SAMCO_OPT_SYM = re.compile(
+    r'^([A-Z]+)\s*\d{1,2}[A-Z]{3}\s*(\d[\d,]*(?:\.\d+)?)\s*(CE|PE)$')
+
+
+def _parse_samco_symbol(raw):
+    raw = re.sub(r'\s+', ' ', (raw or '').strip()).upper()
+    m = RE_SAMCO_OPT_SYM.match(raw)
+    if m:
+        return f'{m.group(1)} {m.group(2).replace(",", "")} {m.group(3)}'
+    return raw
+
+
+RE_SAMCO_SYM_FIELD = re.compile(r'Symbol:\s*([^\n]+)')
+RE_SAMCO_CMP_FIELD = re.compile(r'CMP:\s*₹\s*(\d[\d,]*(?:\.\d+)?)', re.IGNORECASE)
+RE_SAMCO_SL_FIELD = re.compile(r'Stop loss:\s*₹\s*(\d[\d,]*(?:\.\d+)?)', re.IGNORECASE)
+RE_SAMCO_TGT_FIELD = re.compile(r'Target:\s*₹\s*(\d[\d,]*(?:\.\d+)?)', re.IGNORECASE)
+
+
+def _samco_block_signal(text):
+    """Samco's structured "RECOMMENDATION ALERT" field block (see comment
+    above). Returns one sig dict or None."""
+    if 'RECOMMENDATION ALERT' not in text:
+        return None
+    sm = RE_SAMCO_SYM_FIELD.search(text)
+    cm = RE_SAMCO_CMP_FIELD.search(text)
+    if not sm or not cm:
+        return None
+    raw = sm.group(1).strip()
+    # reject the rare multi-leg straddle/strangle alert, whose "Symbol:"
+    # line embeds a second BUY/SELL leg and its own "CMP:" rather than
+    # naming a single leg (see comment above).
+    if not raw or len(raw) > 30 or ':' in raw or ' BUY ' in f' {raw} ' or ' SELL ' in f' {raw} ':
+        return None
+    sym = _parse_samco_symbol(raw)
+    if not sym or not sym[0].isalpha():
+        return None
+    slm = RE_SAMCO_SL_FIELD.search(text)
+    tm = RE_SAMCO_TGT_FIELD.search(text)
+    return {'trade': sym, 'direction': 'BUY', 'entry': _f(cm.group(1)),
+            'target': _f(tm.group(1)) if tm else None,
+            'stop_loss': _f(slm.group(1)) if slm else None, 'status': 'Open'}
+
+
+RE_SAMCO_NOTE_LINE = re.compile(r'Note:\s*(?:BUY|Buy)\s+([^\n]+)')
+RE_SAMCO_NOTE_SPLIT = re.compile(
+    r'^(.*?)\s+(?:at\s+CMP\s+of|at\s+CMP|CMP\s+of|at|CMP)\s*:?\s*(.*)$', re.IGNORECASE)
+RE_SAMCO_NOTE_SL = re.compile(
+    r'SL\s*(?:of\s+)?(?:Rs\.?\s*)?(\d[\d,]*(?:\.\d+)?)|Stoploss\s+of\s+(?:Rs\.?\s*)?(\d[\d,]*(?:\.\d+)?)',
+    re.IGNORECASE)
+RE_SAMCO_NOTE_TGT = re.compile(r'TGT\s*(\d[\d,]*(?:\.\d+)?)', re.IGNORECASE)
+
+
+def _samco_note_signal(text):
+    """Samco's "Note: Buy <SYM> at/CMP <price> SL <sl> TGT <tgt>" one-liner
+    (see comment above _samco_block_signal). Returns one sig dict or None."""
+    m = RE_SAMCO_NOTE_LINE.search(text)
+    if not m:
+        return None
+    sm = RE_SAMCO_NOTE_SPLIT.match(m.group(1).strip())
+    if not sm:
+        return None
+    raw, rest = sm.group(1), sm.group(2)
+    if not raw or len(raw) > 30:
+        return None
+    sym = _parse_samco_symbol(raw)
+    if not sym or not sym[0].isalpha():
+        return None
+    em = re.match(r'\s*(?:Rs\.?\s*)?(\d[\d,]*(?:\.\d+)?)', rest)
+    if not em:
+        return None
+    slm = RE_SAMCO_NOTE_SL.search(rest)
+    sl = _f(next(g for g in slm.groups() if g is not None)) if slm else None
+    tm = RE_SAMCO_NOTE_TGT.search(rest)
+    return {'trade': sym, 'direction': 'BUY', 'entry': _f(em.group(1)),
+            'target': _f(tm.group(1)) if tm else None, 'stop_loss': sl,
+            'status': 'Open'}
+
+
+RE_STOCKGAINERS_RECAP = re.compile(
+    r'^(' + STOCKGAINERS_SYM + r')[ \t]*\r?\n\s*'
+    r'(\d[\d,]*(?:\.\d+)?)\s*(?:to|To|TO)\s*(\d[\d,]*(?:\.\d+)?)', re.MULTILINE)
+RE_STOCKGAINERS_ENTRY = re.compile(
+    r'^(' + STOCKGAINERS_SYM + r')[ \t]*\r?\n[ \t]*\r?\n[ \t]*'
+    r'CMP\s*:?\s*₹?\s*(\d[\d,]*(?:\.\d+)?)(?:[ \t]*-[ \t]*\d[\d,]*(?:\.\d+)?)?[^\n]*\n[ \t]*\n?[ \t]*'
+    r'(?:[A-Za-z][^\n]{0,20}\n[ \t]*\n?[ \t]*)?'
+    r'Support\s*(?:only\s*)?:?\s*(\d[\d,]*(?:\.\d+)?)[^\n]*\n[ \t]*\n*[ \t]*'
+    r'(?:[A-Za-z][^\n]{0,25}\n[ \t]*\n*[ \t]*)?'
+    r'For\s*:?\s*(\d[\d,]*(?:\.\d+)?)',
+    re.MULTILINE | re.IGNORECASE)
+
+
 def _stockpro_ladder_signal(text):
     """Stockpro Online's dominant ladder shape (see comment above). Returns
     one sig dict or None — never a close: status is always 'Open', matching
@@ -545,6 +843,37 @@ def parse_message(text, style=None):
         root_word = root.split()[0] if root.split() else root
         if root_word in STOP_WORDS:
             continue
+        # a "root" that is literally a 3-letter month abbreviation glued to
+        # digits ("APR12275", "JUL13025") is never a real ticker -- it is
+        # this regex misreading a compact "<ROOT><DDMMM><STRIKE>CE/PE"
+        # option symbol (Samco's dominant options format, e.g.
+        # "NIFTY25APR12275CE") from the middle: [A-Z]+ can't bridge the
+        # digit-then-letter gap between the root and the DDMMM expiry
+        # token, so it backtracks onto the expiry token's own month letters
+        # as if THEY were the root, producing a phantom all-blank trade
+        # (no entry/target/SL ever fills in, since none of that data is
+        # attributed to a fake "APR" ticker). Verified empirically this
+        # never rejects a real match elsewhere: no genuine ticker in the
+        # tracked corpus is a bare month abbreviation immediately followed
+        # by a digit.
+        if re.match(r'^(?:' + MONTH_ABBR + r')(?:\d.*)?$', root_word):
+            continue
+        # a >6-digit trailing digit run is never a real strike (even the
+        # highest index strikes are at most 6 figures) -- it is Samco's
+        # weekly-numeric-expiry option symbol with NO letter month code at
+        # all ("NIFTY2540323300CE": year+week+strike all run together),
+        # which this regex's simple root+digits+CE/PE shape reads whole as
+        # if the entire run were the strike. Left to _samco_block_signal's
+        # dedicated parser (which reads the real CMP/SL/Target from the
+        # structured field block instead of trying to split this digit
+        # run), rather than emitting a second, blank-valued phantom row
+        # under a differently-spaced trade key that the (channel, trade,
+        # entry) dedup can't merge with the real one. Verified empirically
+        # unique to this channel across the full 82-channel tracked
+        # history (58 occurrences, all channel 43).
+        digit_run = re.search(r'\d+$', root_word)
+        if digit_run and len(digit_run.group()) > 6:
+            continue
         if any(s[0] < m.end() and s[1] > m.start() for s in exit_price_spans):
             continue
         if any(abs(s[1] - m.start()) <= 1 for s in progress_spans):
@@ -631,6 +960,13 @@ def parse_message(text, style=None):
         for m in RE_OPT_INDEX_CI.finditer(text):
             root = m.group(1).upper()
             strike = m.group(2).replace(',', '')
+            # a >6-digit strike is never real -- see the matching guard
+            # (and its comment) in RE_OPT's own loop above; this is the
+            # same Samco weekly-numeric-expiry symbol
+            # ("NIFTY2540323300CE") read whole by this case-insensitive
+            # variant since it has no digit-length limit of its own.
+            if len(strike.split('.')[0]) > 6:
+                continue
             right = {'CALL': 'CE', 'PUT': 'PE'}.get(m.group(3).upper(), m.group(3).upper())
             trade = f'{root} {strike} {right}'
             option_roots.add(root)
@@ -734,6 +1070,36 @@ def parse_message(text, style=None):
             if _is_symbol(sym) and sym not in option_roots and not any(o['trade'] == sym for o in out):
                 add({'trade': sym, 'direction': 'BUY', 'entry': _f(m.group(2)),
                      'target': None, 'stop_loss': None, 'status': 'Open'})
+
+    # 1g. Samco's "RECOMMENDATION ALERT" broker template -- both the
+    # structured field block and the "Note: Buy ..." one-liner (see comment
+    # above _samco_block_signal) -- style-gated to 'mixed'. Runs here,
+    # BEFORE the generic verb-first/cash fallbacks (steps 3-5b below)
+    # rather than alongside the other channel-specific shapes at step 6+,
+    # because a spaced glued-expiry symbol in the Note line ("Buy AUBANK
+    # 25DEC980PE at 10.5...") would otherwise already be mis-read by
+    # RE_VERB_FIRST as a bogus cash order "AUBANK" @ 25 (the "25" of the
+    # expiry token) before this ever gets a turn -- the same root-cause bug
+    # documented at RE_OPT's own MONTH_ABBR/digit-length guards above, just
+    # hitting the "Note:" line's plain verb-first shape instead of RE_OPT.
+    # Claims the root (via option_roots) and the Note/Symbol span (via
+    # claimed_spans) so those later fallbacks skip it entirely. Each of the
+    # two parses checked independently against `out` so a message where
+    # both fire on the same symbol only produces one signal.
+    if style == 'mixed':
+        for sig_fn in (_samco_block_signal, _samco_note_signal):
+            csig = sig_fn(text)
+            if csig and csig['trade'] not in option_roots and not any(
+                    o['trade'] == csig['trade'] for o in out):
+                add(csig)
+                option_roots.add(csig['trade'].split()[0])
+        if out and any(o['trade'] for o in out):
+            nm = RE_SAMCO_NOTE_LINE.search(text)
+            if nm:
+                claimed_spans.append(nm.span())
+            sm = RE_SAMCO_SYM_FIELD.search(text)
+            if sm:
+                claimed_spans.append(sm.span())
 
     # 2. crypto futures: "ONDO LONG 20x"
     for m in RE_CRYPTO.finditer(text):
@@ -847,6 +1213,51 @@ def parse_message(text, style=None):
         if lsig and lsig['trade'] not in option_roots and not any(
                 o['trade'] == lsig['trade'] for o in out):
             add(lsig)
+
+    # 6c. Stock Gainers (SEBI Registered)'s two dominant shapes (see comment
+    # above RE_STOCKGAINERS_RECAP/RE_STOCKGAINERS_ENTRY) -- style-gated to
+    # 'mixed'. Only runs if nothing above already matched this symbol
+    # (e.g. Stocky Mind's own RE_STOCKY_RECAP at 6a fires on the exact same
+    # "SYMBOL\n\nN to M" shape for its own channel -- verified empirically
+    # that the only other 'mixed' channel these two patterns match anything
+    # on at all is Stocky Mind, and there only on messages RE_STOCKY_RECAP
+    # already claimed, so the dedup check below is what keeps this
+    # channel-agnostic-safe rather than the style gate alone).
+    if style == 'mixed':
+        m = RE_STOCKGAINERS_ENTRY.search(text)
+        if m:
+            sym = re.sub(r'\s+', ' ', m.group(1).strip()).upper()
+            if (_is_symbol(sym.split()[0]) and sym.split()[0] not in STOCKGAINERS_DENY
+                    and sym not in option_roots and not any(o['trade'] == sym for o in out)):
+                add({'trade': sym, 'direction': 'BUY', 'entry': _f(m.group(2)),
+                     'target': _f(m.group(4)), 'stop_loss': _f(m.group(3)),
+                     'status': 'Open'})
+        m = RE_STOCKGAINERS_RECAP.search(text)
+        if m:
+            sym = re.sub(r'\s+', ' ', m.group(1).strip()).upper()
+            if (_is_symbol(sym.split()[0]) and sym.split()[0] not in STOCKGAINERS_DENY
+                    and sym not in option_roots and not any(o['trade'] == sym for o in out)):
+                entry_v, exit_v = _f(m.group(2)), _f(m.group(3))
+                add({'trade': sym, 'direction': 'BUY' if exit_v >= entry_v else 'SELL',
+                     'entry': entry_v, 'target': exit_v, 'stop_loss': None,
+                     'status': 'Open'})
+
+    # 6d. Nivisha Verma (Bnf_unicorn)'s "✅"-bulleted breakout-call shape
+    # (see comment above _bnfunicorn_bullet_signal) — style-gated to
+    # 'mixed'.
+    if style == 'mixed':
+        bsig = _bnfunicorn_bullet_signal(text)
+        if bsig and bsig['trade'] not in option_roots and not any(
+                o['trade'] == bsig['trade'] for o in out):
+            add(bsig)
+
+    # 6e. Ritvi Taneja's "<SYMBOL> <PRICE>" first-line + support shape (see
+    # comment above _symline_support_signal) — style-gated to 'mixed'.
+    if style == 'mixed':
+        ssig = _symline_support_signal(text)
+        if ssig and ssig['trade'] not in option_roots and not any(
+                o['trade'] == ssig['trade'] for o in out):
+            add(ssig)
 
     if not out:
         return []

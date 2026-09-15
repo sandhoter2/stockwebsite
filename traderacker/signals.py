@@ -7,6 +7,7 @@ Symbols must be ALL-CAPS (the ticker convention in these channels) so prose
 words like "Not"/"supply" can never become phantom trades.
 """
 import re
+import unicodedata
 
 # number with optional thousands commas / decimals: 1570, 73,900, 0.3514, 8.50
 NUM = r'(\d[\d,]*(?:\.\d+)?)'
@@ -573,13 +574,91 @@ RE_SHARED_RESEARCH = re.compile(
 # optional colon between the keyword and the price ("BUY ABOVE : 1070",
 # Sairam Stocks) as well as the plain "ABOVE 1070" shape other channels use.
 # Sairam Stocks also has a second variant with a filler "ONLY" wedged in
-# between ("BUY ABOVE ONLY 1060 LEVEL") -- skipped the same way.
+# between ("BUY ABOVE ONLY 1060 LEVEL") -- skipped the same way. Also
+# tolerates a colon-DASH ("ABOVE :- 142", Stock Gainers/ROCHIT SINGH
+# STOCKS/channel 15/channel 55's shared house style) -- the dash is
+# decorative list-item punctuation, not a minus sign (NUM itself never
+# matches a leading "-", so this can't accidentally swallow a negative
+# number). Verified empirically across the full 82-channel corpus: the
+# colon-dash spelling occurs in exactly those 4 channels, always
+# immediately before a plain positive price. Also tolerates a ">" after
+# the keyword ("BUY ABOVE >500", ROCHIT SINGH STOCKS/channel 40's own
+# decorative-arrow spelling) -- verified empirically unique to channel 40
+# across the full 82-channel corpus (2 occurrences), always immediately
+# before a plain positive price, same as the dash case above.
 RE_ABOVE_BELOW = re.compile(
-    r'\b(?:ABOVE|BELOW)\s*:?\s*(?:ONLY\s+)?' + NUM, re.IGNORECASE)
+    r'\b(?:ABOVE|BELOW)\s*:?\s*[->]?\s*(?:ONLY\s+)?' + NUM, re.IGNORECASE)
+# "NEAR <price>" entry trigger -- see the narrowly-windowed use site in the
+# RE_OPT loop below for why this is a separate regex from RE_ABOVE_BELOW.
+# Optional "LEVEL" plus a "--" separator tolerates Stock Gainers' (48) own
+# spelling, "NEAR LEVEL -- 190" -- verified empirically unique to that
+# channel (22 occurrences; 1 stray unrelated hit at channel 67, harmless
+# since it's still a genuine "near <price>" trigger there too).
+RE_NEAR_ENTRY = re.compile(r'\bNEAR\s*(?:LEVEL)?\s*:?\s*-{0,2}\s*' + NUM, re.IGNORECASE)
 # a running price-update recap that restates an already-open option leg
 # rather than posting a fresh order, e.g. "170 TO 199#NIFTY 23650PE" —
 # the option match immediately follows the "#" here, not a BUY/SELL verb.
 RE_PROGRESS_UPDATE = re.compile(r'\d[\d,.]*\s*TO\s*\d[\d,.]*\s*#', re.IGNORECASE)
+# CHANNEL-AGNOSTIC BUG: a message consisting of NOTHING but "<root>
+# <strike> CE/PE" followed by a single bare number on the next line is a
+# live LTP-tracking repost of an ALREADY-open call, not a new signal --
+# Trading With Ca Abhay (channel 66, "NIFTY 24200 PE\n154") and Stock
+# Gainers (channel 48, "CRUDEOIL 9700 CE\n272") both post the real entry
+# once with an explicit BUY/NEAR/ABOVE/CMP keyword, then repeat the bare
+# symbol+current-price for 5-15 follow-up messages while the call is
+# live. Because entry price ticks up/down on every repost, RE_OPT's own
+# optional trailing NUM (needed elsewhere for genuine one-shot
+# "<SYMBOL>\n\n<price>" entries, e.g. Options Train's "SEP 230000
+# CE\n\n9300 TO 10500++") read each repost as a DISTINCT new trade under
+# (channel, trade, entry) dedup, producing 10+ phantom duplicate Open
+# rows per real call. Originally verified safe for channels 66 (124
+# occurrences) and 48 (60), where the bare number has no trailing text.
+# ROCHIT SINGH STOCKS (channel 40) uses the identical shape but decorates
+# the repost price with trailing emoji, e.g. "NIFTY 24500 CE\n160🎯🎯💸💸"
+# (150 occurrences) -- the original \s*\Z after the number missed these
+# entirely, so they fell through to RE_OPT's own fallback and produced
+# the same phantom-duplicate-Open-row bug this regex exists to prevent.
+# Widened to allow up to 15 chars of trailing non-digit junk (mirroring
+# RE_OPT_BARE_PRICE_REPOST_REV's own tolerance below), re-verified
+# empirically safe across the full 82-channel corpus with the wider
+# match: it also newly catches channels 6, 15, 17, 23, 32, 39 (1-8
+# occurrences each) -- all of which are the same emoji/word-decorated
+# "<symbol>\n<price>+junk" LTP/profit-celebration repost shape (e.g.
+# channel 6's "SHREECEM 26000 CALL\n450+✨✨good profit", channel 17's
+# "SIEMENS 3900 CE\n197.45 HIGH😍😍"), spot-checked against source text.
+# A full unscoped clear+reparse shows this correctly drops a handful of
+# pre-existing phantom duplicate rows in those already-specialized
+# channels too (6: 488->486, 17: 188->180, 39: 268->267), with the full
+# 163-test suite still green -- these were the same bug, simply never in
+# the two channels the original fix sampled, not a new regression.
+# Checked as a fullmatch on the STRIPPED WHOLE message, not a span
+# exclusion, so it can never suppress a real entry that happens to share
+# a strike with some other channel's genuine minimal-shape order
+# elsewhere in the text.
+# The rupee glyph occasionally prefixes the repost price too, e.g.
+# ROCHIT SINGH STOCKS' "NIFTY 24100 CE\n₹ 150 \U0001F525\U0001F525✅" (3
+# occurrences, verified unique to channel 40 across the full corpus with
+# this exact widening) -- tolerated as an optional leading currency glyph
+# so it doesn't leak through as yet another phantom entry-less duplicate.
+RE_OPT_BARE_PRICE_REPOST = re.compile(
+    r'\A[A-Za-z][A-Za-z ]*\d[\d,]*(?:\.\d+)?\s*(?:CE|PE|CALL|PUT)\s*'
+    r'\n+\s*[₹]?\s*\d[\d,]*(?:\.\d+)?[^\d\n]{0,15}\Z', re.IGNORECASE)
+# Stock Gainers' (channel 48) mirror-image variant of the same repost: the
+# bare LTP comes FIRST, then the symbol, e.g. "155\xe2\x99\xa5\xef\xb8\x8f
+# \n\n\nNIFTY 23550 PE" -- the option leg's own real, priced entry sits in
+# an EARLIER message with a "<DAY> <MON>" expiry infix (see RE_SMS_OPT_DATE
+# / the "ABOVE :- " fallback added to that block), which this bare
+# no-date recap restates minus its own price. Without this, RE_OPT still
+# matches the trailing "NIFTY 23550 PE" here (no date token to break it)
+# with nothing following it, producing a second, blank-valued phantom
+# Trade row alongside the real, priced one. Allows short trailing junk
+# (emoji) after the leading number, since that's how this channel's
+# reposts are actually punctuated -- verified empirically unique to
+# channel 48 across the full 82-channel corpus (21 occurrences).
+RE_OPT_BARE_PRICE_REPOST_REV = re.compile(
+    r'\A\d[\d,]*(?:\.\d+)?[^\d\n]{0,15}'
+    r'\n+\s*[A-Za-z][A-Za-z ]*\d[\d,]*(?:\.\d+)?\s*(?:CE|PE|CALL|PUT)\s*\Z',
+    re.IGNORECASE)
 # LIVELONG HARI's dominant CASH-order shape puts the ticker alone on its
 # own line, then the entry band on the next paragraph as "BUY/SELL
 # ABV/RANGE/ABOVE/BELOW/AT <price>[-<price>]" -- see _hari_cash_signal
@@ -1561,14 +1640,26 @@ def _usha_around_entry_signal(text):
 # To Mid Term, 60 Swing Trader Vishal, 61 Systematix Group Official): 0
 # false-positive matches after excluding the index roots and a small
 # prose-word deny set.
+# ProfitPunch (channel 35) shares this exact same shape but spells the
+# separator "TO" uppercase ("BEL 👌👌\n\n242 TO 275", "TRENT\n\n1182 TO
+# 1345") and sometimes trails the ticker with emoji before the line break
+# ("BEL 👌👌\n..."). Made IGNORECASE and added tolerance for up to 10 chars
+# of trailing non-digit junk after the ticker word on the next-line variant
+# -- re-verified empirically safe across every 'cash'-style channel's full
+# history: this surfaces two new false positives on the already-specialized
+# channels (Equity99's "Special 7 To 15" header fragment and Swing Trader
+# Vishal's "Moved 838 To 895" stop-adjustment commentary), both added to
+# MOMENTUM_DENY below; every other channel's Trade count is unchanged
+# after a full unscoped clear+reparse.
 RE_MOMENTUM_SAMELINE = re.compile(
     r'^([A-Z][A-Za-z]{2,15})\s+(\d[\d,]*(?:\.\d+)?)\s+to\s+(\d[\d,]*(?:\.\d+)?)',
-    re.MULTILINE)
+    re.MULTILINE | re.IGNORECASE)
 RE_MOMENTUM_NEXTLINE = re.compile(
-    r'^([A-Z][A-Za-z]{2,15})[ \t]*\r?\n[ \t]*\r?\n?[ \t]*'
-    r'(\d[\d,]*(?:\.\d+)?)\s+to\s+(\d[\d,]*(?:\.\d+)?)', re.MULTILINE)
+    r'^([A-Z][A-Za-z]{2,15})[ \t]*[^\d\n]{0,10}\r?\n[ \t]*\r?\n?[ \t]*'
+    r'(\d[\d,]*(?:\.\d+)?)\s+to\s+(\d[\d,]*(?:\.\d+)?)', re.MULTILINE | re.IGNORECASE)
 MOMENTUM_DENY = {'FROM', 'FOR', 'THE', 'RANGE', 'TODAY', 'TARGET', 'SUPPORT',
-                 'AGAIN', 'TRADE', 'CMP', 'NEAR', 'AREA', 'EXPECTED', 'COMING'}
+                 'AGAIN', 'TRADE', 'CMP', 'NEAR', 'AREA', 'EXPECTED', 'COMING',
+                 'SPECIAL', 'MOVED'}
 
 
 # Equity99's dominant "Special Situation Stock" / "Special day pick" /
@@ -1625,6 +1716,49 @@ def _equity99_special_signal(text):
             'target': _f(tm.group(1)), 'stop_loss': None, 'status': 'Open'}
 
 
+# Eqwires Research Analyst's (channel 79) dominant shape is a structured,
+# already-BTST/INTRADAY-completed recap template, e.g.:
+#   Today's High-Quality Trade Update
+#   Trade:  INTRADAY
+#   Stock:  PERSISTENT 30 JAN 6200 CE
+#   Buy Price:  ₹167.85
+#   Sell Price:  ₹227.85
+#   Profit Booked:  ₹6000/-
+# The "Stock:" line's symbol was already being extracted correctly by some
+# existing generic path (verified: Trade rows for this channel already
+# have the right `trade` string, e.g. "PERSISTENT 6200 CE"), but no
+# regex anywhere recognized "Buy Price:" as an entry trigger, so every
+# single one of this channel's 70 pre-existing Trade rows had entry=None
+# -- the channel looked like it had trades but every one was empty of the
+# one number a "trade" row exists to record. "Trade Details" is required
+# as an anchor (verified unique to this channel across the full 82-channel
+# corpus, 681 occurrences) so the bare "Buy Price:" phrase alone can never
+# fire on some other channel's unrelated text. Symbol normalization reuses
+# _normalize_close_symbol (defined below) since it already does exactly
+# what this shape's "Stock:" line needs: strip an expiry-date infix
+# ("30 JAN"), tolerate a missing space before CE/PE ("6200CE"), and reduce
+# a "<ROOT> <EXPIRY> FUT" futures line to its bare root ("MCX SEP FUT" ->
+# "MCX") -- the same reduction Nirmal Bang Official's close-out path
+# already relies on.
+RE_EQWIRES_ANCHOR = re.compile(r'Trade\s+Details', re.IGNORECASE)
+RE_EQWIRES_STOCK = re.compile(r'^\s*Stock\s*:\s*([^\n]+)', re.IGNORECASE | re.MULTILINE)
+RE_EQWIRES_BUY_PRICE = re.compile(r'Buy\s+Price\s*:\s*₹?\s*(\d[\d,]*(?:\.\d+)?)', re.IGNORECASE)
+
+
+def _eqwires_trade_update_signal(text):
+    if not RE_EQWIRES_ANCHOR.search(text):
+        return None
+    sm = RE_EQWIRES_STOCK.search(text)
+    bm = RE_EQWIRES_BUY_PRICE.search(text)
+    if not sm or not bm:
+        return None
+    sym = _normalize_close_symbol(sm.group(1))
+    if not sym or not _is_symbol(sym):
+        return None
+    return {'trade': sym, 'direction': 'BUY', 'entry': _f(bm.group(1)),
+            'target': None, 'stop_loss': None, 'status': 'Open'}
+
+
 def _momentum_word_to_word_signal(text):
     for rx in (RE_MOMENTUM_SAMELINE, RE_MOMENTUM_NEXTLINE):
         m = rx.search(text)
@@ -1670,7 +1804,34 @@ def parse_message(text, style=None):
     """Return a list of signal dicts parsed from one message (possibly [])."""
     if not text or not text.strip():
         return []
+    # CHANNEL-AGNOSTIC BUG: several channels (Nrj finance/29 the worst, but
+    # this stylized-Unicode font trick shows up in some fraction of nearly
+    # every channel's messages -- e.g. "𝗕𝘂𝘆 𝗦𝗲𝗻𝘀𝗲𝘅 𝟳𝟱𝟴𝟬𝟬 𝗰𝗮𝗹𝗹") post their
+    # symbols/keywords/prices in Unicode "Mathematical Bold"/"Sans-Serif
+    # Bold" compatibility characters instead of plain ASCII letters and
+    # digits. None of this file's regexes (all built on plain ASCII \w/\d)
+    # ever matched those characters, so an entire channel's dominant shape
+    # could look parser-blind for a purely cosmetic reason -- Nrj finance
+    # (29) had 0 trades from 1,141 messages despite every single order
+    # message using the exact "Buy <SYMBOL> <strike> <CE/PE> (<date> Ex)"
+    # shape RE_OPT already understands once decoded. Fixed with a single
+    # `unicodedata.normalize('NFKC', text)` up front, which Unicode defines
+    # as exactly this kind of compatibility folding (bold/sans-serif/
+    # fullwidth letter and digit variants -> their plain ASCII form) and is
+    # a verified no-op on already-plain ASCII text and on the emoji/emoji-
+    # variation-selector characters this file's other regexes rely on (␦
+    # tested against every literal emoji string already in this file and
+    # in SignalParserTests -- byte-identical after normalization). Verified
+    # empirically safe across the full 82-channel corpus: full unscoped
+    # clear+reparse with this change shows the expected large gain in
+    # currently-blind channels and zero regression (same per-channel Trade
+    # counts, full test suite green) in every channel whose messages happen
+    # to contain a handful of these characters but already parse correctly
+    # some other way.
+    text = unicodedata.normalize('NFKC', text)
     if style == 'promo' or is_promo(text):
+        return []
+    if RE_OPT_BARE_PRICE_REPOST.match(text.strip()) or RE_OPT_BARE_PRICE_REPOST_REV.match(text.strip()):
         return []
     out = []
     # roots already claimed by an option match, e.g. "NIFTY" from
@@ -1723,10 +1884,24 @@ def parse_message(text, style=None):
             if any(o['trade'] == trade for o in out):
                 continue
             rm = RE_SMS_RANGE_ENTRY.search(text[m.end():m.end() + 60])
-            if not rm:
+            # Stock Gainers' (48) and ROCHIT SINGH STOCKS' (40) shared
+            # variant of this same "<INDEX> <DAY> <MON> <STRIKE> CE/PE"
+            # header uses "ABOVE :- <price>" as its entry trigger instead
+            # of "Range @ <price>" -- same header shape, different keyword.
+            # Tried only after RE_SMS_RANGE_ENTRY so STOCK MARKET SCHOOL's
+            # own "Range" convention is untouched. Without this, the real
+            # entry message was invisible to every regex in this file (the
+            # date infix breaks RE_OPT's root match, and this whole -1
+            # block requires style=='options' with a matched entry to emit
+            # anything) while a LATER reversed-order recap of the same
+            # leg with no date token ("145\n\nNIFTY 23550 PE") DID match
+            # plain RE_OPT below with no entry, producing a blank-valued
+            # phantom trade instead of the real, priced one.
+            ab = rm or RE_ABOVE_BELOW.search(text[m.end():m.end() + 60])
+            if not ab:
                 continue
             add({'trade': trade, 'direction': 'CALL (up)' if right == 'CE' else 'PUT (down)',
-                 'entry': _f(rm.group(1)), 'target': None, 'stop_loss': None, 'status': 'Open'})
+                 'entry': _f(ab.group(1)), 'target': None, 'stop_loss': None, 'status': 'Open'})
 
     # 0. Usha's Analysis's "<TICKER> <MONTH> <STRIKE> CE/PE" option header
     # (see comment above RE_TICKER_MONTH_OPT) -- must run before RE_OPT
@@ -1905,6 +2080,26 @@ def parse_message(text, style=None):
             near = text[m.end():m.end() + ab.start()] if ab else ''
             if ab and ab.start() < 20 and not re.search(r'\bSL\b|\bSTOP\s*LOSS\b', near[-6:], re.IGNORECASE):
                 sig['entry'] = _f(ab.group(1))
+        # "NEAR <price>" entry trigger right after the strike -- Trading
+        # With Ca Abhay's and ROCHIT SINGH STOCKS' dominant entry shape,
+        # "SENSEX 78100 PE\n\nNEAR 330\n\nTGT open\n\nSl follow",
+        # "NIFTY 24100 CE\n\nNear 140\n\nTGT open\n\nSl follow" -- NOT
+        # folded into RE_ABOVE_BELOW itself: that regex's OTHER use site
+        # (a few lines below, searching to the end of the message with no
+        # window limit) would then pick up completely unrelated "Support
+        # near <price>"/"trading near <price>" market commentary dozens of
+        # lines later in other channels' messages as if it were an entry
+        # trigger. Kept in its own tightly-windowed (<20 chars, right after
+        # the strike) check instead, mirroring the ABOVE/BELOW one just
+        # above. Verified empirically unique to channels 66/40 within this
+        # narrow window across the full 82-channel corpus -- "NEAR" is
+        # common prose elsewhere (Ritvi Taneja, Nasdaq masters, PL
+        # Technical Research, ...) but never sits directly after a
+        # strike+CE/PE token in any OTHER channel.
+        if sig['entry'] is None:
+            nr = RE_NEAR_ENTRY.search(text[m.end():m.end() + 20])
+            if nr:
+                sig['entry'] = _f(nr.group(1))
         # Richie by Chase Alpha's dominant option-order shape: "NIFTY 19500
         # CE CMP 215 add till 210 SL 170 Target 260-280-300", "BANKNIFTY
         # 47600 PE CMP 40 Hero Zero" — bare "CMP <price>" immediately after
@@ -2568,6 +2763,21 @@ def parse_message(text, style=None):
                 o['trade'] == esig['trade'] for o in out):
             add(esig)
 
+    # 6p. Eqwires Research Analyst's structured "Trade Details / Stock: .../
+    # Buy Price: ₹..." recap template (see comment above
+    # _eqwires_trade_update_signal) -- only used as a fallback whole-signal
+    # source when nothing above already produced a signal for this
+    # message's symbol; the far more common case (an existing generic path
+    # already extracts the right "Stock:" symbol via RE_OPT et al., just
+    # with no entry) is instead handled by the RE_EQWIRES_BUY_PRICE
+    # entry-fill a few lines below, alongside this file's other
+    # entry-still-None fallbacks -- ungated (its own "Trade Details" anchor
+    # is already verified unique to this channel across the full corpus).
+    qsig = _eqwires_trade_update_signal(text)
+    if qsig and qsig['trade'] not in option_roots and not any(
+            o['trade'] == qsig['trade'] for o in out):
+        add(qsig)
+
     if not out:
         return []
 
@@ -2579,6 +2789,14 @@ def parse_message(text, style=None):
         tg = tg or RE_TARGET_MIXED.search(text)
     prem = RE_PREMIUM.search(text)
     enter = RE_ENTER.search(text)
+    # Eqwires Research Analyst's (79) "Buy Price: ₹<num>" -- verified
+    # unique to this channel across the full 82-channel corpus (see
+    # comment above _eqwires_trade_update_signal), so ungated. Covers the
+    # common case where an existing generic path already extracted the
+    # right symbol from the "Stock:" line but left entry unset -- e.g.
+    # every one of this channel's 70 pre-existing Trade rows had
+    # entry=None before this fix.
+    eqwires_buy = RE_EQWIRES_BUY_PRICE.search(text)
     for sig in out:
         if sig['stop_loss'] is None and sl:
             sig['stop_loss'] = _f(sl.group(1))
@@ -2588,6 +2806,8 @@ def parse_message(text, style=None):
             sig['entry'] = _f(prem.group(1))
         if sig['entry'] is None and sig['asset_class'] == 'crypto' and enter:
             sig['entry'] = _f(enter.group(1))
+        if sig['entry'] is None and eqwires_buy:
+            sig['entry'] = _f(eqwires_buy.group(1))
         if sig['status'] == 'Open' and RE_HOLDING.search(text):
             sig['status'] = 'Open'
 
@@ -2603,7 +2823,7 @@ def parse_message(text, style=None):
 
 # ---- profit / exit ---------------------------------------------------------
 RE_PROFIT_POST = re.compile(NUM + r'\s*\+*\s*(?:K)?\s*PROFIT', re.IGNORECASE)   # "2,175+ PROFIT"
-RE_PROFIT_PRE = re.compile(r'PROFIT\s*(?:₹|OF|:)?\s*₹?\s*' + NUM, re.IGNORECASE)  # "PROFIT ₹5000"
+RE_PROFIT_PRE = re.compile(r'PROFIT\s*(?:BOOKED)?\s*(?:₹|OF|:)?\s*₹?\s*' + NUM, re.IGNORECASE)  # "PROFIT ₹5000" / "Profit Booked: ₹5000"
 RE_PIPS = re.compile(r'[₹+]?\s*' + NUM + r'\s*(?:Pips|POINTS|Pts)', re.IGNORECASE)
 # Stock Thunder's running-P&L phrasing: "GAINING RS- 4000/ 2 LOTS" (never
 # uses the word "profit" itself)
@@ -2710,7 +2930,17 @@ def parse_profit(text):
     if re.match(r'\s*-\s*(?:BUY|SELL)\b', text[m.end():], re.IGNORECASE):
         return None
     val = _f(m.group(1))
-    if m.re.match(text[m.start():]) and 'K' in m.group(0).upper():
+    # CHANNEL-AGNOSTIC BUG FIX: this used to be a blanket `'K' in
+    # m.group(0).upper()` check, which broke the moment RE_PROFIT_PRE
+    # learned to match the word "BOOKED" (added this pass, for Eqwires
+    # Research Analyst's "Profit Booked: ₹6000/-" template) -- "BOOKED"
+    # itself contains a "K", so every such message was misread as a
+    # thousands-suffixed figure and inflated 1000x (₹6,000 -> ₹6,000,000).
+    # Narrowed to require the "K" immediately adjacent to the digits
+    # (optionally through a "+"/space), which is the only shape either
+    # regex was ever meant to catch ("2,175K PROFIT", "2,175+K PROFIT").
+    if m.re.match(text[m.start():]) and re.search(
+            r'\d[\d,]*\s*\+?\s*K\b', m.group(0), re.IGNORECASE):
         val *= 1000
     return val
 

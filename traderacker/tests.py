@@ -1199,6 +1199,65 @@ class SignalParserTests(TestCase):
                              style='mixed')
         self.assertEqual(sigs, [])
 
+    def test_mystocks_bought_hashtag_dominant_shape(self):
+        # Mystocks.in's dominant entry shape is the existing generic
+        # RE_VISHAL_BOUGHT "Bought #SYM price" pattern -- it just needed
+        # Channel.style set to 'cash' to be consulted at all.
+        from traderacker.signals import parse_message
+        text = 'Bought #Kotyark 1020\nSL Below 960\n\nPlay for strong earnings'
+        sigs = parse_message(text, style='cash')
+        self.assertEqual(len(sigs), 1)
+        s = sigs[0]
+        self.assertEqual(s['trade'], 'KOTYARK')
+        self.assertEqual(s['entry'], 1020.0)
+        self.assertEqual(s['stop_loss'], 960.0)
+
+    def test_sl_percentage_not_read_as_price(self):
+        # "SL 1%" / "Target 4-6%" are risk-sizing percentages, not absolute
+        # prices -- a real SL/target is never immediately followed by "%".
+        from traderacker.signals import parse_message
+        text = 'Bought #MVELECTRO 615\n\nSL 1%\n\nTarget 4-6%'
+        sigs = parse_message(text, style='cash')
+        self.assertEqual(len(sigs), 1)
+        s = sigs[0]
+        self.assertEqual(s['entry'], 615.0)
+        self.assertIsNone(s['stop_loss'])
+        self.assertIsNone(s['target'])
+
+    def test_nasdaqmasters_lowercase_forex_signal(self):
+        # About half this channel's real calls write buy/sell in lower or
+        # mixed case, and often state a dual "entry+entry" price joined by
+        # "+" -- only the first number is kept as the entry.
+        from traderacker.signals import parse_message
+        sigs = parse_message('XAUUSD sell 4335+4340\nSL 4350\n\nTP 4330\nTP 4325',
+                             style='mixed')
+        self.assertEqual(len(sigs), 1)
+        s = sigs[0]
+        self.assertEqual(s['trade'], 'XAUUSD')
+        self.assertEqual(s['direction'], 'SELL')
+        self.assertEqual(s['entry'], 4335.0)
+        self.assertEqual(s['stop_loss'], 4350.0)
+
+    def test_nasdaqmasters_can_buy_with_phrasing(self):
+        from traderacker.signals import parse_message
+        sigs = parse_message('*GOLD CAN BUY WITH 4402\n#GOLD BUY \n\nTP 1 HIT 20+ pips',
+                             style='mixed')
+        self.assertEqual(len(sigs), 1)
+        s = sigs[0]
+        self.assertEqual(s['trade'], 'GOLD')
+        self.assertEqual(s['direction'], 'BUY')
+        self.assertEqual(s['entry'], 4402.0)
+
+    def test_nasdaqmasters_uppercase_shape_unaffected(self):
+        # The pre-existing uppercase-only shape (RE_VERB_FIRST/RE_BUYSELL)
+        # already covered this -- confirms the new lower/mixed-case shape
+        # doesn't produce a duplicate second row for the same call.
+        from traderacker.signals import parse_message
+        sigs = parse_message('XAUUSD BUY 4408+4402\nXAUUSD ☑️\n2 TP HIT 80 PIPS',
+                             style='mixed')
+        self.assertEqual(len(sigs), 1)
+        self.assertEqual(sigs[0]['entry'], 4408.0)
+
 
 class MarketServiceTests(TestCase):
     """Symbol→ticker mapping and provider fallback (no real network)."""

@@ -287,26 +287,34 @@ RE_CRYPTO = re.compile(
 RE_ENTER = re.compile(
     r'(?:ENTER|ENTRY|ENT)\s*(?:PRICE)?\s*[-:]?\s*' + NUM, re.IGNORECASE)
 RE_PREMIUM = re.compile(r'(?:@\s*|ENTRY\s+|ENTER\s+(?:AT|IN)\s+)' + NUM, re.IGNORECASE)
+# NUM followed by a "%" is a percentage, not an absolute price ("SL 1%",
+# "Target 4-6%" -- Mystocks.in's dominant SL/target phrasing) -- a
+# negative lookahead keeps it out of these four SL/target regexes
+# specifically (channel-agnostic-safe: a real SL/target price is never
+# immediately followed by a percent sign; verified empirically this
+# excludes 73 stray matches across the full 82-channel history, 45 of
+# them in Mystocks.in alone, and creates none).
+NUM_NOT_PCT = NUM + r'(?!\s*%|\s*-\s*\d[\d,.]*\s*%)'
 RE_SUPPORT = re.compile(
     r'\b(?:SUPPORT|S/L|S/T|SL\b|STOP[\s\-]?LOSS|STOP|STCP)\s*(?:PRICE)?\s*[:\-]?\s*'
-    r'(?:AT\s+|BELOW\s+|ABOVE\s+|NEAR\s+|ON\s+)?' + NUM, re.IGNORECASE)
+    r'(?:AT\s+|BELOW\s+|ABOVE\s+|NEAR\s+|ON\s+)?' + NUM_NOT_PCT, re.IGNORECASE)
 RE_TARGET = re.compile(
     # "TRG" is Stock Thunder's abbreviation for TARGET (verified empirically
     # unique to it across all 76 channels' history) — added directly since
     # it's channel-agnostic-safe, unlike Nirmal Bang's "TG"/"ABV" below which
     # are ambiguous enough to need style-gating.
     r'\b(?:VIEW|VIEWS|TARGETS?|TGT|TRG|SHT)\s*(?:PRICES?)?\s*[:\-]?\s*'
-    r'(?:AT\s+|ON\s+|NEAR\s+)?' + NUM, re.IGNORECASE)
+    r'(?:AT\s+|ON\s+|NEAR\s+)?' + NUM_NOT_PCT, re.IGNORECASE)
 # Nirmal Bang Official abbreviates STOP LOSS as "SL ABV <price>" (ABV =
 # above) and TARGET as "TG <price>" — kept as separate style-gated patterns
 # (checked only when style == 'mixed') rather than folded into RE_SUPPORT/
 # RE_TARGET above, so other channels' text can never match on "ABV"/"TG".
 RE_SUPPORT_MIXED = re.compile(
     r'\b(?:SUPPORT|S/L|S/T|SL\b|STOP[\s\-]?LOSS|STOP|STCP)\s*[:\-]?\s*'
-    r'(?:AT\s+|BELOW\s+|ABOVE\s+|ABV\s+|NEAR\s+|ON\s+)?' + NUM, re.IGNORECASE)
+    r'(?:AT\s+|BELOW\s+|ABOVE\s+|ABV\s+|NEAR\s+|ON\s+)?' + NUM_NOT_PCT, re.IGNORECASE)
 RE_TARGET_MIXED = re.compile(
     r'\b(?:VIEW|VIEWS|TARGETS?|TGT|TG|SHT)\s*[:\-]?\s*'
-    r'(?:AT\s+|ON\s+|NEAR\s+)?' + NUM, re.IGNORECASE)
+    r'(?:AT\s+|ON\s+|NEAR\s+)?' + NUM_NOT_PCT, re.IGNORECASE)
 RE_RANGE = re.compile(r'₹?\s*' + NUM + r'\s*[-–]\s*' + NUM)  # entry-target "₹250-320"
 RE_HOLDING = re.compile(r'\b(HOLDING|HOLD)\b', re.IGNORECASE)
 # a one-line "<option leg> \n\n <entry> TO <exit>" recap with a rupee PROFIT
@@ -796,6 +804,41 @@ def _finsarthi_option_signal(text):
     return {'trade': sym, 'direction': 'CALL (up)' if right == 'CE' else 'PUT (down)',
             'entry': _f(m.group(4)) if m.group(4) else None,
             'target': _f(m.group(6)), 'stop_loss': _f(m.group(5)), 'status': 'Open'}
+
+
+# 𝑵𝒂𝒔𝒅𝒂𝒒 𝒎𝒂𝒔𝒕𝒆𝒓𝒔's dominant forex/gold shape, found by checking coverage
+# on the full 1891-message tracked history (125 trades already existed
+# via the shared uppercase-only RE_VERB_FIRST/RE_BUYSELL, but only ~half
+# of this channel's real calls write BUY/SELL in uppercase -- the other
+# half use lowercase/mixed case, e.g. "XAUUSD sell 4335+4340", "*GOLD CAN
+# BUY WITH 4402"). Making RE_BUYSELL itself case-insensitive on BUY/SELL
+# was tried and rejected: a full-corpus check found it also fires on
+# ordinary-English false positives elsewhere ("BIG sell-off in both the
+# indexes...", a bulk-deal report's "...WORTHY DIS[COUNT]... BLW Buy",
+# an RBI policy note's "...INR buy...") in channels far outside this
+# batch. This is scoped instead to a small enumerated set of the actual
+# instruments this channel trades (XAUUSD/GOLD/BTCUSD/SILVER/XAGUSD/
+# EURUSD/GBPUSD/USDJPY), the same convention as RE_OPT_INDEX_CI's
+# NIFTY/BANKNIFTY/SENSEX/FINNIFTY set -- verified empirically 0 matches
+# on any other channel's history with this narrower set. A "+"-joined
+# dual price ("4335+4340") keeps only the first number as the entry, same
+# "never average or guess" convention as the ladder shapes elsewhere in
+# this file. Style-gated to 'mixed'.
+RE_NASDAQMASTERS_FX = re.compile(
+    r'\b(XAUUSD|GOLD|BTCUSD|SILVER|XAGUSD|EURUSD|GBPUSD|USDJPY)\b\s*'
+    r'(?:CAN\s+)?(BUY|SELL)\s*(?:WITH\s*)?[:.]?\s*(\d[\d,]*(?:\.\d+)?)'
+    r'(?:\s*\+\s*\d[\d,]*(?:\.\d+)?)?', re.IGNORECASE)
+
+
+def _nasdaqmasters_fx_signal(text):
+    m = RE_NASDAQMASTERS_FX.search(text)
+    if not m:
+        return None
+    sym = m.group(1).upper()
+    side = m.group(2).upper()
+    return {'trade': sym, 'direction': 'BUY' if side == 'BUY' else 'SELL',
+            'entry': _f(m.group(3)), 'target': None, 'stop_loss': None,
+            'status': 'Open'}
 
 
 RE_STOCKGAINERS_RECAP = re.compile(
@@ -1441,6 +1484,16 @@ def parse_message(text, style=None):
             elif existing['entry'] is None and dsig['entry'] is not None:
                 existing.update(entry=dsig['entry'], target=dsig['target'],
                                 stop_loss=dsig['stop_loss'], direction=dsig['direction'])
+
+    # 6g. 𝑵𝒂𝒔𝒅𝒂𝒒 𝒎𝒂𝒔𝒕𝒆𝒓𝒔's lower/mixed-case forex/gold BUY/SELL shape (see
+    # comment above RE_NASDAQMASTERS_FX) — style-gated to 'mixed'. Only
+    # adds if nothing above already produced this exact (trade, entry)
+    # pair (the uppercase-only shape already covers about half this
+    # channel's calls via the generic RE_VERB_FIRST/RE_BUYSELL).
+    if style == 'mixed':
+        nsig = _nasdaqmasters_fx_signal(text)
+        if nsig and not any(o['trade'] == nsig['trade'] for o in out):
+            add(nsig)
 
     if not out:
         return []

@@ -1524,6 +1524,127 @@ class SignalParserTests(TestCase):
                 'JOINING LINK\nhttps://cosmofeed.com/vig/xyz')
         self.assertEqual(parse_message(text, style='mixed'), [])
 
+    # -- batch6 --------------------------------------------------------
+
+    def test_market_master_hub_expiry_date_not_read_as_premium(self):
+        # channel-agnostic bug: an expiry date "24-SEP-2026" right after
+        # the strike+CE was read by RE_OPT's own trailing-NUM capture as if
+        # its DAY number were the premium, stamping a constant "24" onto
+        # dozens of unrelated legs and discarding the real "AT 5.7".
+        from traderacker.signals import parse_message
+        text = 'BUY #JIOFIN 270 CE 24-SEP-2026 AT 5.7\n\nSL: 3\n\nTARGETS: 8, 10, 12'
+        sigs = parse_message(text, style='options')
+        self.assertEqual(len(sigs), 1)
+        self.assertEqual(sigs[0]['trade'], 'JIOFIN 270 CE')
+        self.assertEqual(sigs[0]['entry'], 5.7)
+        self.assertEqual(sigs[0]['stop_loss'], 3.0)
+        self.assertEqual(sigs[0]['target'], 8.0)
+
+    def test_market_master_hub_invalid_word_not_a_phantom_ticker(self):
+        from traderacker.signals import parse_message
+        text = ('MENON PISTON CMP 74\n\nLOOKS GOOD FOR LONG\n\nTGT 94-108-135\n\n'
+                'INVALID BELOW 65 WITH ON CLOSING BASED')
+        sigs = parse_message(text, style='auto')
+        self.assertFalse(any(s['trade'] == 'INVALID' for s in sigs), sigs)
+
+    def test_bharath_market_research_buy_range_slash_entry(self):
+        # "Buy Range" separator is "/" here, arriving a few words after the
+        # strike (past a "Sep Series" annotation) -- the generic dash-range
+        # fallback only looks 20 chars ahead and only for "-", so this was
+        # 76% entry=NULL before the dedicated 'options'-gated fallback.
+        from traderacker.signals import parse_message
+        text = 'SOLARINDS 22500CE Sep Series\n\nBuy Range - 660/650\n\nSL 550'
+        sigs = parse_message(text, style='options')
+        self.assertEqual(len(sigs), 1)
+        self.assertEqual(sigs[0]['trade'], 'SOLARINDS 22500 CE')
+        self.assertEqual(sigs[0]['entry'], 660.0)
+        self.assertEqual(sigs[0]['stop_loss'], 550.0)
+
+    def test_bharath_market_research_recap_with_no_sl_is_not_a_new_trade(self):
+        # channel-agnostic fix: a same-day "<price> to <price>" repost of an
+        # ALREADY-given call, with no SL anywhere in the message, must not
+        # mint a second, blank-valued phantom Trade row alongside the real
+        # entry.
+        from traderacker.signals import parse_message
+        text = 'INDUSTOWER 380CE SEP Series\n11.2 to 13.5+\nTarget 1 Done & Dusted'
+        sigs = parse_message(text, style='options')
+        self.assertEqual(sigs, [])
+
+    def test_bharath_market_research_recap_with_sl_still_parses(self):
+        # the same "<price> to <price>" shape right after a strike IS a
+        # genuine first-time entry when the message also states an SL
+        # (Stock Thunder's own dominant shape) -- must not be swept up by
+        # the recap-skip above.
+        from traderacker.signals import parse_message
+        text = 'NIFTY _23650PE\n\n190 to 200\n\nSL 170'
+        sigs = parse_message(text, style='options')
+        self.assertTrue(any(s['trade'] == 'NIFTY 23650 PE' for s in sigs), sigs)
+
+    def test_stock_market_school_date_option_range_entry(self):
+        from traderacker.signals import parse_message
+        text = ('Buy Sensex 10 Sep 74700 CE\n'
+                'Only In Range @ 180 - 200 Target 225 240 280 310 350 & Above')
+        sigs = parse_message(text, style='options')
+        self.assertEqual(len(sigs), 1)
+        self.assertEqual(sigs[0]['trade'], 'SENSEX 74700 CE')
+        self.assertEqual(sigs[0]['entry'], 180.0)
+        self.assertEqual(sigs[0]['target'], 225.0)
+
+    def test_stock_market_school_ltp_repost_produces_nothing(self):
+        # the channel's running-update repost of the same leg never
+        # restates "Range" -- must not mint a second phantom row.
+        from traderacker.signals import parse_message
+        text = 'Buy Sensex 10 Sep 74700 CE\nDipped @ 180 se 273 90 Plus Points'
+        sigs = parse_message(text, style='options')
+        self.assertEqual(sigs, [])
+
+    def test_equity99_special_situation_cmp_resistance(self):
+        from traderacker.signals import parse_message
+        text = ('Special Situation Stock\n\nRudra Global Infra BSE Code 539226 At 37\n\n'
+                'Test Resistance 47 / 53 Sl 23\n\nComing Days View Strong View')
+        sigs = parse_message(text, style='cash')
+        self.assertEqual(len(sigs), 1)
+        self.assertEqual(sigs[0]['trade'], 'RUDRA GLOBAL INFRA')
+        self.assertEqual(sigs[0]['entry'], 37.0)
+        self.assertEqual(sigs[0]['target'], 47.0)
+        self.assertEqual(sigs[0]['stop_loss'], 23.0)
+
+    def test_equity99_entry_requires_test_resistance_anchor(self):
+        # without the "Test Resistance" anchor phrase, the bare "<words>
+        # At/Cmp <price>" shape is too loose to trust (false positives
+        # elsewhere in the corpus) -- must produce nothing on its own.
+        from traderacker.signals import parse_message
+        text = 'Net Profit At 5016 Cr Vs 4602 Cr Yoy'
+        sigs = parse_message(text, style='cash')
+        self.assertEqual(sigs, [])
+
+    def test_momentum_trades_sameline_word_to_word(self):
+        from traderacker.signals import parse_message
+        sigs = parse_message('Graphite 604 to 617', style='cash')
+        self.assertEqual(len(sigs), 1)
+        self.assertEqual(sigs[0]['trade'], 'GRAPHITE')
+        self.assertEqual(sigs[0]['entry'], 604.0)
+        self.assertEqual(sigs[0]['target'], 617.0)
+
+    def test_momentum_trades_expected_word_is_not_a_phantom_ticker(self):
+        from traderacker.signals import parse_message
+        text = 'Super hit upper circuit Candidate\n\nExpected 2 to 3 upper circuit'
+        sigs = parse_message(text, style='cash')
+        self.assertFalse(any(s['trade'] == 'EXPECTED' for s in sigs), sigs)
+
+    def test_trading_marvel_if_word_is_not_a_phantom_ticker(self):
+        # _darshan_recap_signal's bare "<words> from N to M" shape must not
+        # read an ordinary conditional sentence's "If" as a ticker.
+        from traderacker.signals import parse_message
+        text = 'If it rises from 200 to 300 then 20/30 points normal correction.'
+        sigs = parse_message(text, style='mixed')
+        self.assertFalse(any(s['trade'] == 'IF IT RISES' for s in sigs), sigs)
+
+    def test_trading_marvel_fired_word_is_not_a_phantom_ticker(self):
+        from traderacker.signals import parse_message
+        sigs = parse_message('Fired\n700 to 960', style='mixed')
+        self.assertFalse(any(s['trade'] == 'FIRED' for s in sigs), sigs)
+
 
 class MarketServiceTests(TestCase):
     """Symbol→ticker mapping and provider fallback (no real network)."""

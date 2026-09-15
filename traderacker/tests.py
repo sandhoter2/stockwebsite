@@ -1342,6 +1342,188 @@ class SignalParserTests(TestCase):
         self.assertEqual(s['entry'], 24145.0)
         self.assertEqual(s['target'], 24040.0)
 
+    def test_glued_multi_target_takes_first_value_not_concatenation(self):
+        # Channel-agnostic _f() bug: a comma-separated multi-target list
+        # with no space after the comma ("TARGET 165,190+") was being read
+        # as one Indian-grouped number (165190.0) instead of two separate
+        # targets. First value should win, per this file's existing
+        # "first/lower value is representative" convention.
+        from traderacker.signals import parse_message
+        text = 'NIFTY 23900CE \n\nBUY above 150-52\n\nSL. 130 \n\nTARGET 165,190+ '
+        sigs = parse_message(text, style='auto')
+        self.assertEqual(len(sigs), 1)
+        self.assertEqual(sigs[0]['target'], 165.0)
+
+    def test_f_still_reads_genuine_grouped_price(self):
+        # A real Indian/Western thousands-grouped price must still parse
+        # correctly -- only an equal-length-groups glued list gets split.
+        from traderacker.signals import _f
+        self.assertEqual(_f('23,650'), 23650.0)
+        self.assertEqual(_f('1,23,456'), 123456.0)
+        self.assertEqual(_f('9,000'), 9000.0)
+
+    def test_hari_cash_entry_band_recovers_ticker_from_prior_line(self):
+        # LIVELONG HARI's "BUY ABV <price>-<price>" / "BUY RANGE
+        # <price>-<price>" shape must recover the real ticker from the
+        # preceding line instead of reading "ABV"/"RANGE" as the ticker.
+        from traderacker.signals import parse_message
+        text = 'EQUITY INTRADAY\n\nWOCKPHARMA \n\nBUY RANGE 2200-05\n\nSL 2150\n\nTarget 2220,2250+'
+        sigs = parse_message(text, style='mixed')
+        self.assertEqual(len(sigs), 1)
+        s = sigs[0]
+        self.assertEqual(s['trade'], 'WOCKPHARMA')
+        self.assertEqual(s['entry'], 2200.0)
+        self.assertEqual(s['stop_loss'], 2150.0)
+        self.assertEqual(s['target'], 2220.0)
+
+    def test_hari_entry_band_shorthand_does_not_steal_real_target(self):
+        # "262-65" is an entry BAND shorthand (262 to 265), not an
+        # entry-target pair -- the real target comes from the TARGET line.
+        from traderacker.signals import parse_message
+        text = 'CRUDEOIL 8450 PE\n\nBUY\xa0 abv 262-65\n\nSL 240\n\nTARGET 280,300 +'
+        sigs = parse_message(text, style='mixed')
+        self.assertEqual(len(sigs), 1)
+        s = sigs[0]
+        self.assertEqual(s['entry'], 262.0)
+        self.assertEqual(s['target'], 280.0)
+
+    def test_hari_trigger_word_not_anchored_to_line_start_is_ignored(self):
+        # An ordinary sentence containing "buy above <price>" after some
+        # OTHER word on the same line must not misread that word as the
+        # ticker (Platinum Research's "Dnt buy above 7", not LIVELONG
+        # HARI's own dedicated-line shape).
+        from traderacker.signals import parse_message
+        text = 'Unlock BTST TRADE AND IF HITS SL get 2 RECOVERY TRADE\nDnt buy above 7\nNow at 7 - ADD NOW'
+        sigs = parse_message(text, style='mixed')
+        self.assertEqual([s['trade'] for s in sigs], [])
+
+    def test_usha_month_option_header_recovers_real_ticker(self):
+        # Usha's Analysis's "<TICKER> <MONTH> <STRIKE> CE/PE" option header
+        # must recover the real underlying, not the month word.
+        from traderacker.signals import parse_message
+        text = 'STOCK OPTIONS TRADE UPDATE\n\nBHARATFORG JUNE 1900 CE\n\n88 TO 124✅✅\n\nLOT SIZE 500'
+        sigs = parse_message(text, style='mixed')
+        self.assertEqual(len(sigs), 1)
+        s = sigs[0]
+        self.assertEqual(s['trade'], 'BHARATFORG 1900 CE')
+        self.assertEqual(s['entry'], 88.0)
+
+    def test_month_name_option_header_elsewhere_produces_no_phantom(self):
+        # Channel-agnostic safety net: even without the dedicated 'mixed'
+        # recovery step, a full month name between ticker and strike must
+        # never create a phantom "<MONTH> <STRIKE> CE" row for another
+        # channel's style.
+        from traderacker.signals import parse_message
+        sigs = parse_message('SOMECO JUNE 4300 CE', style='auto')
+        self.assertEqual(sigs, [])
+
+    def test_usha_at_entry_with_target_anchor(self):
+        # Usha's Analysis's live cash-equity call: "<TICKER> AT <price>"
+        # followed a few lines later by a TARGET line.
+        from traderacker.signals import parse_message
+        text = 'SHORT TERM EQUITY\n\nQUADFUTURE AT 485\n\nTARGET 520,544+\n\nSTOP LOSS TO PREMIUM'
+        sigs = parse_message(text, style='mixed')
+        self.assertEqual(len(sigs), 1)
+        s = sigs[0]
+        self.assertEqual(s['trade'], 'QUADFUTURE')
+        self.assertEqual(s['entry'], 485.0)
+        self.assertEqual(s['target'], 520.0)
+
+    def test_usha_at_entry_ignores_lowercase_prose_elsewhere(self):
+        # Case-sensitivity guard: ordinary lower/mixed-case "<word> at
+        # <price>" prose in another channel must not be misread as this
+        # channel's entry shape.
+        from traderacker.signals import parse_message
+        sigs = parse_message('Angel One Research bought 10 shares at 3970.00.\nTARGET update later', style='mixed')
+        self.assertEqual(sigs, [])
+
+    def test_sairam_buy_above_month_year_gap_not_truncated(self):
+        # The expiry "<MONTH> <YEAR>" annotation between the strike and
+        # "BUY ABOVE <price>" must not truncate the entry to a single
+        # leading digit (the old 20-char window cut "1070" down to "1").
+        from traderacker.signals import parse_message
+        text = 'BANKNIFTY 55500 CALL SEP 2026\nBUY ABOVE 1070 LEVEL ONLY'
+        sigs = parse_message(text, style='options')
+        self.assertEqual(len(sigs), 1)
+        self.assertEqual(sigs[0]['entry'], 1070.0)
+
+    def test_sairam_buy_above_colon_and_only_variants(self):
+        from traderacker.signals import parse_message
+        text1 = 'BANKNIFTY 55500 CALL SEP 2026\n\n\U0001F4CA BUY ABOVE : 1070\n\n\U0001F3AFTGT : 1130-1180-1230+++'
+        sigs1 = parse_message(text1, style='options')
+        self.assertEqual(sigs1[0]['entry'], 1070.0)
+        self.assertEqual(sigs1[0]['target'], 1130.0)
+        text2 = 'BANKNIFTY 56100 CALL SEP 2026\nBUY ABOVE ONLY 1060 LEVEL'
+        sigs2 = parse_message(text2, style='options')
+        self.assertEqual(sigs2[0]['entry'], 1060.0)
+
+    def test_sl_below_not_misread_as_entry_trigger(self):
+        # "SL BELOW <price>" is a stop-loss threshold, not an ABOVE/BELOW
+        # entry trigger -- must not be picked up by the widened lookahead.
+        from traderacker.signals import parse_message
+        text = 'Option BUY CRUDE 7850CE BR 370-350 SL BELOW 280 TGT 450-480'
+        sigs = parse_message(text, style='mixed')
+        self.assertEqual(len(sigs), 1)
+        self.assertEqual(sigs[0]['entry'], 370.0)
+        self.assertNotEqual(sigs[0]['entry'], 280.0)
+
+    def test_stockbox_oi_table_line_not_read_as_ticker(self):
+        # Stockbox Trading's "OI DATA UPDATE" table: the trailing "OI"
+        # word at the end of one line must not be read as the ticker for
+        # the strike on the NEXT line.
+        from traderacker.signals import parse_message
+        text = ('⚡ NIFTY AT CRUCIAL SUPPORT & RESISTANCE ZONE\n\n'
+                '\U0001F4CA OI DATA UPDATE:\n23,500 PE – 1.14 Cr OI\n24,000 CE – 1.20 Cr OI')
+        sigs = parse_message(text, style='mixed')
+        self.assertEqual([s['trade'] for s in sigs if s['trade'].startswith('OI')], [])
+
+    def test_theta_gainers_and_equiideas_style_promo(self):
+        # Sanity check on the batch5 style_notes migration: pure
+        # commentary/promo channels should short-circuit to no signal.
+        from traderacker.signals import parse_message
+        text = 'PCR is 0.95 around ATM and 0.8 overall- neutral to bullish'
+        self.assertEqual(parse_message(text, style='promo'), [])
+
+    def test_usha_around_entry_recovers_ticker_from_prior_line(self):
+        # Usha's Analysis's other entry keyword: "<TICKER>\n\nBUY AROUND
+        # <price>" must recover QUESS, not the filler word "AROUND".
+        from traderacker.signals import parse_message
+        text = 'SHORT TERM EQUITY\n\nQUESS\n\nBUY AROUND 347\n\nTARGET 380,410+\n\nSTOP LOSS TO PREMIUM'
+        sigs = parse_message(text, style='mixed')
+        self.assertEqual(len(sigs), 1)
+        s = sigs[0]
+        self.assertEqual(s['trade'], 'QUESS')
+        self.assertEqual(s['entry'], 347.0)
+        self.assertEqual(s['target'], 380.0)
+
+    def test_usha_around_entry_strips_futures_month_suffix(self):
+        # A futures header with a trailing "<MONTH> FUTURES" suffix must
+        # still resolve to the bare underlying ticker.
+        from traderacker.signals import parse_message
+        text = 'SHORT TERM\n\nMPHASIS AUG FUTURES \n\nAROUND 2515\n\nTARGET 2550,2600+\n\nSTOP LOSS TO PREMIUM'
+        sigs = parse_message(text, style='mixed')
+        self.assertEqual(len(sigs), 1)
+        self.assertEqual(sigs[0]['trade'], 'MPHASIS')
+        self.assertEqual(sigs[0]['entry'], 2515.0)
+
+    def test_subscription_combo_pack_promo_not_a_phantom_trade(self):
+        # Usha's Analysis's subscription-pricing spam ("BUY 1 MONTH GET 2
+        # FREE") must not be misread as a real "BUY <SYM>" trade order,
+        # even though the message contains the literal word "BUY".
+        from traderacker.signals import parse_message
+        text = ("SPECIAL OFFER'S FOR STOCK OPTIONS SERVICES\n\n"
+                "BUY 1 MONTH GET 2 FREE\n\nBUY 3 MONTHS GET 4 FREE\n\n\n"
+                "JOINING LINK\nhttps://cosmofeed.com/vig/xyz")
+        self.assertEqual(parse_message(text, style='mixed'), [])
+
+    def test_subscription_combo_pack_offers_plural_and_pack_word(self):
+        from traderacker.signals import parse_message
+        text = ('SPECIAL COMBO OFFERS\n\nALL IN ONE COMBO PACK\n\n'
+                'BUY 1 MONTH GET 2 MONTHS FREE\n(PRICE 4999)\n\n'
+                'BUY 3 MONTHS GET 4 MONTHS FREE\n(PRICE 6999)\n\n\n'
+                'JOINING LINK\nhttps://cosmofeed.com/vig/xyz')
+        self.assertEqual(parse_message(text, style='mixed'), [])
+
 
 class MarketServiceTests(TestCase):
     """Symbol→ticker mapping and provider fallback (no real network)."""

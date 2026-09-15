@@ -303,8 +303,25 @@ RE_TARGET = re.compile(
     # unique to it across all 76 channels' history) — added directly since
     # it's channel-agnostic-safe, unlike Nirmal Bang's "TG"/"ABV" below which
     # are ambiguous enough to need style-gating.
+    #
+    # CHANNEL-AGNOSTIC BUG FOUND while adding Systematix Group Official's
+    # dedicated parser: a ranked multi-target list like "TGT 1)3575
+    # 2)3470" (270 occurrences in that channel's tracked history) was
+    # being read as target=1 -- NUM_NOT_PCT starts matching right where
+    # this pattern's `[:\-]?\s*` leaves off, which is the "1" immediately
+    # before the ")", and NUM has no way to skip past a bare digit that
+    # isn't followed by more digits or a decimal point. The optional
+    # `(?:\d\)\s*)?` below skips exactly that "<rank>)" prefix before
+    # falling through to the real number. Verified empirically this
+    # exact "TGT/TARGET/... <digit>)" adjacency is 0 occurrences in every
+    # other channel's history except one harmless case (Trading Ideas By
+    # Darshan's astrology-commentary "Pro Astro View :\n1) 26 Feb :
+    # Mercury Turns Retrograde..." -- a numbered list under the word
+    # "View", not a trade target; that message has no trade signal for
+    # this fallback to attach a target to either way, so the change is a
+    # no-op there).
     r'\b(?:VIEW|VIEWS|TARGETS?|TGT|TRG|SHT)\s*(?:PRICES?)?\s*[:\-]?\s*'
-    r'(?:AT\s+|ON\s+|NEAR\s+)?' + NUM_NOT_PCT, re.IGNORECASE)
+    r'(?:AT\s+|ON\s+|NEAR\s+)?(?:\d\)\s*)?' + NUM_NOT_PCT, re.IGNORECASE)
 # Nirmal Bang Official abbreviates STOP LOSS as "SL ABV <price>" (ABV =
 # above) and TARGET as "TG <price>" — kept as separate style-gated patterns
 # (checked only when style == 'mixed') rather than folded into RE_SUPPORT/
@@ -314,7 +331,7 @@ RE_SUPPORT_MIXED = re.compile(
     r'(?:AT\s+|BELOW\s+|ABOVE\s+|ABV\s+|NEAR\s+|ON\s+)?' + NUM_NOT_PCT, re.IGNORECASE)
 RE_TARGET_MIXED = re.compile(
     r'\b(?:VIEW|VIEWS|TARGETS?|TGT|TG|SHT)\s*[:\-]?\s*'
-    r'(?:AT\s+|ON\s+|NEAR\s+)?' + NUM_NOT_PCT, re.IGNORECASE)
+    r'(?:AT\s+|ON\s+|NEAR\s+)?(?:\d\)\s*)?' + NUM_NOT_PCT, re.IGNORECASE)
 RE_RANGE = re.compile(r'₹?\s*' + NUM + r'\s*[-–]\s*' + NUM)  # entry-target "₹250-320"
 RE_HOLDING = re.compile(r'\b(HOLDING|HOLD)\b', re.IGNORECASE)
 # a one-line "<option leg> \n\n <entry> TO <exit>" recap with a rupee PROFIT
@@ -1070,6 +1087,96 @@ def _stockizen_swing_signal(text):
             'target': _f(m.group(5)), 'stop_loss': _f(m.group(4)), 'status': 'Open'}
 
 
+# Systematix Group Official's dominant cash/futures-order template: "Buy
+# BAJAJ AUTO in cash @ 8865-8855 SL 8665 TGT 9265", "Buy Mazagon Dock
+# Shipbuilders Ltd in cash @ 2755-2750 SL 2640 TGT 1)2850 2)2950", "Buy
+# NIFTY Fut @ 23380-23360 SL 23220 TGT 23700  (Cmp23412)", "Buy DIXON in
+# 10472-10462 SL 10260 TGT 10900" (bare "in", no "cash" word), "Buy Kaveri
+# Seed Company Ltd\nin at 750-745 SL 710 TGT 1)790 2)830" ("in at" instead
+# of "in cash @"). The channel's real tickers are almost always company
+# names, 1-7 words, frequently ending "Ltd"/"Limited" -- invisible to the
+# shared single-word RE_VERB_FIRST/RE_BUYSELL, whose root is one bare
+# ALL-CAPS token, and whose "BUY <SYM> [CASH|FUT|FUTURES]? ... <NUM>"
+# shape has no room for the filler words "in"/"in cash"/"in at" this
+# channel always inserts before the price. Restated close-out messages
+# reuse this exact shape verbatim with a leading "Stopped out .."/"Target
+# Achieved…"/"Book Profit & Exit @ <price>…." prefix (e.g. "Stopped out
+# .. Buy HAL in cash @ 4941-4935 SL 4825 TGT 5170") -- deliberately NOT
+# excluded here, since the entry/SL/target triple is identical to the
+# original entry message and lands on the same (channel, trade, entry)
+# upsert key, so it updates the same Trade row rather than duplicating it;
+# the boolean exit itself is handled separately by parse_exit's existing
+# "STOPPED OUT"/"EXIT" keyword scan on the same message. A trailing "Fut"
+# after the root is dropped from the trade key, NOT kept as a distinct
+# suffix -- matching this codebase's one existing convention for a
+# futures leg (RE_FUT's own `sym` a few hundred lines up never appends a
+# "FUT" marker either), and needed here for a more concrete reason: the
+# shared single-word RE_VERB_FIRST/RE_BUYSELL ALSO matches this same
+# channel's futures messages ("Sell AUBANK Fut @ 722.65-725 SL 740 TGT
+# 680" -> plain "AUBANK", already correct, via its own optional FUT
+# slot), so keeping a " FUT" suffix here would mint a second, redundant
+# "AUBANK FUT" row for every futures call instead of the two matches
+# converging on the same (channel, trade, entry) key. Style-gated to
+# 'cash' (this channel's own style); verified
+# empirically 0 matches on every other 'cash'-style channel's full
+# history (Motilal Oswal - Official, Mystocks.in, Short To Mid Term®™,
+# Swing Trader Vishal).
+RE_SYSTEMATIX_CASH = re.compile(
+    r'\b(BUY|SELL)\s+([A-Za-z][A-Za-z0-9&.]*(?:\s+[A-Za-z][A-Za-z0-9&.]*){0,6}?)\s+'
+    r'(?:IN\s+CASH|IN|CASH|FUT(?:URES)?)\b\s*(?:AT\s+|@\s*)?' + NUM +
+    r'(?:\s*-\s*' + NUM + r')?'
+    r'[^\n]*?\bSL\s*[:\-]?\s*' + NUM +
+    r'[^\n]*?\b(?:TGT|TARGET)\s*[:\-]?\s*(?:\d\)\s*)?' + NUM,
+    re.IGNORECASE)
+RE_SYSTEMATIX_SUFFIX_LEAD_STRIP = re.compile(r'\s+(?:LTD\.?|LIMITED)$', re.IGNORECASE)
+
+
+def _systematix_cash_signal(text):
+    m = RE_SYSTEMATIX_CASH.search(text)
+    if not m:
+        return None
+    side = m.group(1).upper()
+    root = re.sub(r'\s+', ' ', m.group(2).strip()).upper()
+    root = RE_SYSTEMATIX_SUFFIX_LEAD_STRIP.sub('', root).strip()
+    if not root or not _is_symbol(root.split()[0]):
+        return None
+    return {'trade': root, 'direction': 'BUY' if side == 'BUY' else 'SELL',
+            'entry': _f(m.group(3)), 'target': _f(m.group(6)),
+            'stop_loss': _f(m.group(5)), 'status': 'Open'}
+
+
+# Systematix Group Official's "Stock Picks of the week" structured block,
+# the ticker's OWN dominant shape for its weekly-pick messages (separate
+# from the daily "Buy <sym> in cash @ ..." shape above): "Stock Picks of
+# the week : Buy - Thermax Ltd\n\nBuy Range : Rs. 3,151 - Rs. 3,145\nStop
+# Loss : Rs. 2,960\nTarget 1 : Rs. 3,345\nTarget 2 : Rs. 3,540". Only
+# Target 1 (the nearer target) is kept, same "never average/guess"
+# convention used for every other multi-target ladder in this file. Gated
+# on the literal "Stock Picks of the week" + "Range :" header combination,
+# verified empirically unique to channel 61 (35 occurrences, 0 elsewhere).
+RE_SYSTEMATIX_WEEKLY = re.compile(
+    r'Stock Picks of the week\s*:\s*(BUY|SELL)\s*-\s*([A-Za-z][A-Za-z0-9&.\s]{1,40}?)\s*\n+.*?'
+    r'(?:BUY|SELL)\s+Range\s*:\s*Rs\.?\s*' + NUM + r'\s*-\s*Rs\.?\s*' + NUM + r'.*?'
+    r'Stop\s+Loss\s*:\s*Rs\.?\s*' + NUM + r'.*?'
+    r'Target\s*1\s*:\s*Rs\.?\s*' + NUM,
+    re.IGNORECASE | re.DOTALL)
+
+
+def _systematix_weekly_signal(text):
+    m = RE_SYSTEMATIX_WEEKLY.search(text)
+    if not m:
+        return None
+    side = m.group(1).upper()
+    root = re.sub(r'\s+', ' ', m.group(2).strip()).upper()
+    root = RE_SYSTEMATIX_SUFFIX_LEAD_STRIP.sub('', root).strip()
+    root = re.sub(r'\s*\bFUT(?:URES)?\b\s*', '', root).strip()
+    if not root or not _is_symbol(root.split()[0]):
+        return None
+    return {'trade': root, 'direction': 'BUY' if side == 'BUY' else 'SELL',
+            'entry': _f(m.group(3)), 'target': _f(m.group(6)),
+            'stop_loss': _f(m.group(5)), 'status': 'Open'}
+
+
 # promotional / PR / news posts that are never a trade signal (req 1.c)
 PROMO = re.compile(
     r'\b(offer\b|opens here|valid for first|slots only|join\b|'
@@ -1720,6 +1827,32 @@ def parse_message(text, style=None):
         if zsig and zsig['trade'] not in option_roots and not any(
                 o['trade'] == zsig['trade'] for o in out):
             add(zsig)
+
+    # 6j. Systematix Group Official's two dominant shapes (see comments
+    # above _systematix_cash_signal/_systematix_weekly_signal) -- style-
+    # gated to 'cash'. A single-word root ("PIIND", "AUBANK", ...) is ALSO
+    # visible to the generic RE_VERB_FIRST/RE_BUYSELL fallback that already
+    # ran by this point in the function, but that generic path's own
+    # message-level RE_TARGET/RE_SUPPORT fallback (further down, after
+    # this step) mis-reads this channel's ranked "TGT 1)3575 2)3470"
+    # target lists as target=1 (NUM stops at the ")" right after the rank
+    # digit) -- this shape's own regex parses that correctly. So rather
+    # than skip outright when the generic step already added this trade
+    # (as every other per-channel shape in this file does), patch that
+    # placeholder's entry/target/stop_loss from the more careful parse
+    # here when the generic one is missing data or the same leg's entry
+    # confirms it's the identical message.
+    if style == 'cash':
+        for sig_fn in (_systematix_cash_signal, _systematix_weekly_signal):
+            csig = sig_fn(text)
+            if not csig or csig['trade'] in option_roots:
+                continue
+            existing = next((o for o in out if o['trade'] == csig['trade']), None)
+            if existing is None:
+                add(csig)
+            elif existing['entry'] == csig['entry']:
+                existing.update(target=csig['target'], stop_loss=csig['stop_loss'],
+                                 direction=csig['direction'])
 
     if not out:
         return []

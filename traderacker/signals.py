@@ -75,6 +75,24 @@ STOP_WORDS = {
     # an earlier line with no ABOVE/BELOW of its own (e.g. "REC\n556+++\n\n
     # KEEP ON RADAR ABOVE 570+"). Common English phrase words, not tickers.
     'KEEP', 'RADAR',
+    # Platinum Research's technical-analysis jargon/watchlist vocabulary
+    # (CMP, HIGH, CLOSING, BREAKOUT, POINTS, WATCH, WATCHLIST, ROCKET,
+    # READY, TIMEFRAME, TF, RSI, SUSTAIN, LIST, NUMBERS, STRANGLE, EMA,
+    # SAY) sits immediately before a number or a "<strike> CE/PE" the same
+    # way a real symbol would in this channel's dense, ALL-CAPS-heavy
+    # prose ("...bullish RSI\n1360 CE keeping in watchlist" -- the real
+    # symbol, #BDL, is a full sentence earlier), producing a phantom
+    # option/cash Trade under the jargon word itself instead of no trade
+    # at all (23 of the channel's 44 pre-fix trades were exactly this).
+    # Checked each word individually against every channel's ALREADY-
+    # parsed Trade rows before adding: none is a real ticker's full name
+    # anywhere in the 82-channel tracked history (a real ticker that
+    # merely STARTS with one of these as a substring, e.g. "EMAMILTD"/
+    # "EMAMI"/"CMPDI", is a different exact token and is unaffected, since
+    # this check is always on the full root word, never a prefix).
+    'CMP', 'HIGH', 'CLOSING', 'BREAKOUT', 'POINTS', 'WATCH', 'WATCHLIST',
+    'ROCKET', 'READY', 'TIMEFRAME', 'TF', 'RSI', 'SUSTAIN', 'LIST',
+    'NUMBERS', 'STRANGLE', 'EMA', 'SAY',
 }
 
 
@@ -723,7 +741,14 @@ RE_DARSHAN_RECAP = re.compile(
 # since these are always the LAST word of a multi-word candidate.
 DARSHAN_VERB_DENY = {'RALLIED', 'SURGED', 'MOVED', 'WENT', 'JUMPED',
                      'CRASHED', 'DROPPED', 'FELL', 'SPIKED', 'RECOVERED',
-                     'BREAKOUT', 'MASSIVE'}
+                     'BREAKOUT', 'MASSIVE',
+                     # "NESTLE BREAKOUT - Decent numbers !!\nProper 2X
+                     # trade from 27 to 54+" (Platinum Research) -- the
+                     # real symbol (NESTLE) sits a line above "Proper 2X
+                     # trade", which this catches instead without the
+                     # extra deny words; TRADE/PROPER/2X never end a real
+                     # Darshan symbol candidate either.
+                     'TRADE', 'PROPER', '2X'}
 
 
 def _normalize_darshan_symbol(raw):

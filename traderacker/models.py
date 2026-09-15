@@ -282,6 +282,7 @@ class TradeQuerySet(models.QuerySet):
 
 class Trade(models.Model):
     """One row of a channel's trade balance sheet (from ledger.xlsx)."""
+    BUY_DIRECTIONS = {'BUY', 'CALL (UP)', 'LONG'}
     STATUS_CHOICES = [('Open', 'Open'), ('Closed', 'Closed')]
     ASSET_CHOICES = [
         ('stock', 'Stocks'), ('option', 'Options'), ('index', 'Index'),
@@ -332,6 +333,73 @@ class Trade(models.Model):
         if self.realized is not None and self.entry:
             return round(100 * self.realized / self.entry, 2)
         return None
+
+    # Live-price close is skipped past this entry/price ratio (either
+    # direction): guards against comparing the wrong instrument's price --
+    # an option's underlying spot vs. its premium (two different scales,
+    # e.g. NIFTY spot ~23000 vs. a ~200 premium), or a pre-existing parse
+    # artifact where entry/stop_loss/target were misread and don't reflect
+    # the instrument's real price scale at all (observed: a stock trade
+    # with entry=24 against a live price of 12231). Either way, a jump this
+    # large from a channel-posted level means the data can't be trusted for
+    # an automatic close and needs a human look, not a silent action.
+    LIVE_PRICE_SANITY_RATIO = 5.0
+
+    def mark_live(self, price):
+        """Close this Open trade if live price has crossed its own posted
+        stop-loss or target level -- a follow-on for calls the channel never
+        posted an explicit exit/SL-hit message for. Uses the channel's own
+        absolute levels (not a percentage rule, unlike PaperTrade.mark),
+        since that's what was actually posted. Returns True if closed.
+
+        Options are skipped outright: there's no cheap live options-chain
+        price source here, and the underlying's spot price is not the
+        option's premium -- comparing them is meaningless, not just noisy."""
+        if self.status != 'Open' or price is None or self.entry is None:
+            return False
+        if self.asset_class == 'option':
+            return False
+        if price <= 0 or self.entry <= 0:
+            return False
+        ratio = price / self.entry
+        if ratio > self.LIVE_PRICE_SANITY_RATIO or ratio < (1.0 / self.LIVE_PRICE_SANITY_RATIO):
+            return False
+        is_buy = (self.direction or '').upper() in self.BUY_DIRECTIONS
+        # Structural sanity: for a BUY, stop_loss must sit below entry and
+        # target above it (the reverse for a SELL/PUT) -- a call posted as
+        # "SL 400 / target 950 points from entry" on a BUY at 49500 stores
+        # nonsense in these absolute-level fields (observed live), and a
+        # target on the wrong side of entry would otherwise "hit" on the
+        # very first price check regardless of where the price actually is.
+        if is_buy:
+            if self.stop_loss is not None and self.stop_loss >= self.entry:
+                return False
+            if self.target is not None and self.target <= self.entry:
+                return False
+        else:
+            if self.stop_loss is not None and self.stop_loss <= self.entry:
+                return False
+            if self.target is not None and self.target >= self.entry:
+                return False
+        reason = None
+        if is_buy:
+            if self.stop_loss is not None and price <= self.stop_loss:
+                reason = 'stop-loss'
+            elif self.target is not None and price >= self.target:
+                reason = 'target'
+        else:
+            if self.stop_loss is not None and price >= self.stop_loss:
+                reason = 'stop-loss'
+            elif self.target is not None and price <= self.target:
+                reason = 'target'
+        if reason is None:
+            return False
+        self.ltp_exit = price
+        self.realized = round((price - self.entry) if is_buy else (self.entry - price), 2)
+        self.status = 'Closed'
+        self.note = (self.note + f' [auto-closed:{reason}@live {price}]').strip()
+        self.save(update_fields=['status', 'ltp_exit', 'realized', 'note'])
+        return True
 
 
 class ProcessedProfitEvent(models.Model):

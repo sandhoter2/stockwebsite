@@ -1,6 +1,7 @@
 import datetime as dt
 
 from django.contrib.auth.models import User
+from django.core.management import call_command
 from django.test import TestCase
 from django.utils import timezone
 
@@ -1982,6 +1983,122 @@ class PaperEngineTests(TestCase):
         self.assertEqual(side_for('BUY'), 'BUY')
         self.assertEqual(side_for('PUT (down)'), 'SELL')
         self.assertEqual(side_for('SELL'), 'SELL')
+
+
+class TradeMarkLiveTests(TestCase):
+    """Channel-call trades auto-closing against their own posted SL/target
+    when live price crosses them and the channel never posted a follow-up."""
+
+    def setUp(self):
+        self.ch = Channel.objects.create(peer='-9001', name='Ch', short='Ch')
+
+    def _open(self, direction='BUY', entry=4575.0, target=4595.0, stop_loss=4535.0):
+        return Trade.objects.create(
+            channel=self.ch, trade='LTM', direction=direction, entry=entry,
+            target=target, stop_loss=stop_loss, status='Open',
+            asset_class='stock', source_mid=1)
+
+    def test_buy_closes_on_stop_loss_hit(self):
+        t = self._open()
+        self.assertTrue(t.mark_live(4530.0))
+        t.refresh_from_db()
+        self.assertEqual(t.status, 'Closed')
+        self.assertEqual(t.ltp_exit, 4530.0)
+        self.assertAlmostEqual(t.realized, 4530.0 - 4575.0)
+        self.assertIn('stop-loss', t.note)
+
+    def test_buy_closes_on_target_hit(self):
+        t = self._open()
+        self.assertTrue(t.mark_live(4600.0))
+        t.refresh_from_db()
+        self.assertEqual(t.status, 'Closed')
+        self.assertAlmostEqual(t.realized, 4600.0 - 4575.0)
+        self.assertIn('target', t.note)
+
+    def test_buy_stays_open_between_levels(self):
+        t = self._open()
+        self.assertFalse(t.mark_live(4580.0))
+        t.refresh_from_db()
+        self.assertEqual(t.status, 'Open')
+
+    def test_sell_side_closes_on_stop_loss_hit_rising_price(self):
+        t = self._open(direction='SELL', entry=100.0, target=90.0, stop_loss=110.0)
+        self.assertTrue(t.mark_live(112.0))
+        t.refresh_from_db()
+        self.assertEqual(t.status, 'Closed')
+        self.assertAlmostEqual(t.realized, 100.0 - 112.0)
+        self.assertIn('stop-loss', t.note)
+
+    def test_sell_side_closes_on_target_hit_falling_price(self):
+        t = self._open(direction='SELL', entry=100.0, target=90.0, stop_loss=110.0)
+        self.assertTrue(t.mark_live(88.0))
+        t.refresh_from_db()
+        self.assertEqual(t.status, 'Closed')
+        self.assertAlmostEqual(t.realized, 100.0 - 88.0)
+
+    def test_already_closed_trade_is_untouched(self):
+        t = self._open()
+        t.status = 'Closed'
+        t.save(update_fields=['status'])
+        self.assertFalse(t.mark_live(4000.0))
+
+    def test_no_price_is_a_noop(self):
+        t = self._open()
+        self.assertFalse(t.mark_live(None))
+
+    def test_no_levels_posted_is_a_noop(self):
+        t = self._open(target=None, stop_loss=None)
+        self.assertFalse(t.mark_live(4000.0))
+
+    def test_option_is_never_auto_closed(self):
+        # Premium (entry/target/SL) is not comparable to the underlying's
+        # spot price -- must be skipped outright, not just filtered by the
+        # sanity ratio (the ratio guard exists as a second, independent net).
+        t = self._open(entry=215.0, target=260.0, stop_loss=170.0)
+        t.asset_class = 'option'
+        t.save(update_fields=['asset_class'])
+        self.assertFalse(t.mark_live(23118.6))
+        t.refresh_from_db()
+        self.assertEqual(t.status, 'Open')
+
+    def test_implausible_price_scale_is_a_noop(self):
+        # A parse artifact (entry doesn't reflect the instrument's real
+        # price) must not trigger an automatic close either.
+        t = self._open(entry=24.0, target=233.0, stop_loss=118.0)
+        self.assertFalse(t.mark_live(12231.0))
+        t.refresh_from_db()
+        self.assertEqual(t.status, 'Open')
+
+    def test_buy_target_below_entry_is_a_noop(self):
+        # "Targets 400-950 points from entry" mis-stored as absolute levels:
+        # a BUY with a target below its own entry would otherwise "hit" on
+        # the very first check no matter what price does -- must be skipped.
+        t = self._open(entry=49500.0, target=950.0, stop_loss=400.0)
+        self.assertFalse(t.mark_live(55794.75))
+        t.refresh_from_db()
+        self.assertEqual(t.status, 'Open')
+
+    def test_buy_stop_loss_above_entry_is_a_noop(self):
+        t = self._open(entry=100.0, target=120.0, stop_loss=105.0)
+        self.assertFalse(t.mark_live(103.0))
+        t.refresh_from_db()
+        self.assertEqual(t.status, 'Open')
+
+    def test_sell_target_above_entry_is_a_noop(self):
+        t = self._open(direction='SELL', entry=100.0, target=110.0, stop_loss=90.0)
+        self.assertFalse(t.mark_live(95.0))
+        t.refresh_from_db()
+        self.assertEqual(t.status, 'Open')
+
+    def test_poll_market_closes_open_channel_trade(self):
+        from unittest.mock import patch
+        t = self._open()
+        with patch('traderacker.management.commands.poll_market.market.get_price',
+                   return_value=(4530.0, 'yahoo')):
+            call_command('poll_market')
+        t.refresh_from_db()
+        self.assertEqual(t.status, 'Closed')
+        self.assertIn('stop-loss', t.note)
 
 
 class PicksApiTests(TestCase):

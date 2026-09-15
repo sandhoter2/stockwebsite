@@ -37,7 +37,7 @@ from traderacker.signals import (parse_message, parse_profit, parse_exit,
                                  parse_exit_price)
 
 TRAILING = 0.70   # close if running profit falls below 70% of peak (30% trail)
-BUY_DIRECTIONS = {'BUY', 'CALL (UP)', 'LONG'}
+BUY_DIRECTIONS = Trade.BUY_DIRECTIONS
 
 
 class Command(BaseCommand):

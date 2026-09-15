@@ -7,6 +7,7 @@ Symbols must be ALL-CAPS (the ticker convention in these channels) so prose
 words like "Not"/"supply" can never become phantom trades.
 """
 import re
+import unicodedata
 
 # number with optional thousands commas / decimals: 1570, 73,900, 0.3514, 8.50
 NUM = r'(\d[\d,]*(?:\.\d+)?)'
@@ -1748,6 +1749,31 @@ def parse_message(text, style=None):
     """Return a list of signal dicts parsed from one message (possibly [])."""
     if not text or not text.strip():
         return []
+    # CHANNEL-AGNOSTIC BUG: several channels (Nrj finance/29 the worst, but
+    # this stylized-Unicode font trick shows up in some fraction of nearly
+    # every channel's messages -- e.g. "𝗕𝘂𝘆 𝗦𝗲𝗻𝘀𝗲𝘅 𝟳𝟱𝟴𝟬𝟬 𝗰𝗮𝗹𝗹") post their
+    # symbols/keywords/prices in Unicode "Mathematical Bold"/"Sans-Serif
+    # Bold" compatibility characters instead of plain ASCII letters and
+    # digits. None of this file's regexes (all built on plain ASCII \w/\d)
+    # ever matched those characters, so an entire channel's dominant shape
+    # could look parser-blind for a purely cosmetic reason -- Nrj finance
+    # (29) had 0 trades from 1,141 messages despite every single order
+    # message using the exact "Buy <SYMBOL> <strike> <CE/PE> (<date> Ex)"
+    # shape RE_OPT already understands once decoded. Fixed with a single
+    # `unicodedata.normalize('NFKC', text)` up front, which Unicode defines
+    # as exactly this kind of compatibility folding (bold/sans-serif/
+    # fullwidth letter and digit variants -> their plain ASCII form) and is
+    # a verified no-op on already-plain ASCII text and on the emoji/emoji-
+    # variation-selector characters this file's other regexes rely on (␦
+    # tested against every literal emoji string already in this file and
+    # in SignalParserTests -- byte-identical after normalization). Verified
+    # empirically safe across the full 82-channel corpus: full unscoped
+    # clear+reparse with this change shows the expected large gain in
+    # currently-blind channels and zero regression (same per-channel Trade
+    # counts, full test suite green) in every channel whose messages happen
+    # to contain a handful of these characters but already parse correctly
+    # some other way.
+    text = unicodedata.normalize('NFKC', text)
     if style == 'promo' or is_promo(text):
         return []
     if RE_OPT_BARE_PRICE_REPOST.match(text.strip()) or RE_OPT_BARE_PRICE_REPOST_REV.match(text.strip()):

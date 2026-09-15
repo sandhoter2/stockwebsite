@@ -1645,6 +1645,28 @@ class SignalParserTests(TestCase):
         sigs = parse_message('Fired\n700 to 960', style='mixed')
         self.assertFalse(any(s['trade'] == 'FIRED' for s in sigs), sigs)
 
+    def test_nfkc_normalization_decodes_stylized_unicode_font(self):
+        # Nrj finance (channel 29) posts its entire dominant order shape in
+        # Unicode "Mathematical Bold"/"Sans-Serif Bold" characters instead
+        # of plain ASCII -- none of this file's ASCII-only regexes ever
+        # matched it, so the channel looked parser-blind (0 trades from
+        # 1,141 messages) for a purely cosmetic reason. A single NFKC
+        # normalization up front decodes it back to plain ASCII.
+        from traderacker.signals import parse_message
+        text = ('🛒𝗕𝗨𝗬 𝗖𝗥𝗨𝗗𝗘𝗢𝗜𝗟 𝟗𝟖𝟎𝟎 𝐏𝐄 ( 𝟏𝟒 𝐌𝐀𝐘 𝗘𝗫)\n\n'
+                '🪙𝗔𝗕𝗢𝗩𝗘:-𝟯𝟮𝟬//𝟯𝟮𝟱\n\n🏆𝗧𝗔𝗥𝗚𝗘𝗧:-𝐘𝐎𝐔𝐑\n\n🚫𝗦𝗟:-𝐘𝐎𝐔𝐑\n\n'
+                '#𝐅𝐫𝐞𝐞_𝐉𝐚𝐜𝐤𝐩𝐨𝐭_𝐃𝐞𝐦𝐨 💯')
+        sigs = parse_message(text, style='auto')
+        self.assertEqual(len(sigs), 1, sigs)
+        self.assertEqual(sigs[0]['trade'], 'CRUDEOIL 9800 PE')
+        self.assertEqual(sigs[0]['entry'], 320.0)
+
+    def test_nfkc_normalization_is_a_noop_on_plain_ascii(self):
+        from traderacker.signals import parse_message
+        sigs = parse_message('NIFTY 24000 CE @ 150\nSL 130\nTGT 180', style='options')
+        self.assertEqual(len(sigs), 1)
+        self.assertEqual(sigs[0]['entry'], 150.0)
+
     def test_ca_abhay_near_entry_bare_price_repost_suppressed(self):
         # Trading With Ca Abhay (channel 66): real entry uses "NEAR <price>"
         # right after the strike; the same leg is then reposted many times

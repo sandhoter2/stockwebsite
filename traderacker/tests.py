@@ -1645,6 +1645,20 @@ class SignalParserTests(TestCase):
         sigs = parse_message('Fired\n700 to 960', style='mixed')
         self.assertFalse(any(s['trade'] == 'FIRED' for s in sigs), sigs)
 
+    def test_chartians_expiry_infix_above_entry_requires_options_style(self):
+        # THE CHARTIANS (channel 72): "SENSEX 77300 CE\n\nEXPIRY 03
+        # SEPTEMBER\n\nAbove - 500\n\n..." -- the date-infixed header only
+        # reaches the ABOVE/BELOW entry fallback when style=='options' (15
+        # of this channel's 56 pre-existing Trade rows had entry=None
+        # under the wrong style='auto').
+        from traderacker.signals import parse_message
+        text = ('SENSEX 77300 CE\n\nEXPIRY 03 SEPTEMBER \n\nAbove - 500\n\n'
+                'TG - 550 / 600 / 650 / 700\n\nSL - PAID \n\nWait for level')
+        self.assertEqual(parse_message(text, style='auto')[0]['entry'], None)
+        sigs = parse_message(text, style='options')
+        self.assertEqual(len(sigs), 1)
+        self.assertEqual(sigs[0]['entry'], 500.0)
+
     def test_eqwires_trade_details_buy_price_entry(self):
         # Eqwires Research Analyst (channel 79) posts every trade as a
         # structured already-closed recap; "Buy Price:" was recognized by

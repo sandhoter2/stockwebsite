@@ -157,8 +157,14 @@ RE_OPT_EXPIRY2 = re.compile(
 # globally, which would open the door to ordinary two-letter English words
 # ("BUY TO ...") becoming phantom tickers elsewhere. Both style-gated to
 # 'mixed'; verified empirically that no other 'mixed' channel (Angel One
-# Research, NIRMAL BANG OFFICIAL, Stockpro Online) has a "BUY/SELL <SYM>
-# (...)" parenthetical shape or a bare "LT" ticker anywhere in its history.
+# Research, NIRMAL BANG OFFICIAL, Stockpro Online) has the "BUY/SELL <SYM>
+# (...)" parenthetical shape. The "LT" special-case DOES also fire for
+# Angel One Research, which trades the same real ticker in its own
+# "BUY LT 1 shares at 3495.00." broker-order format — a deliberate,
+# verified-correct side effect (entry/SL/TGT match the stated values) of
+# gating on shared style rather than a single channel, not a regression;
+# confirmed via a full old-vs-new parse diff over Angel One's history that
+# this is the ONLY thing this migration's regexes change there.
 SYM_ASHIKA = r'\b(LT|[A-Z][A-Z0-9&\-]{2,20})\b'
 RE_VERB_FIRST_ASHIKA = re.compile(
     r'\b(BUY|SELL)\s+' + SYM_ASHIKA + r'(?:\s+(?:CASH|FUT|FUTURES))?'
@@ -574,20 +580,27 @@ def parse_message(text, style=None):
             ab = RE_ABOVE_BELOW.search(text[m.end():m.end() + 20])
             if ab:
                 sig['entry'] = _f(ab.group(1))
+        # Ashika Calls' "<ROOT> <STRIKE> CE (27 MAR) CMP 250-290" shape —
+        # see the comment above RE_VERB_FIRST_ASHIKA/RE_OPT_PAREN_CMP.
+        # Style-gated to 'mixed' so it can't fire for another channel's
+        # option leg whose text happens to have a parenthetical nearby.
+        # Must run BEFORE the bare dash-range fallback below: that
+        # fallback's 20-char window, applied to a message like "NIFTY
+        # 25100 CE (23 SEPT) CMP 150-160 SL 120 TGT 240", gets truncated by
+        # the parenthetical to "150-16" (the trailing "0" falls outside the
+        # window) and would otherwise misread "16" as the target instead of
+        # correctly leaving target blank here so the message-level "TGT
+        # 240" fallback further down fills it.
+        if style == 'mixed' and entry is None and sig['entry'] is None:
+            pc = RE_OPT_PAREN_CMP.match(text[m.end():m.end() + 40])
+            if pc:
+                sig['entry'] = _f(pc.group(1))
         # range entry "₹250-320" when no explicit premium
         if entry is None and sig['entry'] is None:
             rng = RE_RANGE.search(text[m.end():m.end() + 20])
             if rng:
                 sig['entry'] = _f(rng.group(1))
                 sig['target'] = _f(rng.group(2))
-        # Ashika Calls' "<ROOT> <STRIKE> CE (27 MAR) CMP 250-290" shape —
-        # see the comment above RE_VERB_FIRST_ASHIKA/RE_OPT_PAREN_CMP.
-        # Style-gated to 'mixed' so it can't fire for another channel's
-        # option leg whose text happens to have a parenthetical nearby.
-        if style == 'mixed' and entry is None and sig['entry'] is None:
-            pc = RE_OPT_PAREN_CMP.match(text[m.end():m.end() + 40])
-            if pc:
-                sig['entry'] = _f(pc.group(1))
         # THEBULLOPTIONS reposts the SAME option leg many times through the
         # day as a running-LTP ticker: "\U0001F4CA SENSEX 74000 PE (04 JUN)
         # \n375", "...\n380", ..., "...\nFIRST TARGET DONE", "...\nBoom 370

@@ -837,6 +837,22 @@ class SignalParserTests(TestCase):
         self.assertEqual(s['entry'], 640.0)
         self.assertEqual(s['direction'], 'BUY')
 
+    def test_ashika_paren_expiry_range_cmp_does_not_truncate_target(self):
+        # "<ROOT> <STRIKE> CE (<expiry>) CMP <low>-<high> ... TGT <price>" —
+        # the generic bare dash-range fallback's 20-char window gets
+        # truncated by the parenthetical (e.g. "150-160" -> "150-16"),
+        # which used to misread "16" as the target instead of leaving it
+        # blank for the later explicit "TGT 240" to fill correctly.
+        from traderacker.signals import parse_message
+        sigs = parse_message(
+            'HIGH RISK CALL: BUY NIFTY 25100 CE (23 SEPT) CMP 150-160 SL 120 TGT 240',
+            style='mixed')
+        self.assertEqual(len(sigs), 1)
+        s = sigs[0]
+        self.assertEqual(s['entry'], 150.0)
+        self.assertEqual(s['target'], 240.0)
+        self.assertNotEqual(s['target'], 16.0)
+
     def test_ashika_two_char_lt_ticker(self):
         # "LT" is one character short of the shared SYM pattern's 3-char
         # floor — special-cased for this channel rather than globally.

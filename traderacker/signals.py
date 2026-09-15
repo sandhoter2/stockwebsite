@@ -960,6 +960,116 @@ def _stockpro_ladder_signal(text):
             'target': target, 'stop_loss': stop_loss, 'status': 'Open'}
 
 
+# Finance With Sunil's dominant structured option-order template:
+#   "Stock Name- #KPIT\n\nStrike- June 760 CE 35-36\nLot Size-425\n
+#   SL-28 (3/5 Min CB)\nTarget-40/44/50/58" -- also seen with a leading
+# day-of-month token before the option-expiry month ("Strike- 8 SEP
+# 23650 PE 23"). Root ticker comes from the "#SYM" hashtag (this channel's
+# tickers are frequently lower/mixed-case, e.g. "#Mcx", "#Dixon" -- unlike
+# most other channels' hashtags this codebase treats as tickers, so this
+# is its own dedicated pattern rather than reusing RE_STMT_RECAP, which
+# requires an all-caps symbol via _is_symbol). Gated on the literal
+# "Strike-" field label, verified empirically unique to this channel
+# across the full 82-channel tracked history (35 occurrences, all
+# channel 14) -- safe to leave otherwise ungated.
+RE_FINSUNIL_OPT = re.compile(
+    r'#([A-Za-z][A-Za-z0-9]{1,20})\b.*?'
+    r'Strike-\s*(?:\d{1,2}\s+)?(?:[A-Za-z]{3,9}\s+)?(\d[\d,]*(?:\.\d+)?)\s*(CE|PE)\s*'
+    r'(\d[\d,]*(?:\.\d+)?)(?:\s*-\s*(\d[\d,]*(?:\.\d+)?))?.*?'
+    r'SL[\s\-]*(\d[\d,]*(?:\.\d+)?).*?'
+    r'Target[\s\-]*(\d[\d,]*(?:\.\d+)?)',
+    re.IGNORECASE | re.DOTALL)
+# NOTE: Finance With Sunil's "Stock Name- #SYM\n#SYM <price> To <price>
+# ... Target Done" recap (e.g. "Stock Name- #Dixon\n#Dixon 450 To 523+
+# Second Target Done.") is DELIBERATELY NOT given its own signal pattern
+# here. Checked empirically against every such message in the tracked
+# history (98 occurrences): 97 carry a "Lot Size-" line and the 1 that
+# doesn't ("#ofss 370 to 392 but not sustain now stoploss hit") is still
+# about the same option leg -- so this shape is *always* a restatement of
+# an option order already opened by a separate, earlier "Strike-" message
+# (see RE_FINSUNIL_OPT), never a standalone signal. Parsing it as a bare
+# "#SYM" cash symbol (the channel's tickers are lower/mixed-case, so
+# _is_symbol can't reject it as it does elsewhere) would mint a phantom
+# duplicate cash Trade next to the real option Trade every time -- e.g.
+# "KPIT 760 CE" (opened at premium 35) restated 6 times as the option
+# price runs 40.45 -> 41.90 -> 45 -> 49 -> 54 -> 70 would otherwise create
+# 6 separate bare "KPIT" cash rows, exactly the "restated leg mistaken for
+# a fresh order" trap this codebase repeatedly guards against elsewhere
+# (RE_FRESH_BREAKOUT dedup, THEBULLOPTIONS repost handling, etc). Left
+# unparsed rather than guessed at; a real fix would need to attribute the
+# price move back to the option leg opened under the same hashtag, which
+# needs cross-message state parse_message() doesn't have.
+# Finance With Sunil's "Trade For Prime Members" option-leg recap:
+# "#Lodha\n\nJuly 1140 CE 35-36 To 68", "#Sensex\n\nAug 77200 CE 380 To
+# 830+" -- same channel, a second recurring shape for its paid-tier
+# option calls (strike stated inline rather than behind "Strike-").
+# Gated on the literal "Prime Members" header phrase a couple of lines up
+# (verified empirically unique to channel 14, 8 occurrences, 0 elsewhere).
+RE_FINSUNIL_OPT_RECAP = re.compile(
+    r'#([A-Za-z][A-Za-z0-9]{1,20})\b\s*\n+\s*(?:[A-Za-z]{3,9}\s+)?(\d[\d,]*(?:\.\d+)?)\s*(CE|PE)\s+'
+    r'(\d[\d,]*(?:\.\d+)?)(?:\s*-\s*(\d[\d,]*(?:\.\d+)?))?\s*To\s*(\d[\d,]*(?:\.\d+)?)',
+    re.IGNORECASE)
+
+
+def _finsunil_signal(text):
+    """Finance With Sunil's two dominant standalone shapes (see comments
+    above RE_FINSUNIL_OPT/RE_FINSUNIL_OPT_RECAP). Returns one sig dict or
+    None."""
+    if 'Strike-' in text:
+        m = RE_FINSUNIL_OPT.search(text)
+        if m:
+            sym = m.group(1).upper()
+            if _is_symbol(sym):
+                strike, right = m.group(2).replace(',', ''), m.group(3).upper()
+                entry = _f(m.group(4))
+                return {'trade': f'{sym} {strike} {right}',
+                        'direction': 'CALL (up)' if right == 'CE' else 'PUT (down)',
+                        'entry': entry, 'target': _f(m.group(7)),
+                        'stop_loss': _f(m.group(6)), 'status': 'Open'}
+    if 'Prime Members' in text:
+        m = RE_FINSUNIL_OPT_RECAP.search(text)
+        if m:
+            sym = m.group(1).upper()
+            if _is_symbol(sym):
+                strike, right = m.group(2).replace(',', ''), m.group(3).upper()
+                entry_v, exit_v = _f(m.group(4)), _f(m.group(6))
+                return {'trade': f'{sym} {strike} {right}',
+                        'direction': 'CALL (up)' if right == 'CE' else 'PUT (down)',
+                        'entry': entry_v, 'target': exit_v, 'stop_loss': None,
+                        'status': 'Open'}
+    return None
+
+
+# Stockizen Research's structured swing-trade template:
+#   "\U0001F4A5 GE POWER INDIA LTD (NSE: GVPIL) - POSITIONAL SWING TRADE
+#   \n\nENTRY ZONE: ₹780 - ₹790 (Current bounce zone)\n\nSL: ₹690
+#   (As given) → Risk: ~11% to 13%\n\nTARGET 1: ₹900 (+12% to +15%)
+#   \nTARGET 2: ₹990 (+25% to +28%)" -- the NSE ticker in parens is used
+# as the trade symbol rather than the free-text company name, matching
+# this codebase's normal "root ticker" convention. Only TARGET 1 is kept
+# (the first, nearer target -- same "never average/guess" convention used
+# elsewhere for multi-target ladders). Gated on the literal "POSITIONAL
+# SWING TRADE" header, verified empirically unique to channel 54 (5
+# occurrences, 0 elsewhere) -- safe to leave otherwise ungated.
+RE_STOCKIZEN_SWING = re.compile(
+    r'\(NSE:\s*([A-Z]+)\)\s*-\s*POSITIONAL\s+SWING\s+TRADE.*?'
+    r'ENTRY\s+ZONE\s*:\s*₹?\s*(\d[\d,]*(?:\.\d+)?)\s*[-–]\s*₹?\s*(\d[\d,]*(?:\.\d+)?).*?'
+    r'SL\s*:\s*₹?\s*(\d[\d,]*(?:\.\d+)?).*?'
+    r'TARGET\s*1\s*:\s*₹?\s*(\d[\d,]*(?:\.\d+)?)',
+    re.IGNORECASE | re.DOTALL)
+
+
+def _stockizen_swing_signal(text):
+    m = RE_STOCKIZEN_SWING.search(text)
+    if not m:
+        return None
+    sym = m.group(1).upper()
+    if not _is_symbol(sym):
+        return None
+    return {'trade': sym, 'direction': 'BUY', 'entry': _f(m.group(2)),
+            'target': _f(m.group(5)), 'stop_loss': _f(m.group(4)), 'status': 'Open'}
+
+
 # promotional / PR / news posts that are never a trade signal (req 1.c)
 PROMO = re.compile(
     r'\b(offer\b|opens here|valid for first|slots only|join\b|'
@@ -1307,6 +1417,33 @@ def parse_message(text, style=None):
             option_roots.add(fsig['trade'].split()[0])
 
     # 2. crypto futures: "ONDO LONG 20x"
+    #
+    # CHANNEL-AGNOSTIC BUG FOUND during the Stockizen Research sample
+    # (channel 54): RE_CRYPTO's SYM is any bare ALL-CAPS word immediately
+    # followed by LONG/SHORT -- it isn't restricted to known crypto
+    # tickers, so ordinary prose like "WE WERE SHORT FROM MORNING!!"
+    # matches with sym="WERE". The end-of-function cleanup that drops a
+    # still-entry-less crypto match ("no confident match -> no trade") only
+    # checks `asset_class == 'crypto'`, so a phantom match that classify()
+    # calls 'stock'/'other'/'index' (anything that ISN'T a recognized
+    # crypto ticker and has no nearby "<N>x" leverage marker) sailed
+    # through as a permanent blank-entry Open row. Verified empirically
+    # against the full 82-channel/tracked-history corpus: 196 such
+    # matches, 38 distinct phony "symbols", every one an ordinary English
+    # word next to LONG/SHORT as a verb/adjective (WERE, AFTER, AGAIN,
+    # BIG, FIRST, LAST, NEXT, SECOND, TAKE, THIS, ...) or a macro noun
+    # (NIFTY, SENSEX, GOLD, STEEL, INDEX, INDIA) used the same way ("Nifty
+    # short term view") -- NONE of them a real trade. The two exceptions
+    # in that same scan that DO carry a real stated entry price (Serezha
+    # Calls' "CYBER LONG 20х" / "AEVO LONG 20х", genuine crypto
+    # legs classify() simply doesn't recognize by ticker) are unaffected
+    # by this fix, since it only drops the entry-less case -- a stock/
+    # index/other-classified match never gets its entry filled by ANY
+    # later step in this function either (only 'option'/'crypto' asset
+    # classes get a message-level entry-price fallback below), so an
+    # entry-less non-crypto match was always going to end up a permanent
+    # blank-entry row; dropping it here is the same "no confident entry ->
+    # no trade" convention already applied everywhere else in this file.
     for m in RE_CRYPTO.finditer(text):
         sym, side = m.group(1), m.group(2).upper()
         if not _is_symbol(sym):
@@ -1314,8 +1451,11 @@ def parse_message(text, style=None):
         if any(o['trade'] == sym for o in out):
             continue
         ent = RE_ENTER.search(text)
+        entry_v = _f(ent.group(1)) if ent else None
+        if entry_v is None and classify(sym, 'BUY' if side == 'LONG' else 'SELL', text) != 'crypto':
+            continue
         add({'trade': sym, 'direction': 'BUY' if side == 'LONG' else 'SELL',
-             'entry': _f(ent.group(1)) if ent else None,
+             'entry': entry_v,
              'target': None, 'stop_loss': None, 'status': 'Open'})
 
     # 2b. bare crypto symbol named in prose with no LONG/SHORT keyword at
@@ -1494,6 +1634,36 @@ def parse_message(text, style=None):
         nsig = _nasdaqmasters_fx_signal(text)
         if nsig and not any(o['trade'] == nsig['trade'] for o in out):
             add(nsig)
+
+    # 6h. Finance With Sunil's two dominant shapes (see comment above
+    # _finsunil_signal) -- style-gated to 'options' (NOT 'cash': this
+    # channel's hashtags are frequently ALL-CAPS too, e.g. "#DIXON", "#BSE"
+    # -- setting it to 'cash' would also switch on RE_STMT_RECAP/
+    # RE_STMT_ENTRY/RE_VISHAL_BOUGHT, Short To Mid Term/Swing Trader
+    # Vishal's own cash-recap patterns, which happily match this channel's
+    # all-caps "#SYM <price> To <price>" option-leg restatements too and
+    # mint the exact phantom bare-symbol duplicate the comment above
+    # RE_FINSUNIL_OPT_RECAP describes -- verified empirically by first
+    # trying 'cash' and observing duplicate bare "DIXON"/"BSE"/"MCX" rows
+    # alongside the real "DIXON 11500 PE" etc. option rows). Each
+    # sub-pattern below is additionally guarded on a literal label phrase
+    # ("Strike-"/"Prime Members") verified empirically unique to this
+    # channel, so the style gate alone isn't load-bearing.
+    if style == 'options':
+        fsig = _finsunil_signal(text)
+        if fsig and fsig['trade'] not in option_roots and not any(
+                o['trade'] == fsig['trade'] for o in out):
+            add(fsig)
+
+    # 6i. Stockizen Research's structured "POSITIONAL SWING TRADE" ladder
+    # (see comment above _stockizen_swing_signal) -- style-gated to
+    # 'mixed'; also guarded on the literal "POSITIONAL SWING TRADE" header
+    # verified empirically unique to channel 54.
+    if style == 'mixed':
+        zsig = _stockizen_swing_signal(text)
+        if zsig and zsig['trade'] not in option_roots and not any(
+                o['trade'] == zsig['trade'] for o in out):
+            add(zsig)
 
     if not out:
         return []

@@ -93,6 +93,15 @@ STOP_WORDS = {
     'CMP', 'HIGH', 'CLOSING', 'BREAKOUT', 'POINTS', 'WATCH', 'WATCHLIST',
     'ROCKET', 'READY', 'TIMEFRAME', 'TF', 'RSI', 'SUSTAIN', 'LIST',
     'NUMBERS', 'STRANGLE', 'EMA', 'SAY',
+    # LIVELONG HARI writes the ticker on its own line, then the entry band
+    # on the next line as "BUY <ABV|RANGE> <price>[-<price>]" -- "ABV"
+    # (shorthand for ABOVE) and "RANGE" are the trigger word right where a
+    # real symbol would sit, so RE_VERB_FIRST/RE_CASH otherwise mis-read
+    # them as a phantom ticker ("ABV 1590.0", "RANGE 2200.0") instead of
+    # leaving the real ticker on the prior line to be picked up by
+    # _hari_prev_line_signal below. Checked empirically: neither word is a
+    # real ticker anywhere in the 82-channel tracked history.
+    'ABV', 'RANGE',
 }
 
 
@@ -166,6 +175,19 @@ RE_CASH = re.compile(
 RE_OPT = re.compile(
     r'\b([A-Z]+\s*_?\s*\d[\d,]*(?:\.\d+)?)\s*(CE|PE|CALL|PUT)\b'
     r'[\s:,@]*' + NUM + r'?')
+# Usha's Analysis's dominant option-leg header: underlying and expiry MONTH
+# are two separate space-separated words before the strike, e.g.
+# "BHARATFORG JUNE 1900 CE", "ZENTEC JULY 2700 CE" -- see the comment above
+# the month-name skip in the RE_OPT loop for why RE_OPT itself can't read
+# this (it starts matching at the month word, dropping the real ticker).
+# Runs BEFORE RE_OPT below and claims its span so RE_OPT's own (excluded)
+# attempt at the same text never fires a second, wrong match. Style-gated
+# to 'mixed'.
+RE_TICKER_MONTH_OPT = re.compile(
+    r'\b([A-Z][A-Z0-9&\-]{1,20})\s+(?:JAN(?:UARY)?|FEB(?:RUARY)?|MAR(?:CH)?|'
+    r'APR(?:IL)?|MAY|JUNE?|JULY?|AUG(?:UST)?|SEP(?:TEMBER)?|OCT(?:OBER)?|'
+    r'NOV(?:EMBER)?|DEC(?:EMBER)?)\s+(\d[\d,]*(?:\.\d+)?)\s*(CE|PE)\b',
+    re.IGNORECASE)
 # broker-style option order with an expiry date between the index and the
 # strike, and a lot-size clause between the CE/PE and the premium, e.g.
 # "BUY NIFTY 03 JUL 25 25700 CE 1 lots at 109.00."
@@ -468,6 +490,22 @@ RE_ABOVE_BELOW = re.compile(r'\b(?:ABOVE|BELOW)\s+' + NUM, re.IGNORECASE)
 # rather than posting a fresh order, e.g. "170 TO 199#NIFTY 23650PE" —
 # the option match immediately follows the "#" here, not a BUY/SELL verb.
 RE_PROGRESS_UPDATE = re.compile(r'\d[\d,.]*\s*TO\s*\d[\d,.]*\s*#', re.IGNORECASE)
+# LIVELONG HARI's dominant CASH-order shape puts the ticker alone on its
+# own line, then the entry band on the next paragraph as "BUY/SELL
+# ABV/RANGE/ABOVE/BELOW/AT <price>[-<price>]" -- see _hari_cash_signal
+# below, which anchors on this trigger and walks back to the ticker line.
+# Anchored to the START of its own line (re.MULTILINE "^") -- without this,
+# an ordinary English sentence that happens to contain "buy above <price>"
+# or "buy at <price>" mid-line, with some OTHER word earlier on the same
+# line, misreads that earlier word as the ticker: "Dnt buy above 7" (Platinum
+# Research) walked back to "Dnt" (Hinglish for "don't", not a ticker), and
+# "➡️Either buy above 95 if BO happens" (Ritvi Taneja) walked back
+# to "Either". LIVELONG HARI's own genuine messages always put BUY/SELL as
+# the first word of its line ("BUY ABV 1590-91", "Sell below 4800"), so this
+# anchor costs it nothing.
+RE_HARI_ENTRY_TRIGGER = re.compile(
+    r'^\s*(BUY|SELL)\s+(?:ABV|RANGE|ABOVE|BELOW|AT)\s*[:\-]?\s*' + NUM,
+    re.IGNORECASE | re.MULTILINE)
 
 # Stockpro Online's DOMINANT signal shape (found on the full 2000-message
 # tracked history, not just the 51-message sample the RE_FRESH_BREAKOUT/
@@ -1285,6 +1323,86 @@ def _systematix_weekly_signal(text):
             'stop_loss': _f(m.group(5)), 'status': 'Open'}
 
 
+def _hari_cash_signal(text):
+    """LIVELONG HARI's dominant CASH-order shape: the ticker sits alone on
+    its own line (often after an "EQUITY INTRADAY" header line), then the
+    next paragraph gives the entry as "BUY/SELL ABV/RANGE/ABOVE/BELOW/AT
+    <price>[-<price>]", e.g. "PAYTM\n\nBUY ABV 1590-91\n\nSL 1580\n\nTARGET
+    1600,1610++", "EQUITY INTRADAY\n\nWOCKPHARMA \n\nBUY RANGE 2200-05\n\n
+    SL 2150\n\nTarget 2220,2250+". "ABV"/"RANGE" are in STOP_WORDS so the
+    generic RE_VERB_FIRST/RE_CASH steps can no longer misread them as a
+    phantom ticker -- this recovers the REAL ticker by walking back to the
+    nearest non-blank line above the trigger. Skipped when an option leg
+    (CE/PE) already sits earlier in the message: that shape is handled by
+    RE_OPT's own ABOVE_BELOW/RANGE fallbacks, not this one -- prevents this
+    from double-counting an option order as a second, bare-symbol cash
+    trade. SL/target are deliberately left blank here; the shared
+    message-level RE_SUPPORT/RE_TARGET fallback (further down in
+    parse_message) fills them from the same message's SL/TARGET lines.
+    """
+    m = RE_HARI_ENTRY_TRIGGER.search(text)
+    if not m:
+        return None
+    if re.search(r'\b(?:CE|PE)\b', text[:m.start()], re.IGNORECASE):
+        return None
+    for line in reversed(text[:m.start()].splitlines()):
+        # a multi-word line ("POSITIONAL TRADE", "EQUITY INTRADAY") is
+        # never this channel's bare single-token ticker (WOCKPHARMA,
+        # DATAPATTNS, PAYTM, ABB, ...) -- collapsing it into one blob by
+        # stripping the internal space would dodge the STOP_WORDS check
+        # (e.g. "POSITIONAL TRADE" -> "POSITIONALTRADE", neither word of
+        # which is literally in STOP_WORDS even though "POSITIONAL" is) and
+        # mint a phantom ticker out of a header/reminder line that names no
+        # symbol at all, as Stockpro Online's "POSITIONAL TRADE\nBuy above
+        # 400 incase missed it" did before this check was added. Bail
+        # entirely rather than guess past it — the nearest non-blank line
+        # not being a bare ticker means this message doesn't restate one.
+        raw = line.strip()
+        if not raw:
+            continue
+        if re.search(r'\s', raw):
+            return None
+        tok = re.sub(r'[^\w&\-]', '', raw.upper())
+        if not tok:
+            continue
+        if not _is_symbol(tok):
+            return None
+        return {'trade': tok, 'direction': m.group(1).upper(),
+                'entry': _f(m.group(2)), 'target': None,
+                'stop_loss': None, 'status': 'Open'}
+    return None
+
+
+# Usha's Analysis's dominant live cash-equity entry: bare ticker, "AT", the
+# entry price, then a TARGET line a few lines later, e.g. "SHORT TERM
+# EQUITY\n\nQUADFUTURE AT 485\n\nTARGET 520,544+\n\nSTOP LOSS TO PREMIUM",
+# "PENNY STOCK\n\nMAHABANK AT 85\n\nTARGET 90,95,100+\n\nSTOP LOSS TO
+# PREMIUM". Deliberately case-SENSITIVE (unlike most of this file's other
+# cash-entry regexes) so it can't fire on ordinary lower/mixed-case English
+# "<word> at <price>" prose in another channel's message -- checked
+# empirically that relaxing it to IGNORECASE picks up false positives like
+# "shares at 3970.00" (Angel One Research) and "lots at 15.30" (Nirmal Bang
+# Official) elsewhere in the 'mixed'-style corpus. The TARGET lookahead
+# (within 3 lines) is the second guard: it's still needed even
+# case-sensitive, since Nirmal Bang Official's own multi-leg combo orders
+# contain the fragment "...CE AT 192-188 SL BELOW 170 TARGET 220-230" where
+# "CE" reads as a plausible bare symbol -- excluded explicitly below.
+RE_USHA_AT_ENTRY = re.compile(
+    r'\b([A-Z][A-Z0-9&\-]{1,20})\s+AT\s+(\d[\d,]*(?:\.\d+)?)'
+    r'(?:[^\n]*\n+){0,3}?\s*TARGET')
+
+
+def _usha_at_entry_signal(text):
+    m = RE_USHA_AT_ENTRY.search(text)
+    if not m:
+        return None
+    root = m.group(1)
+    if root in ('CE', 'PE') or not _is_symbol(root):
+        return None
+    return {'trade': root, 'direction': 'BUY', 'entry': _f(m.group(2)),
+            'target': None, 'stop_loss': None, 'status': 'Open'}
+
+
 # promotional / PR / news posts that are never a trade signal (req 1.c)
 PROMO = re.compile(
     r'\b(offer\b|opens here|valid for first|slots only|join\b|'
@@ -1342,6 +1460,49 @@ def parse_message(text, style=None):
         sig['asset_class'] = ac
         out.append(sig)
 
+    # 0. Usha's Analysis's "<TICKER> <MONTH> <STRIKE> CE/PE" option header
+    # (see comment above RE_TICKER_MONTH_OPT) -- must run before RE_OPT
+    # below so the real ticker is claimed first.
+    if style == 'mixed':
+        for m in RE_TICKER_MONTH_OPT.finditer(text):
+            root = m.group(1).upper()
+            if not _is_symbol(root):
+                continue
+            # same close-out exclusion as the main RE_OPT loop below --
+            # without it, "EXIT FROM NIFYU APR 23250 CE @ 2.8" and "BOOK
+            # PROFIT IN HINDALCO MAR 680 CE AT 14" (Angel One Research, also
+            # 'mixed'-style) get misread as a fresh order instead of the
+            # close-out they are.
+            if any(s[0] < m.end() and s[1] > m.start() for s in exit_price_spans):
+                continue
+            # Samco's "Exit at <price> in <SYMBOL> <MONTH> <STRIKE>CE" close
+            # -out (word order: price BEFORE the symbol, "at"/"in" instead
+            # of "@") isn't covered by RE_EXIT_PRICE/RE_EXIT_PRICE_BOOK
+            # above (both expect "<SYMBOL> @ <price>" or "IN <SYMBOL> @
+            # <price>", price after the symbol) -- a literal "EXIT" word
+            # anywhere earlier in the same message is a cheap, conservative
+            # guard against reading this channel's own close-out as a fresh
+            # order; verified this never suppresses a genuine Usha's
+            # Analysis / Stockizen Research entry (neither channel's
+            # tracked history uses the word "EXIT" on an entry message).
+            if re.search(r'\bEXIT\b', text[:m.start()], re.IGNORECASE):
+                continue
+            strike, right = m.group(2).replace(',', ''), m.group(3).upper()
+            trade = f'{root} {strike} {right}'
+            option_roots.add(root)
+            claimed_spans.append(m.span())
+            if any(o['trade'] == trade for o in out):
+                continue
+            entry = None
+            tail = text[m.end():m.end() + 20]
+            am = re.match(r'\s*[\s:,@]*' + NUM, tail)
+            if am:
+                entry = _f(am.group(1))
+            add({'trade': trade,
+                 'direction': 'CALL (up)' if right == 'CE' else 'PUT (down)',
+                 'entry': entry, 'target': None, 'stop_loss': None,
+                 'status': 'Open'})
+
     # 1. options: "BANKNIFTY 57000 PE @ 505", "SENSEX 73,900 PE"
     for m in RE_OPT.finditer(text):
         root, right, prem = m.group(1).strip().upper(), m.group(2).upper(), m.group(3)
@@ -1364,6 +1525,23 @@ def parse_message(text, style=None):
         # tracked corpus is a bare month abbreviation immediately followed
         # by a digit.
         if re.match(r'^(?:' + MONTH_ABBR + r')(?:\d.*)?$', root_word):
+            continue
+        # same trap as the 3-letter case just above, but with the FULL
+        # month word instead of its abbreviation ("JUNE", not "JUN") --
+        # Usha's Analysis's dominant option-leg header names the underlying
+        # AND the expiry month as two separate space-separated words before
+        # the strike, e.g. "BHARATFORG JUNE 1900 CE": RE_OPT's `[A-Z]+`
+        # can't bridge "BHARATFORG " (letters-space-letters) so it starts
+        # matching at "JUNE" instead, silently dropping the real ticker and
+        # creating a phantom "JUNE 1900 CE"/"JULY 1900 CE" row that
+        # collapses many different underlyings into the same fake symbol.
+        # The real ticker is recovered by _usha_month_option_signal below
+        # (style-gated to 'mixed'); this bare check is the channel-agnostic
+        # safety net for every OTHER channel, where "no trade" beats a
+        # wrong one. Verified empirically no genuine ticker anywhere in the
+        # 82-channel corpus is spelled out as a full month name.
+        if re.match(r'^(?:JANUARY|FEBRUARY|MARCH|APRIL|MAY|JUNE|JULY|AUGUST|'
+                     r'SEPTEMBER|OCTOBER|NOVEMBER|DECEMBER)$', root_word):
             continue
         # a >6-digit trailing digit run is never a real strike (even the
         # highest index strikes are at most 6 figures) -- it is Samco's
@@ -1476,7 +1654,24 @@ def parse_message(text, style=None):
             rng = RE_RANGE.search(text[m.end():m.end() + 20])
             if rng:
                 sig['entry'] = _f(rng.group(1))
-                sig['target'] = _f(rng.group(2))
+                # a second number with FEWER digits than the first is not a
+                # target -- it's an entry BAND written in shorthand, only
+                # the trailing digits given ("262-65" means 262 to 265,
+                # "2200-05" means 2200 to 2205), e.g. LIVELONG HARI's "BUY
+                # abv 262-65\n\nSL 240\n\nTARGET 280,300+". Leave target
+                # unset here so the message's own TARGET/TGT line fills it
+                # via the shared message-level fallback further down,
+                # instead of this shorthand band tail being misread as the
+                # real target (was landing target=65 on a 262-entry PE
+                # whose real target, from the TARGET line, is 280).
+                # Checked empirically against the rest of the 82-channel
+                # corpus: every OTHER channel's use of this fallback has a
+                # second number with equal-or-more digits than the first
+                # (a genuine ascending entry-target range like "250-320"),
+                # so this guard only ever changes LIVELONG HARI's shorthand
+                # shape.
+                if len(rng.group(2)) >= len(rng.group(1)):
+                    sig['target'] = _f(rng.group(2))
         # THEBULLOPTIONS reposts the SAME option leg many times through the
         # day as a running-LTP ticker: "\U0001F4CA SENSEX 74000 PE (04 JUN)
         # \n375", "...\n380", ..., "...\nFIRST TARGET DONE", "...\nBoom 370
@@ -1976,6 +2171,22 @@ def parse_message(text, style=None):
             elif existing['entry'] == csig['entry']:
                 existing.update(target=csig['target'], stop_loss=csig['stop_loss'],
                                  direction=csig['direction'])
+
+    # 6k. LIVELONG HARI's ticker-on-its-own-line cash order (see comment
+    # above _hari_cash_signal) -- style-gated to 'mixed'.
+    if style == 'mixed':
+        hsig = _hari_cash_signal(text)
+        if hsig and hsig['trade'] not in option_roots and not any(
+                o['trade'] == hsig['trade'] for o in out):
+            add(hsig)
+
+    # 6l. Usha's Analysis's "<TICKER> AT <price> ... TARGET ..." cash entry
+    # (see comment above _usha_at_entry_signal) -- style-gated to 'mixed'.
+    if style == 'mixed':
+        usig = _usha_at_entry_signal(text)
+        if usig and usig['trade'] not in option_roots and not any(
+                o['trade'] == usig['trade'] for o in out):
+            add(usig)
 
     if not out:
         return []

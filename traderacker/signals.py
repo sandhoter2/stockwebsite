@@ -102,6 +102,14 @@ STOP_WORDS = {
     # _hari_prev_line_signal below. Checked empirically: neither word is a
     # real ticker anywhere in the 82-channel tracked history.
     'ABV', 'RANGE',
+    # Stockbox Trading's Open-Interest data table, e.g. "23,500 PE -- 1.14
+    # Cr OI\n24,000 CE -- 1.20 Cr OI": the strike+CE/PE on each line is
+    # informational OI reporting, not a trade order, but RE_OPT's root
+    # bridges the newline back to the trailing "OI" from the PREVIOUS
+    # line's "Cr OI" (the last uppercase word before the following line's
+    # digit) and reads it as if it were the next line's ticker. No real
+    # ticker is literally "OI" anywhere in the 82-channel tracked history.
+    'OI',
 }
 
 
@@ -485,7 +493,12 @@ RE_SHARED_RESEARCH = re.compile(
 # trigger (Stock Thunder: "Buy NIFTY _23650PE Above 190-200", "BUY BIOCON
 # 400 CE ABOVE 10 TRG - ..."). NUM stops at the first non-digit, so this
 # naturally ignores a trailing "-200" range without a separate branch.
-RE_ABOVE_BELOW = re.compile(r'\b(?:ABOVE|BELOW)\s+' + NUM, re.IGNORECASE)
+# optional colon between the keyword and the price ("BUY ABOVE : 1070",
+# Sairam Stocks) as well as the plain "ABOVE 1070" shape other channels use.
+# Sairam Stocks also has a second variant with a filler "ONLY" wedged in
+# between ("BUY ABOVE ONLY 1060 LEVEL") -- skipped the same way.
+RE_ABOVE_BELOW = re.compile(
+    r'\b(?:ABOVE|BELOW)\s*:?\s*(?:ONLY\s+)?' + NUM, re.IGNORECASE)
 # a running price-update recap that restates an already-open option leg
 # rather than posting a fresh order, e.g. "170 TO 199#NIFTY 23650PE" —
 # the option match immediately follows the "#" here, not a BUY/SELL verb.
@@ -1596,8 +1609,30 @@ def parse_message(text, style=None):
         # (checked before the bare dash-range fallback below, since NUM stops
         # at the first non-digit and so already handles a trailing "-200")
         if entry is None:
-            ab = RE_ABOVE_BELOW.search(text[m.end():m.end() + 20])
-            if ab:
+            # search a wider slice than the 20-char "nearby" budget below
+            # implies, but only ACCEPT a match whose ABOVE/BELOW keyword
+            # itself starts within that budget -- the keyword must be near
+            # the strike, but its price shouldn't be truncated just because
+            # an expiry annotation ("SEP 2026") sits between them and pads
+            # out the gap, e.g. Sairam Stocks' "BANKNIFTY 55500 CALL SEP
+            # 2026\nBUY ABOVE 1070 LEVEL ONLY" -- a plain 20-char slice cuts
+            # "1070" down to "1" (the digits after the window boundary are
+            # invisible to the search), producing a nonsense sub-₹1 entry
+            # instead of leaving it for the wider 'options'-style fallback
+            # near the end of this loop -- which never got a chance to run
+            # because THIS narrower check had already set sig['entry'] to
+            # the wrong truncated value.
+            ab = RE_ABOVE_BELOW.search(text[m.end():m.end() + 60])
+            # "SL BELOW <price>" / "STOP LOSS BELOW <price>" right before
+            # the match is a stop-loss threshold, not an entry trigger --
+            # without this, Nirmal Bang Official's "Option BUY CRUDE 7850CE
+            # BR 370-350 SL BELOW 280 TGT 450-480" (which never uses the
+            # word ABOVE/BELOW for its OWN entry -- that's the unlabelled
+            # "BR 370-350" range a few lines down) now reaches "BELOW 280"
+            # within the widened 60-char budget above and misreads the stop
+            # -loss figure as if it were the entry.
+            near = text[m.end():m.end() + ab.start()] if ab else ''
+            if ab and ab.start() < 20 and not re.search(r'\bSL\b|\bSTOP\s*LOSS\b', near[-6:], re.IGNORECASE):
                 sig['entry'] = _f(ab.group(1))
         # Richie by Chase Alpha's dominant option-order shape: "NIFTY 19500
         # CE CMP 215 add till 210 SL 170 Target 260-280-300", "BANKNIFTY

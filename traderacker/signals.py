@@ -1201,6 +1201,41 @@ def parse_message(text, style=None):
             ab = RE_ABOVE_BELOW.search(text[m.end():m.end() + 20])
             if ab:
                 sig['entry'] = _f(ab.group(1))
+        # Richie by Chase Alpha's dominant option-order shape: "NIFTY 19500
+        # CE CMP 215 add till 210 SL 170 Target 260-280-300", "BANKNIFTY
+        # 47600 PE CMP 40 Hero Zero" — bare "CMP <price>" immediately after
+        # the strike+right, with no parenthetical expiry between them
+        # (unlike Ashika Calls' RE_OPT_PAREN_CMP just below, which requires
+        # one). Style-gated to 'options' (this channel's own style) rather
+        # than 'mixed': checked empirically that gating to 'mixed' instead
+        # collides with two OTHER mixed-style channels' shared shapes on
+        # this same channel's text once its style is switched to 'mixed'
+        # -- Trading Ideas By Darshan's RE_DARSHAN_RECAP (a bare "<free
+        # text> from N to M" pattern with no ticker restriction on the
+        # free text) turns "BANK NIFTY 59000 CE on App from 18 to 150"
+        # into a phantom "BANK NIFTY 59000 CE ON APP" trade, and
+        # 𝐅𝐈𝐍𝐀𝐍𝐂𝐈𝐀𝐋 𝐒𝐀𝐑𝐓𝐇𝐈𝐒's RE_FINSARTHI_OPT (also 'mixed'-gated) creates a
+        # second, differently-named "BANK NIFTY 45500 CE" row once this
+        # CMP fallback fills the entry on the already-added truncated
+        # "NIFTY 45500 CE" placeholder RE_OPT produces beforehand (that
+        # placeholder's entry used to stay blank, which is what let the
+        # existing Finsarthi dedup below silently absorb it — see the
+        # comment there). 'options' avoids both collisions; this channel's
+        # own text has no use for either 'mixed'-gated shape. Checked
+        # before the bare dash-range fallback below for the same reason as
+        # the Ashika block (a trailing "-15" in "CMP 210-15" would
+        # otherwise get misread as a target by that fallback instead of
+        # correctly leaving target blank here). Left OFF the exit-side
+        # "BOOK PARTIAL PROFIT IN <SYM> CMP <price>" close-out shape
+        # (Ashika Calls' own dominant close-out, see RE_CLOSE_EVENT)
+        # because that phrase never occurs anywhere in this channel's
+        # tracked history (verified empirically, 0 occurrences) — unlike
+        # Ashika, whose own 'mixed' style already excludes those spans via
+        # `exit_price_spans` before this fallback ever runs.
+        if entry is None and sig['entry'] is None:
+            cm = re.match(r'^\s*CMP\s*[:\-]?\s*' + NUM, text[m.end():m.end() + 20], re.IGNORECASE)
+            if style == 'options' and cm:
+                sig['entry'] = _f(cm.group(1))
         # Ashika Calls' "<ROOT> <STRIKE> CE (27 MAR) CMP 250-290" shape —
         # see the comment above RE_VERB_FIRST_ASHIKA/RE_OPT_PAREN_CMP.
         # Style-gated to 'mixed' so it can't fire for another channel's
@@ -1410,9 +1445,30 @@ def parse_message(text, style=None):
         if fsig and fsig['trade'] not in option_roots and not any(
                 o['trade'] == fsig['trade'] for o in out):
             suffix = ' ' + ' '.join(fsig['trade'].split()[-2:])
-            out[:] = [o for o in out if not (
-                o['entry'] is None and o['trade'] != fsig['trade']
-                and o['trade'].endswith(suffix))]
+            # a truncated placeholder for the SAME leg can have picked up
+            # a real entry by now (e.g. Richie by Chase Alpha's "BANK
+            # NIFTY 45500 CE CMP 360 ..." -- RE_OPT's own root capture
+            # can't span the "BANK "/"NIFTY" word gap, so step 1 already
+            # added a blank-root "NIFTY 45500 CE", and its CMP-inline
+            # fallback fills that placeholder's entry from the SAME "CMP
+            # 360" this shape also reads -- BEFORE this step ever runs).
+            # Originally this only dropped placeholders whose entry was
+            # still None, which silently left both rows once RE_OPT
+            # started filling CMP entries (verified empirically: this
+            # channel's "BANK NIFTY"/"BANK NIFTY" root split produced a
+            # genuine duplicate pair, "NIFTY 45500 CE" + "BANK NIFTY 45500
+            # CE", not the harmless same-key overlap the comment above
+            # this function describes for Ashika Calls). Now unconditional
+            # on entry, and carries a placeholder's entry over to fsig
+            # when fsig's own AT/@ capture came up empty, rather than
+            # discarding real data neither the correct row nor a stray
+            # duplicate should lose.
+            placeholders = [o for o in out if o['trade'] != fsig['trade'] and o['trade'].endswith(suffix)]
+            if placeholders and fsig['entry'] is None:
+                carried = next((p['entry'] for p in placeholders if p['entry'] is not None), None)
+                if carried is not None:
+                    fsig['entry'] = carried
+            out[:] = [o for o in out if o not in placeholders]
             add(fsig)
             option_roots.add(fsig['trade'].split()[0])
 

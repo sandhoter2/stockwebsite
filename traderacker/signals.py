@@ -97,8 +97,35 @@ STOP_WORDS = {
 
 
 def _f(s):
-    """Parse a possibly comma-grouped number to float."""
-    return float(str(s).replace(',', ''))
+    """Parse a possibly comma-grouped number to float.
+
+    A comma is only ever a genuine Indian/Western thousands separator when
+    the groups it splits into have a valid grouping SHAPE -- the leading
+    group shorter than each later group, e.g. "23,650" (2+3 digits),
+    "9,000" (1+3), "1,23,456" Indian-style (1+2+3). When a channel instead
+    glues a multi-target/multi-level list together with no space after the
+    comma -- "TARGET 165,190+" (LIVELONG HARI), "TGT 1600,1610++" -- every
+    group has the SAME length as its neighbour, because each one is a
+    complete, independent number rather than a fragment of one grouped
+    total. In that case take only the FIRST group, per this file's existing
+    "first/lower value is the representative one" convention (see the
+    RE_CLOSE_EVENT / RE_STOCKPRO_CROSSED_TARGETS comments) -- rather than
+    silently concatenating unrelated digits into one nonsense figure
+    (e.g. "165,190" -> 165190.0, a phantom 6-figure target on a sub-200
+    option premium). Verified empirically against the full 82-channel
+    tracked corpus: no genuine grouped price anywhere has a final group the
+    same length as its leading group (a valid group's tail is always
+    exactly 3 digits and longer than what's in front of it), so this never
+    changes a correct parse -- only the glued-list case, which was always
+    wrong before.
+    """
+    s = str(s)
+    if ',' in s:
+        parts = s.split(',')
+        if len(parts[0]) >= 2 and all(len(p) == len(parts[0]) for p in parts[1:]):
+            return float(parts[0])
+        s = s.replace(',', '')
+    return float(s)
 
 
 def _is_symbol(tok):

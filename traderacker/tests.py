@@ -1645,6 +1645,60 @@ class SignalParserTests(TestCase):
         sigs = parse_message('Fired\n700 to 960', style='mixed')
         self.assertFalse(any(s['trade'] == 'FIRED' for s in sigs), sigs)
 
+    def test_ca_abhay_near_entry_bare_price_repost_suppressed(self):
+        # Trading With Ca Abhay (channel 66): real entry uses "NEAR <price>"
+        # right after the strike; the same leg is then reposted many times
+        # as a bare "<symbol>\n<price>" LTP ticker, which must not mint a
+        # phantom duplicate trade per repost.
+        from traderacker.signals import parse_message
+        trigger = parse_message('SENSEX 78100 PE\n\nNEAR 330\n\nTGT open\n\nSl follow',
+                                 style='auto')
+        self.assertEqual(len(trigger), 1)
+        self.assertEqual(trigger[0]['trade'], 'SENSEX 78100 PE')
+        self.assertEqual(trigger[0]['entry'], 330.0)
+
+        repost = parse_message('SENSEX 78100 PE\n154', style='auto')
+        self.assertEqual(repost, [])
+
+    def test_stock_gainers_above_dash_and_reversed_repost(self):
+        # Stock Gainers (channel 48): "ABOVE :- <price>" entry trigger on a
+        # dated option header, plus the mirror-image bare-LTP-then-symbol
+        # repost of the same leg -- neither the trigger's recap nor the
+        # reversed repost should mint extra phantom rows.
+        from traderacker.signals import parse_message
+        repost_rev = parse_message('155♥️\n\n\nNIFTY 23550 PE', style='options')
+        self.assertEqual(repost_rev, [])
+
+    def test_rochit_singh_emoji_decorated_repost_suppressed(self):
+        # ROCHIT SINGH STOCKS (channel 40) reposts an already-open leg as a
+        # bare "<symbol>\n<price><emoji>" LTP ticker (unlike channel 66/48's
+        # plain-number repost) -- must still be recognized as a repost, not
+        # a fresh phantom trade.
+        from traderacker.signals import parse_message
+        trigger = parse_message('BUY NIFTY 24100 CE\n\nABOVE - 140\n\n'
+                                 'TARGET \U0001F3AF - 150,160,170++++\n\nSTOP LOSS - prime',
+                                 style='auto')
+        self.assertEqual(len(trigger), 1)
+        self.assertEqual(trigger[0]['entry'], 140.0)
+
+        repost = parse_message('BUY NIFTY 24100 CE\n140\U0001F3AF\U0001F3AF\U0001F4B8\U0001F4B8',
+                                style='auto')
+        self.assertEqual(repost, [])
+
+        repost_rupee = parse_message('NIFTY 24100 CE\n₹ 150 \U0001F525\U0001F525✅',
+                                      style='auto')
+        self.assertEqual(repost_rupee, [])
+
+    def test_rochit_singh_above_gt_arrow_entry(self):
+        # ROCHIT SINGH STOCKS also spells the ABOVE trigger with a
+        # decorative ">" instead of a dash: "BUY ABOVE >500".
+        from traderacker.signals import parse_message
+        sigs = parse_message('✅SENSEX 75,300 PE✅\n\n✅BUY ABOVE >500\n\n'
+                              '✅TARGET > 550/580/600\n\n✅STOPLOSS = 450',
+                              style='auto')
+        self.assertEqual(len(sigs), 1)
+        self.assertEqual(sigs[0]['entry'], 500.0)
+
 
 class MarketServiceTests(TestCase):
     """Symbol→ticker mapping and provider fallback (no real network)."""

@@ -210,24 +210,29 @@ RE_OPT_PAREN_CMP = re.compile(
     r'^\s*\([^)]{1,20}\)\s*(?:CMP\s*)?' + NUM, re.IGNORECASE)
 # 20PAISA..COM's dominant option-tip shape: the entry premium AND the level
 # it already ran to sit on the very next non-blank line after the strike,
-# joined by "To" (occasionally "@ <entry> To <exit>" in its "Done Of The
-# Day" recap restating several legs from one message), e.g. "Nifty 22500CE
-# \n\n\n\n\n175 To 260++", "✅Nifty 22600CE @ 177 To 193". Anchored
+# joined by the WORD "To" (occasionally "@ <entry> To <exit>" in its "Done
+# Of The Day" recap restating several legs from one message), e.g. "Nifty
+# 22500CE\n\n\n\n\n175 To 260++", "✅Nifty 22600CE @ 177 To 193". Anchored
 # immediately after the CE/PE match (like RE_OPT_PAREN_CMP above) so it
 # only ever reads the number pair that belongs to THIS leg, not a later
 # leg's numbers in the same recap message — filling entry/target here,
 # before the message-level RE_PREMIUM fallback runs, is what keeps a
 # multi-leg "Done Of The Day" recap from having every leg collapse onto
 # the FIRST leg's price (that shared fallback does a single text-wide
-# `.search()`, not one per leg). Consumed only when style == 'mixed';
-# verified against every other 'mixed' channel's full history that this
-# adjacency, immediately after a NIFTY/BANKNIFTY/SENSEX/FINNIFTY CE/PE
-# match, is either absent or (Nivisha Verma/Stock Gainers/Stocky Mind, a
-# handful of cases each) itself a genuine "<entry> to <exit>" leg
-# restatement with no dedicated parser of its own — so filling it in is a
-# strict improvement there too, not a regression.
+# `.search()`, not one per leg). Consumed only when style == 'mixed'.
+# Deliberately does NOT accept a bare "-" as the connector (only the word
+# "to"/"To"/"TO"): checking other 'mixed' channels' full history found a
+# few messages where a dash immediately after the strike is an ENTRY
+# range, not an entry-target pair (Stock Gainers' "nifty 24050 ce 170-180
+# support 120 view 230" — "170-180" is the entry band, the real target is
+# the later "view 230"; Nivisha Verma's "Bank Nifty 49000CE 710-715 SL -
+# 670" is the same shape). Accepting "-" here would have silently
+# overridden that channel's own already-correct RE_RANGE/RE_TARGET_MIXED
+# handling of the identical text. Channel 1 itself never uses a bare dash
+# for this shape (723 "To"-word occurrences, 0 dash-only, across its full
+# tracked history) so restricting to the word costs it nothing.
 RE_OPT_ENTRY_TO_TARGET = re.compile(
-    r'^[\s@]{0,15}' + NUM + r'\s*(?:to|To|TO|-)\s*' + NUM, re.IGNORECASE)
+    r'^[\s@]{0,15}' + NUM + r'\s*(?:to|To|TO)\s*' + NUM, re.IGNORECASE)
 # 20PAISA..COM's "Done Of The Day" recap also restates a leg that never got
 # a signal at all that day, with NO price of any kind -- "✅BNF 55900CE @ SL
 # Taken", "✅Nifty 24000PE @ 20 Point SL" -- instead of an "<entry> To

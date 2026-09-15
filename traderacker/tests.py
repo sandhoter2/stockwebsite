@@ -821,6 +821,186 @@ class SignalParserTests(TestCase):
         self.assertEqual(s['target'], 55.0)
         self.assertEqual(s['asset_class'], 'option')
 
+    # --- batch2 specialist pass (Ashika Calls, MarketWolf, Short To Mid
+    # Term, THEBULLOPTIONS, Swing Trader Vishal, Stocky Mind) ---
+
+    def test_ashika_futures_paren_expiry_cmp(self):
+        # "BUY <SYM> FUT (<expiry>)CMP <range> SL <sl> TGT <tgt>" — the
+        # parenthetical expiry annotation between FUT and CMP used to make
+        # RE_VERB_FIRST miss the CMP price entirely (entry stayed None).
+        from traderacker.signals import parse_message
+        sigs = parse_message('BUY HDFCLIFE FUT (30 DEC)CMP 640-644 SL 618 TGT 690',
+                             style='mixed')
+        self.assertEqual(len(sigs), 1)
+        s = sigs[0]
+        self.assertEqual(s['trade'], 'HDFCLIFE')
+        self.assertEqual(s['entry'], 640.0)
+        self.assertEqual(s['direction'], 'BUY')
+
+    def test_ashika_paren_expiry_range_cmp_does_not_truncate_target(self):
+        # "<ROOT> <STRIKE> CE (<expiry>) CMP <low>-<high> ... TGT <price>" —
+        # the generic bare dash-range fallback's 20-char window gets
+        # truncated by the parenthetical (e.g. "150-160" -> "150-16"),
+        # which used to misread "16" as the target instead of leaving it
+        # blank for the later explicit "TGT 240" to fill correctly.
+        from traderacker.signals import parse_message
+        sigs = parse_message(
+            'HIGH RISK CALL: BUY NIFTY 25100 CE (23 SEPT) CMP 150-160 SL 120 TGT 240',
+            style='mixed')
+        self.assertEqual(len(sigs), 1)
+        s = sigs[0]
+        self.assertEqual(s['entry'], 150.0)
+        self.assertEqual(s['target'], 240.0)
+        self.assertNotEqual(s['target'], 16.0)
+
+    def test_ashika_two_char_lt_ticker(self):
+        # "LT" is one character short of the shared SYM pattern's 3-char
+        # floor — special-cased for this channel rather than globally.
+        from traderacker.signals import parse_message
+        sigs = parse_message('BUY LT CMP 3850-3857 SL 3740 TGT 4035', style='mixed')
+        self.assertEqual(len(sigs), 1)
+        self.assertEqual(sigs[0]['trade'], 'LT')
+        self.assertEqual(sigs[0]['entry'], 3850.0)
+
+    def test_ashika_lowercase_index_option_paren_expiry(self):
+        # Ashika occasionally writes the index name lower/mixed-case, with
+        # the same parenthetical-expiry-before-CMP shape as the futures case.
+        from traderacker.signals import parse_message
+        sigs = parse_message('BUY Nifty  24500 PE (JAN20) CMP 70 to 68  SL 40 TGT 110',
+                             style='mixed')
+        opt = [s for s in sigs if s['trade'] == 'NIFTY 24500 PE']
+        self.assertEqual(len(opt), 1)
+        self.assertEqual(opt[0]['entry'], 70.0)
+        self.assertEqual(opt[0]['asset_class'], 'option')
+
+    def test_ashika_book_profit_cmp_close(self):
+        # Ashika's close-outs use "CMP" as the price marker instead of the
+        # "AT"/"@" RE_CLOSE_EVENT originally supported (Nirmal Bang's
+        # phrasing) — this extension is ungated (parse_exit_price has no
+        # style parameter) but verified safe across the full corpus.
+        from traderacker.signals import parse_exit_price
+        self.assertEqual(parse_exit_price('BOOK PARTIAL PROFIT IN ESCORTS  CMP 3623'),
+                         ('ESCORTS', 3623.0))
+
+    def test_marketwolf_option_hidden_behind_subscription_price(self):
+        # The "@<price> only!" on line 1 is the paid-tip SUBSCRIPTION price,
+        # not the option premium — a naive "SYMBOL @ PRICE" read would
+        # misattribute it. The real entry is the first number of the "BUY :
+        # <low>-<high>" range three lines later.
+        from traderacker.signals import parse_message
+        text = ('Trade SENSEX @9,900 only!\n\nIndex : SENSEX\n\n'
+               'OPTION:  76500 PUT (PE) 15th MAY\n\n\U0001F3F9 BUY : 410-440\n\n'
+               '\U0001F3AF Target & Stop Loss : RA Team To Update')
+        sigs = parse_message(text, style='options')
+        self.assertEqual(len(sigs), 1)
+        s = sigs[0]
+        self.assertEqual(s['trade'], 'SENSEX 76500 PE')
+        self.assertEqual(s['entry'], 410.0)
+        self.assertNotEqual(s['entry'], 9900.0)
+        self.assertEqual(s['direction'], 'PUT (down)')
+
+    def test_marketwolf_commentary_produces_nothing(self):
+        # Daily "Hunting Zones"/status posts carry price-ish numbers but no
+        # structured Index/OPTION/BUY block, and close-outs give a status/%
+        # with no price or strike — both correctly produce no signal.
+        from traderacker.signals import parse_message
+        self.assertEqual(parse_message(
+            'Key CRUDE OIL levels\n- If it Breaks above 8,700 then we may see '
+            'the Upside Movement.', style='options'), [])
+        self.assertEqual(parse_message(
+            'GOLD MINI at ₹6,000 | SL Triggered\n\nInstrument: GOLD MINI\n'
+            'Status: -20% Loss', style='options'), [])
+
+    def test_short_to_mid_term_hashtag_entry_ladder(self):
+        # Symbol comes from the trailing hashtag, not the display name
+        # before it (which can be an abbreviated/unrelated-looking variant).
+        from traderacker.signals import parse_message
+        text = ('\U0001F195⬇️\U0001F4E2\n\n\U0001F4B9  WHIRLPOOL OF INDIA\n\n'
+               '\U0001F387  CMP-  1100-1102\n\n\U0001F3A0 UPSIDE RESISTANCE  - '
+               '1140-1190-1250\n\n#WHIRLPOOL\n\n\U0001F4A5 DISCLAIMER')
+        sigs = parse_message(text, style='cash')
+        self.assertEqual(len(sigs), 1)
+        s = sigs[0]
+        self.assertEqual(s['trade'], 'WHIRLPOOL')
+        self.assertEqual(s['entry'], 1100.0)
+        self.assertEqual(s['target'], 1140.0)
+
+    def test_short_to_mid_term_retrospective_recap(self):
+        # States both entry and already-hit exit in one line; recorded Open
+        # (not Closed) — see style_notes for why this codebase's
+        # exit-price path can't close a same-message create-and-close.
+        from traderacker.signals import parse_message
+        sigs = parse_message('#IOC 94 TO 145+\U0001F680\U0001F680\U0001F680   '
+                             '3RD TGT DONE ✅✅', style='cash')
+        self.assertEqual(len(sigs), 1)
+        s = sigs[0]
+        self.assertEqual(s['trade'], 'IOC')
+        self.assertEqual(s['entry'], 94.0)
+        self.assertEqual(s['target'], 145.0)
+        self.assertEqual(s['status'], 'Open')
+
+    def test_thebulloptions_repost_does_not_mint_phantom_trades(self):
+        # The channel reposts the SAME leg many times as a running LTP
+        # ticker; only the "BUY ABOVE <price>" trigger message should get a
+        # real entry — every other repost must stay entry=None so it
+        # collapses into the same row instead of minting a new phantom
+        # Trade per repost.
+        from traderacker.signals import parse_message
+        trigger = parse_message('\U0001F4CA SENSEX 74000 PE (04 JUN)\n\n'
+                                '\U0001F4C8 BUY ABOVE 370\n\n\U0001F3AF TARGET PREMIUM\n\n'
+                                '☠️SL - PREMIUM', style='options')
+        self.assertEqual(len(trigger), 1)
+        self.assertEqual(trigger[0]['trade'], 'SENSEX 74000 PE')
+        self.assertEqual(trigger[0]['entry'], 370.0)
+
+        repost = parse_message('\U0001F4CA SENSEX 74000 PE (04 JUN)\n420', style='options')
+        self.assertEqual(len(repost), 1)
+        self.assertIsNone(repost[0]['entry'])
+
+        milestone = parse_message('\U0001F4CA SENSEX 74000 PE (04 JUN)\nFIRST TARGET DONE ✅',
+                                  style='options')
+        self.assertEqual(len(milestone), 1)
+        self.assertIsNone(milestone[0]['entry'])
+
+    def test_thebulloptions_doesnt_affect_other_options_channels(self):
+        # The full-remainder ABOVE/BELOW fallback added for THEBULLOPTIONS
+        # is gated on style == 'options', which Options Train and Stock
+        # Thunder also use — confirm a plain broker-style option order is
+        # unaffected (still gets its @-premium entry, not an unrelated
+        # later ABOVE/BELOW word).
+        from traderacker.signals import parse_message
+        sigs = parse_message('BUY NIFTY 03 JUL 25 25700 CE 1 lots at 109.00.\n\n'
+                             'Message : SL 94 TGT 135 (safe entries above 25650 only)',
+                             style='options')
+        opt = [s for s in sigs if 'NIFTY' in s['trade'] and s['asset_class'] == 'option']
+        self.assertTrue(opt)
+        self.assertEqual(opt[0]['entry'], 109.0)
+
+    def test_vishal_bought_hashtag_mixed_case(self):
+        # Ticker hashtags are often lower/mixed case; uppercased on capture.
+        from traderacker.signals import parse_message
+        sigs = parse_message('Bought #vascon 63.8\n\n- Huge volume breakout + Retest\n\n'
+                             'SL Below 60 ❗️', style='cash')
+        self.assertEqual(len(sigs), 1)
+        self.assertEqual(sigs[0]['trade'], 'VASCON')
+        self.assertEqual(sigs[0]['entry'], 63.8)
+
+    def test_stocky_mind_recap_direction_from_range(self):
+        # Direction is inferred from which side of the "N to M" range is
+        # higher: a down-move recap is a SELL, an up-move recap is a BUY.
+        from traderacker.signals import parse_message
+        down = parse_message('⚡️ CRUDEOIL\n\n9085 to 8920 | 5R+\n\n'
+                             'Locked the majority gains \U0001F4B0', style='mixed')
+        self.assertEqual(len(down), 1)
+        self.assertEqual(down[0]['trade'], 'CRUDEOIL')
+        self.assertEqual(down[0]['direction'], 'SELL')
+        self.assertEqual(down[0]['asset_class'], 'commodity')
+
+        up = parse_message('⚡️ APOLLOPIPE | Swing Trade\n\n429 to 454+ \U0001F4A5 | 6%+',
+                           style='mixed')
+        self.assertEqual(len(up), 1)
+        self.assertEqual(up[0]['direction'], 'BUY')
+
 
 class MarketServiceTests(TestCase):
     """Symbol→ticker mapping and provider fallback (no real network)."""

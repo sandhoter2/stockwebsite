@@ -143,6 +143,129 @@ RE_OPT_EXPIRY2 = re.compile(
     r'\b(?:BUY|SELL)\s+([A-Z]+)\s+(?:' + EXPIRY + r')\s+' + NUM +
     r'\s*(CE|PE)\b(?:\s*(?:ABOVE|BELOW|AT)\s*' + NUM + r')?',
     re.IGNORECASE)
+# Ashika Calls' cash/futures/options entries carry an expiry annotation in
+# parentheses between the symbol/FUT keyword (or CE/PE strike) and the CMP
+# price, e.g. "BUY TCS FUT (30 DEC)CMP 3100 SL 3010 TGT 3240", "BUY NIFTY
+# 22500 CE (27 MAR) CMP 250-290 SL 150 TGT 780" — RE_VERB_FIRST/RE_OPT have
+# no room for the parenthetical and so silently drop the CMP price (568 of
+# 603 previously-unparsed messages in this channel's full 1956-message
+# history use this shape — the dominant one, found by checking coverage
+# across the full corpus, not just correctness on what already matched).
+# Also special-cases the ticker "LT" (Larsen & Toubro, e.g. "BUY LT CMP
+# 3850-3857 SL 3740 TGT 4035"), one character short of the shared SYM
+# pattern's 3-char floor — named explicitly rather than lowering that floor
+# globally, which would open the door to ordinary two-letter English words
+# ("BUY TO ...") becoming phantom tickers elsewhere. Both style-gated to
+# 'mixed'; verified empirically that no other 'mixed' channel (Angel One
+# Research, NIRMAL BANG OFFICIAL, Stockpro Online) has the "BUY/SELL <SYM>
+# (...)" parenthetical shape. The "LT" special-case DOES also fire for
+# Angel One Research, which trades the same real ticker in its own
+# "BUY LT 1 shares at 3495.00." broker-order format — a deliberate,
+# verified-correct side effect (entry/SL/TGT match the stated values) of
+# gating on shared style rather than a single channel, not a regression;
+# confirmed via a full old-vs-new parse diff over Angel One's history that
+# this is the ONLY thing this migration's regexes change there.
+SYM_ASHIKA = r'\b(LT|[A-Z][A-Z0-9&\-]{2,20})\b'
+RE_VERB_FIRST_ASHIKA = re.compile(
+    r'\b(BUY|SELL)\s+' + SYM_ASHIKA + r'(?:\s+(?:CASH|FUT|FUTURES))?'
+    r'(?:\s*\([^)]{1,20}\))?'
+    r'(?:\s+\d[\d,]*(?:\.\d+)?\s*(?:shares?|lots?|qty))?'
+    r'\s*(?:ABOVE|BELOW|AT|CMP|@|>)?\s*' + NUM,
+    re.IGNORECASE)
+# the option-leg variant of the same parenthetical-expiry shape: the CMP
+# price sits right after the "(<expiry>)" annotation that follows CE/PE.
+RE_OPT_PAREN_CMP = re.compile(
+    r'^\s*\([^)]{1,20}\)\s*(?:CMP\s*)?' + NUM, re.IGNORECASE)
+# Ashika Calls occasionally writes the index name in lower/mixed case
+# ("Nifty  25500 PE (JAN20) CMP 64 to 62  SL 35 TGT 100" instead of the
+# usual "NIFTY 25500 PE") — RE_OPT's root is upper-case only by design (so
+# ordinary prose never becomes a phantom ticker), so these never match at
+# all. Restricted to the known index-root names, not any lower-case word,
+# so it stays channel-agnostic-safe; consumed only when style == 'mixed'.
+RE_OPT_INDEX_CI = re.compile(
+    r'\b(NIFTY|BANKNIFTY|SENSEX|FINNIFTY)\s*_?\s*' + NUM + r'\s*(CE|PE|CALL|PUT)\b',
+    re.IGNORECASE)
+# MarketWolf's dominant (and, on the full 1960-message tracked history,
+# only structured) signal shape — a paid-tip broker template with the real
+# premium entry hidden three lines down from a misleading decoy number:
+# "Trade SENSEX @11,400 only!\n\nIndex : SENSEX\n\nOPTION:\xa0 77400 CALL
+# (CE) 30th APR\n\n\U0001F3F9 BUY : 540-570\n\n\U0001F3AF Target & Stop
+# Loss : RA Team To Update ..." — the "@11,400" on line 1 is the
+# SUBSCRIPTION price for the paid tip service, not a trade price (a naive
+# "SYMBOL @ PRICE" regex would misread it as the option premium); the real
+# entry is the first number of the "BUY : <low>-<high>" range three lines
+# later, after an "Index"/"Commodity"/"Stock" line naming the underlying
+# and an "OPTION: <strike> CALL|PUT (CE|PE) <expiry>" line giving the
+# actual leg. 722 of 1960 tracked messages use this exact shape (verified
+# empirically); the remainder is daily commentary ("Hunting Zones", "Post
+# Market Update", Gift Nifty gap notes) and promo, correctly left
+# unparsed. Style-gated to 'options' — verified empirically that neither
+# other 'options'-style channel (Options Train, Stock Thunder) has this
+# Index/Commodity/Stock + OPTION + BUY three-line shape anywhere in its
+# history.
+RE_MARKETWOLF_OPTION = re.compile(
+    r'(?:Index|Commodity|Stock)\s*:\s*([A-Za-z0-9&][A-Za-z0-9 &]{0,30}?)\s*\n+'
+    r'OPTION\s*:\s*' + NUM + r'\s*(CALL|PUT)\s*\((CE|PE)\)[^\n]*\n+'
+    r'.{0,20}?BUY\s*:?\s*' + NUM, re.IGNORECASE)
+# Short To Mid Term®™'s two dominant Hinglish cash-equity shapes (1938 of
+# 1971 tracked messages previously produced zero signal — found by checking
+# coverage, not just correctness on what already matched). Style-gated to
+# 'cash'; verified empirically that the only other 'cash'-style channel
+# (Motilal Oswal - Official) has zero occurrences of either shape.
+# A. forward entry call, symbol given by the trailing hashtag (not the
+#    display name before it, which can be an abbreviated/misspelled
+#    variant, e.g. "NYKAA - FSN E-COMMERCE VENTURES Ltd." vs "#NAYAKA"):
+#    "\U0001F195⬇️\U0001F4E2\n\n\U0001F4B9  CENTUM ELECTRONICS\n\n"
+#    "\U0001F387  CMP-  1210-1212\n\n\U0001F3A0 UPSIDE RESISTANCE  - "
+#    "1260-1310-1370-1450-1550\n\n#CENTUM\n\n\U0001F4A5 DISCLAIMER..." — CMP's
+#    first number is the entry, the ladder's first number the target (same
+#    single-value convention as RE_TARGET elsewhere in this file).
+RE_STMT_ENTRY = re.compile(
+    r'CMP\s*[-:]?\s*' + NUM + r'.*?'
+    r'UPSIDE\s+(?:RESISTANCE|PATTERN|POSSIBLE)[.\s]*[-:]?\s*' + NUM + r'.*?'
+    r'#([A-Z][A-Z0-9]{1,20})\b', re.IGNORECASE | re.DOTALL)
+# B. retrospective "called it" recap that states both the entry and the
+#    already-hit exit level in one line: "#IOC 94 TO 145+\U0001F680\U0001F680\U0001F680   "
+#    "3RD TGT DONE ✅✅", "#CGPOWER 510-511 TO 541+ FIRST TGT DONE...".
+#    KNOWN, DELIBERATE LIMITATION: despite "TGT DONE"/"REACHED" wording
+#    confirming the position is already closed, this is recorded as an Open
+#    trade with entry/target filled rather than Closed — parse_signals.py's
+#    exit-PRICE path (unlike its profit path) evaluates before this same
+#    message's signal has created the Trade row, so a same-message
+#    create-and-close can never actually close here (and, once the message
+#    is marked processed, never will on any later run either); fabricating
+#    a "Closed"/realized status this codebase can't actually derive would
+#    violate the realized-truthfulness rule far more than an Open row with
+#    accurate entry/target values that simply doesn't self-close.
+RE_STMT_RECAP = re.compile(
+    r'#([A-Z][A-Z0-9]{1,20})\b[^\n#]{0,25}?' + NUM +
+    r'(?:\s*-\s*' + NUM + r')?\s*TO\s*' + NUM, re.IGNORECASE)
+# Stocky Mind's recurring "⚡️ <SYM> ... <entry> to <exit>" trade
+# recap, e.g. "⚡️ CRUDEOIL\n\n9085 to 8920 | 5R+\n\nLocked the
+# majority gains", "⚡️ APOLLOPIPE | Swing Trade\n\n429 to 454+ "
+# "\U0001F4A5 | 6%+" (87 of 1954 tracked messages; most of the rest is
+# trader-mindset prose/quotes-of-the-day with no price at all, correctly
+# left unparsed). Direction is inferred from which side of the range is
+# higher (down-move recap = SELL, e.g. the CRUDEOIL row above), same
+# convention as the bare-crypto-prose fallback elsewhere in this file.
+# Style-gated to 'mixed'; verified empirically that no other 'mixed'
+# channel (Angel One Research, NIRMAL BANG OFFICIAL, Stockpro Online) has
+# this "⚡ SYMBOL ... N to M" shape anywhere in its history.
+RE_STOCKY_RECAP = re.compile(
+    r'⚡️?\s*([A-Z][A-Z0-9&]{1,20})\b.{0,60}?' + NUM +
+    r'\s*(?:to|➔|→)\s*' + NUM, re.IGNORECASE | re.DOTALL)
+# Swing Trader Vishal's dominant entry phrasing — "Bought #<SYM> <PRICE>"
+# with the ticker as a (often lower/mixed-case) hashtag, e.g. "Bought
+# #BFUTILITIE 810", "Bought #Vascon 63.8", "Bought #tatacomm @ 1946" (70 of
+# 1987 tracked messages; most of the channel is promo for the paid
+# "Premium Members" channel, teaser screenshots with no stated price, and
+# Hinglish market commentary, correctly left unparsed). Style-gated to
+# 'cash'; verified empirically that no other 'cash'-style channel (Motilal
+# Oswal - Official, Short To Mid Term®™) has this "Bought #SYM"
+# hashtag shape anywhere in its history.
+RE_VISHAL_BOUGHT = re.compile(
+    r'\bBought\b(?:[^\n#]{0,20})?#([A-Za-z][A-Za-z0-9]{1,20})\b[^\n\d]{0,15}?' + NUM,
+    re.IGNORECASE)
 RE_CRYPTO = re.compile(
     # symbol and LONG/SHORT may be joined by a plain space ("STX LONG 10x")
     # or an em/en-dash ("DOGE – LONG", "LINK – SHORT" — Serezha Calls' format)
@@ -457,13 +580,75 @@ def parse_message(text, style=None):
             ab = RE_ABOVE_BELOW.search(text[m.end():m.end() + 20])
             if ab:
                 sig['entry'] = _f(ab.group(1))
+        # Ashika Calls' "<ROOT> <STRIKE> CE (27 MAR) CMP 250-290" shape —
+        # see the comment above RE_VERB_FIRST_ASHIKA/RE_OPT_PAREN_CMP.
+        # Style-gated to 'mixed' so it can't fire for another channel's
+        # option leg whose text happens to have a parenthetical nearby.
+        # Must run BEFORE the bare dash-range fallback below: that
+        # fallback's 20-char window, applied to a message like "NIFTY
+        # 25100 CE (23 SEPT) CMP 150-160 SL 120 TGT 240", gets truncated by
+        # the parenthetical to "150-16" (the trailing "0" falls outside the
+        # window) and would otherwise misread "16" as the target instead of
+        # correctly leaving target blank here so the message-level "TGT
+        # 240" fallback further down fills it.
+        if style == 'mixed' and entry is None and sig['entry'] is None:
+            pc = RE_OPT_PAREN_CMP.match(text[m.end():m.end() + 40])
+            if pc:
+                sig['entry'] = _f(pc.group(1))
         # range entry "₹250-320" when no explicit premium
         if entry is None and sig['entry'] is None:
             rng = RE_RANGE.search(text[m.end():m.end() + 20])
             if rng:
                 sig['entry'] = _f(rng.group(1))
                 sig['target'] = _f(rng.group(2))
+        # THEBULLOPTIONS reposts the SAME option leg many times through the
+        # day as a running-LTP ticker: "\U0001F4CA SENSEX 74000 PE (04 JUN)
+        # \n375", "...\n380", ..., "...\nFIRST TARGET DONE", "...\nBoom 370
+        # To 485 = 115+ Point big Jackpot" — only the ORIGINAL "\U0001F4C8
+        # BUY ABOVE <price>" trigger message states the real entry; every
+        # other repost must stay entry=None so it collapses into the same
+        # Open row via the (channel, trade, entry=None) upsert key, rather
+        # than being misread as a fresh entry at that leg's current LTP —
+        # which would otherwise mint a new phantom Trade row on every
+        # repost. Searches the full remainder of the message (not the
+        # small window RE_ABOVE_BELOW's other fallback below uses) since
+        # the trigger phrase can sit several lines past the parenthetical
+        # expiry annotation. Style-gated to 'options'; verified empirically
+        # that this doesn't change a single parsed signal for either other
+        # 'options'-style channel (Options Train, Stock Thunder) or
+        # MarketWolf (also 'options') — none of their option-leg messages
+        # with a still-missing entry at this point also contain a later
+        # ABOVE/BELOW word.
+        if style == 'options' and entry is None and sig['entry'] is None:
+            ab = RE_ABOVE_BELOW.search(text[m.end():])
+            if ab:
+                sig['entry'] = _f(ab.group(1))
         add(sig)
+
+    # 1a. Ashika Calls' lower/mixed-case index option names (see comment
+    # above RE_OPT_INDEX_CI) — style-gated to 'mixed'.
+    if style == 'mixed':
+        for m in RE_OPT_INDEX_CI.finditer(text):
+            root = m.group(1).upper()
+            strike = m.group(2).replace(',', '')
+            right = {'CALL': 'CE', 'PUT': 'PE'}.get(m.group(3).upper(), m.group(3).upper())
+            trade = f'{root} {strike} {right}'
+            option_roots.add(root)
+            if any(o['trade'] == trade for o in out):
+                continue
+            # same close-out-span exclusion RE_OPT's own loop applies above
+            # (e.g. Nirmal Bang's "NIFTY 23600CE CLOSE @31") — without it
+            # this case-insensitive variant would re-read a close-out as a
+            # fresh order.
+            if any(s[0] < m.end() and s[1] > m.start() for s in exit_price_spans):
+                continue
+            entry = None
+            pc = RE_OPT_PAREN_CMP.match(text[m.end():m.end() + 40])
+            if pc:
+                entry = _f(pc.group(1))
+            add({'trade': trade,
+                 'direction': 'CALL (up)' if right == 'CE' else 'PUT (down)',
+                 'entry': entry, 'target': None, 'stop_loss': None, 'status': 'Open'})
 
     # 1b. broker-style options with an expiry date in the middle:
     # "BUY NIFTY 03 JUL 25 25700 CE 1 lots at 109.00."
@@ -510,6 +695,45 @@ def parse_message(text, style=None):
                  'direction': 'CALL (up)' if right == 'CE' else 'PUT (down)',
                  'entry': _f(prem) if prem else None,
                  'target': None, 'stop_loss': None, 'status': 'Open'})
+
+    # 1e. MarketWolf's "Index/Commodity/Stock + OPTION + BUY" three-line
+    # shape (see comment above RE_MARKETWOLF_OPTION) — style-gated to
+    # 'options'.
+    if style == 'options':
+        for m in RE_MARKETWOLF_OPTION.finditer(text):
+            root = re.sub(r'\s+', ' ', m.group(1).strip()).upper()
+            strike = m.group(2).replace(',', '')
+            right = m.group(4).upper()
+            trade = f'{root} {strike} {right}'
+            option_roots.add(root)
+            if any(o['trade'] == trade for o in out):
+                continue
+            add({'trade': trade,
+                 'direction': 'CALL (up)' if right == 'CE' else 'PUT (down)',
+                 'entry': _f(m.group(5)), 'target': None, 'stop_loss': None,
+                 'status': 'Open'})
+
+    # 1f. Short To Mid Term®™'s two dominant shapes (see comment above
+    # RE_STMT_ENTRY/RE_STMT_RECAP) — style-gated to 'cash'.
+    if style == 'cash':
+        m = RE_STMT_ENTRY.search(text)
+        if m:
+            sym = m.group(3)
+            if _is_symbol(sym) and sym not in option_roots and not any(o['trade'] == sym for o in out):
+                add({'trade': sym, 'direction': 'BUY', 'entry': _f(m.group(1)),
+                     'target': _f(m.group(2)), 'stop_loss': None, 'status': 'Open'})
+        for m in RE_STMT_RECAP.finditer(text):
+            sym = m.group(1)
+            if not _is_symbol(sym) or sym in option_roots or any(o['trade'] == sym for o in out):
+                continue
+            add({'trade': sym, 'direction': 'BUY', 'entry': _f(m.group(2)),
+                 'target': _f(m.group(4)), 'stop_loss': None, 'status': 'Open'})
+        m = RE_VISHAL_BOUGHT.search(text)
+        if m:
+            sym = m.group(1).upper()
+            if _is_symbol(sym) and sym not in option_roots and not any(o['trade'] == sym for o in out):
+                add({'trade': sym, 'direction': 'BUY', 'entry': _f(m.group(2)),
+                     'target': None, 'stop_loss': None, 'status': 'Open'})
 
     # 2. crypto futures: "ONDO LONG 20x"
     for m in RE_CRYPTO.finditer(text):
@@ -576,6 +800,20 @@ def parse_message(text, style=None):
         add({'trade': sym, 'direction': side, 'entry': _f(level),
              'target': None, 'stop_loss': None, 'status': 'Open'})
 
+    # 5b. Ashika Calls' parenthetical-expiry cash/futures shape and its
+    # 2-char "LT" ticker (see comment above RE_VERB_FIRST_ASHIKA). Runs only
+    # if nothing above already matched this symbol (e.g. a plain "BUY LTF
+    # FUT (JULY26) CMP 286-288" already caught by RE_VERB_FIRST once the
+    # paren is skipped by *this* regex, but a 3+-char symbol with no paren
+    # was already caught by RE_VERB_FIRST above, so this just dedups).
+    if style == 'mixed':
+        for m in RE_VERB_FIRST_ASHIKA.finditer(text):
+            side, sym, level = m.group(1).upper(), m.group(2), m.group(3)
+            if not _is_symbol(sym) or sym in option_roots or any(o['trade'] == sym for o in out):
+                continue
+            add({'trade': sym, 'direction': side, 'entry': _f(level),
+                 'target': None, 'stop_loss': None, 'status': 'Open'})
+
     # 6. Stockpro Online's lower/mixed-case level phrasing (see the comment
     # above RE_FRESH_BREAKOUT/RE_SHARED_RESEARCH): "SYMBOL fresh breakout
     # above N" and "SYMBOL ... we shared the research ... it looks good
@@ -587,6 +825,17 @@ def parse_message(text, style=None):
                 continue
             add({'trade': sym, 'direction': 'BUY' if side == 'ABOVE' else 'SELL',
                  'entry': _f(level), 'target': None, 'stop_loss': None, 'status': 'Open'})
+
+    # 6a. Stocky Mind's "⚡ SYMBOL ... N to M" recap (see comment above
+    # RE_STOCKY_RECAP) — style-gated to 'mixed'.
+    if style == 'mixed':
+        m = RE_STOCKY_RECAP.search(text)
+        if m:
+            sym = m.group(1)
+            if _is_symbol(sym) and sym not in option_roots and not any(o['trade'] == sym for o in out):
+                entry_v, exit_v = _f(m.group(2)), _f(m.group(3))
+                add({'trade': sym, 'direction': 'BUY' if exit_v >= entry_v else 'SELL',
+                     'entry': entry_v, 'target': exit_v, 'stop_loss': None, 'status': 'Open'})
 
     # 6b. Stockpro Online's dominant "POSITIONAL/SCALPING ... Looks Good
     # ABOVE ... SL ... Targets ... Hold" ladder shape (see comment above
@@ -684,9 +933,17 @@ RE_STOCKPRO_CROSSED_TARGETS = re.compile(
 # exit price (sometimes a small range, e.g. "387.7-389"; the first/lower
 # number is used as the representative exit price) rather than a rupee
 # profit figure or the "EXIT SYM @ PRICE" shape RE_EXIT_PRICE expects.
+# "CMP" is an equally-common price marker for the same shape — Ashika
+# Calls' dominant close-out phrasing (564 of its tracked messages, e.g.
+# "BOOK PARTIAL PROFIT IN ESCORTS  CMP 3623", "BOOK PROFIT IN LT CMP
+# 3907"), also seen a handful of times in Samco ("BOOK PROFIT IN
+# DATAPATTNS CMP 1785", "BOOK PROFIT IN APLAPOLLO25DEC1800CE CMP 23") —
+# left ungated (this function has no `style` parameter to gate on, and a
+# full-corpus grep across all 82 channels turns up the shape only in these
+# two, both a genuine close in every occurrence, never a false positive).
 RE_CLOSE_EVENT = re.compile(
     r'\b(?:BOOK\s+(?:PARTIAL\s+)?PROFITS?|TARGET\s+ACHIEVED)\s+IN\s+'
-    r'([A-Z][A-Z0-9 \xa0]{1,30}?)\s*(?:AT\b|@)\s*' + NUM, re.IGNORECASE)
+    r'([A-Z][A-Z0-9 \xa0]{1,30}?)\s*(?:AT\b|@|CMP)\s*' + NUM, re.IGNORECASE)
 _EXPIRY_TOKEN = re.compile(r'\b' + EXPIRY + r'\b', re.IGNORECASE)
 
 

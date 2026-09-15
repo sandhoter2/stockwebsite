@@ -1716,6 +1716,49 @@ def _equity99_special_signal(text):
             'target': _f(tm.group(1)), 'stop_loss': None, 'status': 'Open'}
 
 
+# Eqwires Research Analyst's (channel 79) dominant shape is a structured,
+# already-BTST/INTRADAY-completed recap template, e.g.:
+#   Today's High-Quality Trade Update
+#   Trade:  INTRADAY
+#   Stock:  PERSISTENT 30 JAN 6200 CE
+#   Buy Price:  ₹167.85
+#   Sell Price:  ₹227.85
+#   Profit Booked:  ₹6000/-
+# The "Stock:" line's symbol was already being extracted correctly by some
+# existing generic path (verified: Trade rows for this channel already
+# have the right `trade` string, e.g. "PERSISTENT 6200 CE"), but no
+# regex anywhere recognized "Buy Price:" as an entry trigger, so every
+# single one of this channel's 70 pre-existing Trade rows had entry=None
+# -- the channel looked like it had trades but every one was empty of the
+# one number a "trade" row exists to record. "Trade Details" is required
+# as an anchor (verified unique to this channel across the full 82-channel
+# corpus, 681 occurrences) so the bare "Buy Price:" phrase alone can never
+# fire on some other channel's unrelated text. Symbol normalization reuses
+# _normalize_close_symbol (defined below) since it already does exactly
+# what this shape's "Stock:" line needs: strip an expiry-date infix
+# ("30 JAN"), tolerate a missing space before CE/PE ("6200CE"), and reduce
+# a "<ROOT> <EXPIRY> FUT" futures line to its bare root ("MCX SEP FUT" ->
+# "MCX") -- the same reduction Nirmal Bang Official's close-out path
+# already relies on.
+RE_EQWIRES_ANCHOR = re.compile(r'Trade\s+Details', re.IGNORECASE)
+RE_EQWIRES_STOCK = re.compile(r'^\s*Stock\s*:\s*([^\n]+)', re.IGNORECASE | re.MULTILINE)
+RE_EQWIRES_BUY_PRICE = re.compile(r'Buy\s+Price\s*:\s*₹?\s*(\d[\d,]*(?:\.\d+)?)', re.IGNORECASE)
+
+
+def _eqwires_trade_update_signal(text):
+    if not RE_EQWIRES_ANCHOR.search(text):
+        return None
+    sm = RE_EQWIRES_STOCK.search(text)
+    bm = RE_EQWIRES_BUY_PRICE.search(text)
+    if not sm or not bm:
+        return None
+    sym = _normalize_close_symbol(sm.group(1))
+    if not sym or not _is_symbol(sym):
+        return None
+    return {'trade': sym, 'direction': 'BUY', 'entry': _f(bm.group(1)),
+            'target': None, 'stop_loss': None, 'status': 'Open'}
+
+
 def _momentum_word_to_word_signal(text):
     for rx in (RE_MOMENTUM_SAMELINE, RE_MOMENTUM_NEXTLINE):
         m = rx.search(text)
@@ -2720,6 +2763,21 @@ def parse_message(text, style=None):
                 o['trade'] == esig['trade'] for o in out):
             add(esig)
 
+    # 6p. Eqwires Research Analyst's structured "Trade Details / Stock: .../
+    # Buy Price: ₹..." recap template (see comment above
+    # _eqwires_trade_update_signal) -- only used as a fallback whole-signal
+    # source when nothing above already produced a signal for this
+    # message's symbol; the far more common case (an existing generic path
+    # already extracts the right "Stock:" symbol via RE_OPT et al., just
+    # with no entry) is instead handled by the RE_EQWIRES_BUY_PRICE
+    # entry-fill a few lines below, alongside this file's other
+    # entry-still-None fallbacks -- ungated (its own "Trade Details" anchor
+    # is already verified unique to this channel across the full corpus).
+    qsig = _eqwires_trade_update_signal(text)
+    if qsig and qsig['trade'] not in option_roots and not any(
+            o['trade'] == qsig['trade'] for o in out):
+        add(qsig)
+
     if not out:
         return []
 
@@ -2731,6 +2789,14 @@ def parse_message(text, style=None):
         tg = tg or RE_TARGET_MIXED.search(text)
     prem = RE_PREMIUM.search(text)
     enter = RE_ENTER.search(text)
+    # Eqwires Research Analyst's (79) "Buy Price: ₹<num>" -- verified
+    # unique to this channel across the full 82-channel corpus (see
+    # comment above _eqwires_trade_update_signal), so ungated. Covers the
+    # common case where an existing generic path already extracted the
+    # right symbol from the "Stock:" line but left entry unset -- e.g.
+    # every one of this channel's 70 pre-existing Trade rows had
+    # entry=None before this fix.
+    eqwires_buy = RE_EQWIRES_BUY_PRICE.search(text)
     for sig in out:
         if sig['stop_loss'] is None and sl:
             sig['stop_loss'] = _f(sl.group(1))
@@ -2740,6 +2806,8 @@ def parse_message(text, style=None):
             sig['entry'] = _f(prem.group(1))
         if sig['entry'] is None and sig['asset_class'] == 'crypto' and enter:
             sig['entry'] = _f(enter.group(1))
+        if sig['entry'] is None and eqwires_buy:
+            sig['entry'] = _f(eqwires_buy.group(1))
         if sig['status'] == 'Open' and RE_HOLDING.search(text):
             sig['status'] = 'Open'
 
@@ -2755,7 +2823,7 @@ def parse_message(text, style=None):
 
 # ---- profit / exit ---------------------------------------------------------
 RE_PROFIT_POST = re.compile(NUM + r'\s*\+*\s*(?:K)?\s*PROFIT', re.IGNORECASE)   # "2,175+ PROFIT"
-RE_PROFIT_PRE = re.compile(r'PROFIT\s*(?:₹|OF|:)?\s*₹?\s*' + NUM, re.IGNORECASE)  # "PROFIT ₹5000"
+RE_PROFIT_PRE = re.compile(r'PROFIT\s*(?:BOOKED)?\s*(?:₹|OF|:)?\s*₹?\s*' + NUM, re.IGNORECASE)  # "PROFIT ₹5000" / "Profit Booked: ₹5000"
 RE_PIPS = re.compile(r'[₹+]?\s*' + NUM + r'\s*(?:Pips|POINTS|Pts)', re.IGNORECASE)
 # Stock Thunder's running-P&L phrasing: "GAINING RS- 4000/ 2 LOTS" (never
 # uses the word "profit" itself)
@@ -2862,7 +2930,17 @@ def parse_profit(text):
     if re.match(r'\s*-\s*(?:BUY|SELL)\b', text[m.end():], re.IGNORECASE):
         return None
     val = _f(m.group(1))
-    if m.re.match(text[m.start():]) and 'K' in m.group(0).upper():
+    # CHANNEL-AGNOSTIC BUG FIX: this used to be a blanket `'K' in
+    # m.group(0).upper()` check, which broke the moment RE_PROFIT_PRE
+    # learned to match the word "BOOKED" (added this pass, for Eqwires
+    # Research Analyst's "Profit Booked: ₹6000/-" template) -- "BOOKED"
+    # itself contains a "K", so every such message was misread as a
+    # thousands-suffixed figure and inflated 1000x (₹6,000 -> ₹6,000,000).
+    # Narrowed to require the "K" immediately adjacent to the digits
+    # (optionally through a "+"/space), which is the only shape either
+    # regex was ever meant to catch ("2,175K PROFIT", "2,175+K PROFIT").
+    if m.re.match(text[m.start():]) and re.search(
+            r'\d[\d,]*\s*\+?\s*K\b', m.group(0), re.IGNORECASE):
         val *= 1000
     return val
 

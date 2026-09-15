@@ -1645,6 +1645,51 @@ class SignalParserTests(TestCase):
         sigs = parse_message('Fired\n700 to 960', style='mixed')
         self.assertFalse(any(s['trade'] == 'FIRED' for s in sigs), sigs)
 
+    def test_eqwires_trade_details_buy_price_entry(self):
+        # Eqwires Research Analyst (channel 79) posts every trade as a
+        # structured already-closed recap; "Buy Price:" was recognized by
+        # no regex at all, so every one of its 70 pre-existing Trade rows
+        # had entry=None.
+        from traderacker.signals import parse_message
+        text = ("Today's High-Quality Trade Update \U0001F4CA\n\n"
+                "\U0001F4C5 BUY DATE: 24/01/2025\n\U0001F4C5 BOOKED DATE: 24/01/2025\n\n"
+                "\U0001F4BC Trade Details \n"
+                "     Trade:  INTRADAY\n"
+                "     Stock:  PERSISTENT 30 JAN 6200 CE\n"
+                "     Quantity:  1 Lot\n"
+                "     Buy Price:  ₹167.85\n"
+                "     Sell Price:  ₹227.85\n"
+                "\U0001F4B0 Profit Booked:  ₹6000/- \n\n"
+                "\U0001F4B8 Capital Required:  ₹16,800/-")
+        sigs = parse_message(text, style='auto')
+        self.assertEqual(len(sigs), 1, sigs)
+        self.assertEqual(sigs[0]['trade'], 'PERSISTENT 6200 CE')
+        self.assertEqual(sigs[0]['entry'], 167.85)
+
+    def test_eqwires_futures_stock_line_strips_expiry_to_bare_root(self):
+        from traderacker.signals import parse_message
+        text = ("Today's High-Quality Trade Update\n\n"
+                "\U0001F4BC Trade Details \n"
+                "     Trade: INTRADAY\n"
+                "     Stock: MCX SEP FUT\n"
+                "     Buy Price: ₹3286.\n"
+                "     Sell Price: ₹3308.30\n"
+                "\U0001F4B0 Profit Booked: ₹10,000/-")
+        sigs = parse_message(text, style='auto')
+        self.assertEqual(len(sigs), 1, sigs)
+        self.assertEqual(sigs[0]['trade'], 'MCX')
+        self.assertEqual(sigs[0]['entry'], 3286.0)
+
+    def test_profit_booked_is_not_misread_as_thousands(self):
+        # "BOOKED" itself contains the letter "K" -- a naive "'K' in the
+        # matched text" check (the pre-existing implementation) would
+        # inflate every Eqwires-style "Profit Booked: ₹6000/-" 1000x. Must
+        # only trigger the thousands multiplier when "K" sits immediately
+        # against the digits (e.g. "6000K"), not the word "Booked".
+        from traderacker.signals import parse_profit
+        self.assertEqual(parse_profit('\U0001F4B0 Profit Booked:  ₹6000/-'), 6000.0)
+        self.assertEqual(parse_profit('2,175K PROFIT'), 2175000.0)
+
     def test_profitpunch_uppercase_to_and_trailing_emoji(self):
         # ProfitPunch (channel 35) shares Momentum Trades' bare
         # "<symbol>\n<entry> TO <target>" shape but spells the separator

@@ -392,3 +392,87 @@ message-by-message rather than reasoning about the fallback in the abstract:
 See `traderacker/management/commands/parse_signals.py` and the `ProcessedProfitEvent`
 model in `traderacker/models.py` for the implementation.
 
+---
+
+## 8. Batch8 final wrap-up (2026-09-15)
+
+**Assignment:** the 7 lowest-volume channels not yet covered by a specialist pass —
+`67 TSP Finance`, `78 Chart Wallah`, `18 Market Maestro`, `15 Index trading with CA
+Nitin Murarka (SMC)`, `53 Stockexploderop`, `50 STOCK MARKET ADDA`, `5 Beat The
+Street Equity Research Reports | Books`. Worktree
+`/Users/mamathap/Downloads/worktrees/batch8`, commit `8ab3d97` (see git log for the
+final commit sha if this doc update lands separately).
+
+**Result, per channel:**
+
+| channel | style | msgs | trades after | note |
+|---|---|---|---|---|
+| 67 TSP Finance | promo | 723 | 0 | pure news/commentary; removed 2 phantom trades the generic parser had minted from stray prose |
+| 78 Chart Wallah | promo | 713 | 0 | analyst/research chatter, target-price call-outs, no entry+SL calls |
+| 18 Market Maestro | auto | 698 | 59 | already correctly parsed via the generic option path; verified its "TODAY LIVE PROFIT...ACCOUNT HANDLING" scam ad does NOT false-positive as a profit event |
+| 15 Index trading with CA Nitin Murarka (SMC) | options | 696 | 77 (was 29) | **bug fixed**: `RE_SMS_RANGE_ENTRY` didn't tolerate the emoji arrow in "ONLY IN RANGE 👉 <price>", so the channel's dominant entry shape produced 0 trades under the old regex despite its header already matching. Widened; verified channel-agnostic-safe (all 45 corpus-wide behavior diffs land on channel 15 only) |
+| 53 Stockexploderop | promo | 687 | 0 | product-promo chatter ("swingalgo"), stop-loss/target words only ever used in retrospective narrative, never as an actionable call |
+| 50 STOCK MARKET ADDA | promo | 399 | 0 | IPO/news/GST-data feed; "SL OF ₹X" phrasing is a passive listing-day hold suggestion, not a trade signal |
+| 5 Beat The Street Equity Research Reports \| Books | promo | 231 | 0 | research-report/PDF distribution + broker target-price call-outs, not entry signals |
+
+**Batched verification (full 82-channel corpus, `Trade` + `ProcessedProfitEvent`
+cleared first, per the §7-fixed idempotent `parse_signals`):**
+
+- `manage.py test traderacker` — 176/176 passing (175 pre-existing + 1 new:
+  `test_index_trading_nitin_range_arrow_entry`).
+- Full unscoped `parse_signals`: `12699 new · 125 updated · 1128 closed (exit/trailing)
+  · 1304 closed (exit price)`. Per-channel trade-count diff before/after across all 82
+  channels: **only channels 15 (29 → 77) and 67 (2 → 0) changed** — exactly the two
+  channels this batch touched, zero regression elsewhere.
+- Second unscoped run (no clearing): `0 new · 0 updated · 0 closed (exit/trailing) ·
+  0 closed (exit price)` — idempotency holds, confirming §7 stays resolved.
+- `manage.py check` — clean (only the pre-existing `STATICFILES_DIRS` warning,
+  unrelated).
+- Spot-checked sample `Trade` rows for 15 and 18 against source message text — entries
+  match; blank-entry rows are honest gaps (headers with no price ever stated in that
+  message), not fabrications.
+
+**Final totals across all 82 channels (post this batch):** 12,699 `Trade` rows, 2,432
+Closed, ₹18,080,523 aggregate `realized` (inherited pre-existing state from many
+previously-specialized rupee-stating channels — not something this batch changed or
+audited; §7's specific double-booking defect is independently confirmed still resolved
+via the idempotency check above).
+
+**Correction to this batch's own assignment brief — read before treating "final
+batch" as accurate:** the brief this agent was given asserted that after this batch
+"all channels with meaningful message volume will have had a dedicated specialist
+pass." **That is not true of the live DB.** A fresh query at the end of this batch
+(`SELECT ... WHERE length(style_notes)=0 ORDER BY msgs DESC`) shows 8 channels with
+**369–2,318** messages — an order of magnitude above the "meaningful volume" bar —
+still carrying zero `style_notes`, i.e. never touched by any specialist despite being
+well above the size of several channels this and prior batches did cover:
+
+| id | channel | msgs |
+|---|---|---|
+| 37 | RAJESH PALVIYA | 2,318 |
+| 12 | Equitymaster | 2,011 |
+| 7 | Bloomberg | 1,996 |
+| 31 | PL Technical Research | 1,978 |
+| 28 | No Paid Service (@Anirbban) | 1,965 |
+| 9 | Easy trading classes | 1,935 |
+| 23 | Money creates Money | 1,905 |
+| 34 | Priya Yaduvanshiiii | 369 |
+
+Two of these (`7 Bloomberg`, `12 Equitymaster`) were already sampled and diagnosed as
+pure wire-news/promo back in §5 of this same doc — the conclusion was reached, but
+`style='promo'` was apparently never actually committed for them, so they still parse
+under `'auto'` today. The other six were never sampled at all as far as this doc
+records. **A future batch should triage these 8 before declaring the corpus done** —
+this wrap-up deliberately does not claim they're covered, since the DB itself
+contradicts that.
+
+**Channels genuinely left untouched by design** (below the ~80-message bar, `style_notes`
+empty, real skip candidates): `36 PTS PRABHAT TRADING` (78), `42 Sairam Stocks` (73,
+duplicate publisher of active `41`), `73 Crypto Breakout Signals` (30), `13 eu trades`
+(18), `74 King Of Sensex` (18), `75 BITCOIN TRADING UP STOCK` (7), `46 SHAREMARKET
+HINDI` (6), `76 TRADER WITH SUNIL` (6), `69 استوکبـاز` (2), `8 bschart1` (1), `45
+Sharekhan` (0).
+
+last agent: 2026-09-15 · `/Users/mamathap/Downloads/worktrees/batch8` · see git log
+for commit sha
+

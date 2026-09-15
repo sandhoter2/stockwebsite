@@ -1645,6 +1645,26 @@ class SignalParserTests(TestCase):
         sigs = parse_message('Fired\n700 to 960', style='mixed')
         self.assertFalse(any(s['trade'] == 'FIRED' for s in sigs), sigs)
 
+    def test_profitpunch_uppercase_to_and_trailing_emoji(self):
+        # ProfitPunch (channel 35) shares Momentum Trades' bare
+        # "<symbol>\n<entry> TO <target>" shape but spells the separator
+        # uppercase and sometimes trails the ticker with emoji before the
+        # line break.
+        from traderacker.signals import parse_message
+        sigs = parse_message('BEL \U0001F44C\U0001F44C\n\n242 TO 275', style='cash')
+        self.assertEqual(len(sigs), 1, sigs)
+        self.assertEqual(sigs[0]['trade'], 'BEL')
+        self.assertEqual(sigs[0]['entry'], 242.0)
+        self.assertEqual(sigs[0]['target'], 275.0)
+
+    def test_momentum_deny_list_rejects_special_and_moved(self):
+        # The uppercase-TO widening for ProfitPunch also newly matches two
+        # header/commentary fragments in other 'cash' channels that are not
+        # real tickers -- must stay excluded via MOMENTUM_DENY.
+        from traderacker.signals import parse_message
+        self.assertEqual(parse_message('Special 7 To 15', style='cash'), [])
+        self.assertEqual(parse_message('Moved 838 To 895', style='cash'), [])
+
     def test_nfkc_normalization_decodes_stylized_unicode_font(self):
         # Nrj finance (channel 29) posts its entire dominant order shape in
         # Unicode "Mathematical Bold"/"Sans-Serif Bold" characters instead

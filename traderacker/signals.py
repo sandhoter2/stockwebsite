@@ -1640,14 +1640,26 @@ def _usha_around_entry_signal(text):
 # To Mid Term, 60 Swing Trader Vishal, 61 Systematix Group Official): 0
 # false-positive matches after excluding the index roots and a small
 # prose-word deny set.
+# ProfitPunch (channel 35) shares this exact same shape but spells the
+# separator "TO" uppercase ("BEL 👌👌\n\n242 TO 275", "TRENT\n\n1182 TO
+# 1345") and sometimes trails the ticker with emoji before the line break
+# ("BEL 👌👌\n..."). Made IGNORECASE and added tolerance for up to 10 chars
+# of trailing non-digit junk after the ticker word on the next-line variant
+# -- re-verified empirically safe across every 'cash'-style channel's full
+# history: this surfaces two new false positives on the already-specialized
+# channels (Equity99's "Special 7 To 15" header fragment and Swing Trader
+# Vishal's "Moved 838 To 895" stop-adjustment commentary), both added to
+# MOMENTUM_DENY below; every other channel's Trade count is unchanged
+# after a full unscoped clear+reparse.
 RE_MOMENTUM_SAMELINE = re.compile(
     r'^([A-Z][A-Za-z]{2,15})\s+(\d[\d,]*(?:\.\d+)?)\s+to\s+(\d[\d,]*(?:\.\d+)?)',
-    re.MULTILINE)
+    re.MULTILINE | re.IGNORECASE)
 RE_MOMENTUM_NEXTLINE = re.compile(
-    r'^([A-Z][A-Za-z]{2,15})[ \t]*\r?\n[ \t]*\r?\n?[ \t]*'
-    r'(\d[\d,]*(?:\.\d+)?)\s+to\s+(\d[\d,]*(?:\.\d+)?)', re.MULTILINE)
+    r'^([A-Z][A-Za-z]{2,15})[ \t]*[^\d\n]{0,10}\r?\n[ \t]*\r?\n?[ \t]*'
+    r'(\d[\d,]*(?:\.\d+)?)\s+to\s+(\d[\d,]*(?:\.\d+)?)', re.MULTILINE | re.IGNORECASE)
 MOMENTUM_DENY = {'FROM', 'FOR', 'THE', 'RANGE', 'TODAY', 'TARGET', 'SUPPORT',
-                 'AGAIN', 'TRADE', 'CMP', 'NEAR', 'AREA', 'EXPECTED', 'COMING'}
+                 'AGAIN', 'TRADE', 'CMP', 'NEAR', 'AREA', 'EXPECTED', 'COMING',
+                 'SPECIAL', 'MOVED'}
 
 
 # Equity99's dominant "Special Situation Stock" / "Special day pick" /

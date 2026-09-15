@@ -335,6 +335,24 @@ class SignalParserTests(TestCase):
         self.assertEqual(sigs[0]['stop_loss'], 43.8)
         self.assertEqual(sigs[0]['asset_class'], 'crypto')
 
+    def test_index_trading_nitin_range_arrow_entry(self):
+        # Index trading with CA Nitin Murarka (SMC), channel 15: dominant
+        # entry shape is the "<INDEX> <DAY> <MON> <STRIKE> CE/PE" header
+        # (RE_SMS_OPT_DATE, style-gated to 'options') followed by "ONLY IN
+        # RANGE" with an emoji arrow before the price. Widened
+        # RE_SMS_RANGE_ENTRY (was whitespace/'@' only) to tolerate the
+        # arrow -- before the fix this whole shape parsed to [] even though
+        # the header matched.
+        from traderacker.signals import parse_message
+        sigs = parse_message(
+            'NIFTY 11 Aug 24550 CE \n\nONLY IN RANGE   \U0001f449 115 - 118',
+            style='options')
+        self.assertEqual(len(sigs), 1)
+        self.assertEqual(sigs[0]['trade'], 'NIFTY 24550 CE')
+        self.assertEqual(sigs[0]['direction'], 'CALL (up)')
+        self.assertEqual(sigs[0]['entry'], 115.0)
+        self.assertEqual(sigs[0]['asset_class'], 'option')
+
     def test_crypto_bare_symbol_price_labels_no_long_short(self):
         # Serezha Calls' rarest shape: no LONG/SHORT keyword anywhere, just
         # prose naming a known crypto ticker plus fully-labeled Entry/Target

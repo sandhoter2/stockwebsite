@@ -260,7 +260,16 @@ RE_SMS_OPT_DATE = re.compile(
 # other channels that also happen to use a "<DAY> <MON>" header (e.g. "355
 # To 745+", "CMP 22 Hero Zero") never contain the word "Range" either, so
 # this stays a no-op there).
-RE_SMS_RANGE_ENTRY = re.compile(r'\bRange\b\s*@?\s*' + NUM, re.IGNORECASE)
+# Index trading with CA Nitin Murarka (SMC) (channel 15) posts this same
+# "<INDEX> <DAY> <MON> <STRIKE> CE/PE" header, but its own range-entry
+# keyword is "ONLY IN RANGE 👉 <lo> - <hi>" — the emoji arrow between
+# "RANGE" and the number broke the original `\s*@?\s*` gap (neither
+# whitespace nor a literal "@"), so this channel's dominant entry shape
+# matched RE_SMS_OPT_DATE's header but never found an entry trigger and
+# silently produced zero trades. Widened to tolerate any short run of
+# non-digit decoration (emoji, arrows, dashes, colons) between the keyword
+# and the price, verified channel-agnostic-safe below.
+RE_SMS_RANGE_ENTRY = re.compile(r'\bRange\b[^\d\n]{0,15}' + NUM, re.IGNORECASE)
 # broker-style option order with an expiry date between the index and the
 # strike, and a lot-size clause between the CE/PE and the premium, e.g.
 # "BUY NIFTY 03 JUL 25 25700 CE 1 lots at 109.00."

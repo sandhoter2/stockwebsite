@@ -110,6 +110,23 @@ STOP_WORDS = {
     # digit) and reads it as if it were the next line's ticker. No real
     # ticker is literally "OI" anywhere in the 82-channel tracked history.
     'OI',
+    # Usha's Analysis's other live cash-equity/futures entry keyword:
+    # "<TICKER>[ <MONTH> FUTURES]\n\n[BUY ]AROUND <price>\n\nTARGET ...".
+    # "AROUND" sat right where a symbol would via the generic RE_VERB_FIRST
+    # ("BUY <SYM> ... <NUM>" with SYM="AROUND"), so it needed the same
+    # STOP_WORDS exclusion as ABV/RANGE above -- the real ticker is
+    # recovered from the preceding line by _usha_around_entry_signal.
+    'AROUND',
+    # Usha's Analysis's subscription-combo-pack promo spam ("SPECIAL
+    # OFFER'S FOR ... \n\nBUY 1 MONTH GET 2 FREE\n\nBUY 3 MONTHS GET 4
+    # FREE") uses the word "BUY" as an ordinary subscription verb, which
+    # defeats is_promo()'s TRADE_VERB override (a genuine "BUY" elsewhere
+    # in the same message means the promo skip never kicks in) -- the
+    # generic RE_VERB_FIRST/RE_BUYSELL fallbacks then misread "FREE"/
+    # "EQUITY" (from "SHORT TERM EQUITY" a few words later in the same
+    # promo) as phantom bare tickers. Neither is a real ticker anywhere in
+    # the 82-channel tracked history.
+    'FREE', 'EQUITY',
 }
 
 
@@ -1416,19 +1433,65 @@ def _usha_at_entry_signal(text):
             'target': None, 'stop_loss': None, 'status': 'Open'}
 
 
+# Usha's Analysis's OTHER live entry keyword: the ticker (optionally with a
+# trailing "<MONTH> FUTURES"/"<MONTH> FUT" expiry suffix, for its futures
+# calls) sits alone on the line above "[BUY ]AROUND <price>", e.g. "SHORT
+# TERM EQUITY\n\nQUESS\n\nBUY AROUND 347\n\nTARGET 380,410+", "SHORT TERM\n\n
+# MPHASIS AUG FUTURES \n\nAROUND 2515\n\nTARGET 2550,2600+". Anchored to the
+# start of its own line, same false-positive reasoning as
+# RE_HARI_ENTRY_TRIGGER above (an "AROUND" appearing mid-sentence after some
+# other word must not have that word misread as the ticker).
+RE_USHA_AROUND_ENTRY = re.compile(
+    r'^\s*(?:BUY\s+)?AROUND\s*[:\-]?\s*' + NUM, re.IGNORECASE | re.MULTILINE)
+RE_USHA_FUTURES_SUFFIX = re.compile(
+    r'\s+(?:' + MONTH_ABBR + r')[A-Z]*\s+(?:FUTURES?|FUT)\.?$', re.IGNORECASE)
+
+
+def _usha_around_entry_signal(text):
+    m = RE_USHA_AROUND_ENTRY.search(text)
+    if not m:
+        return None
+    for line in reversed(text[:m.start()].splitlines()):
+        raw = line.strip()
+        if not raw:
+            continue
+        raw = RE_USHA_FUTURES_SUFFIX.sub('', raw.upper()).strip()
+        if re.search(r'\s', raw):
+            return None
+        tok = re.sub(r'[^\w&\-]', '', raw)
+        if not tok:
+            continue
+        if not _is_symbol(tok):
+            return None
+        return {'trade': tok, 'direction': 'BUY', 'entry': _f(m.group(1)),
+                'target': None, 'stop_loss': None, 'status': 'Open'}
+    return None
+
+
 # promotional / PR / news posts that are never a trade signal (req 1.c)
 PROMO = re.compile(
-    r'\b(offer\b|opens here|valid for first|slots only|join\b|'
+    r'\b(offer\b|offers\b|opens here|valid for first|slots only|join\b|'
+    r'joining link|combo pack|'
     r'\bipo\b|price band|apply now|listing|registration|batch|coaching|course|'
     r'cues for next week|news\b|breaking|read more|details below|'
     r'book your slot|limited seats|new batch|mentorship|follow us|'
     r'share this|forwarded|webinar|subscribe)\b', re.IGNORECASE)
 TRADE_VERB = re.compile(
     r'\b(BUY|SELL|LONG|SHORT|ABOVE|BELOW|BREAKOUT|CE|PE|CALL|PUT)\b', re.IGNORECASE)
+# Usha's Analysis's subscription-combo-pack spam uses "BUY" as an ordinary
+# subscription verb ("BUY 1 MONTH GET 2 FREE", "BUY 3 MONTHS GET 4 MONTHS
+# FREE"), which otherwise defeats is_promo()'s TRADE_VERB override -- a
+# message that is ENTIRELY this pricing template plus a PROMO hit (join
+# link, "SPECIAL OFFER'S", etc) has no OTHER real trade verb, so this
+# specific "BUY" usage is stripped out before the TRADE_VERB check runs.
+RE_SUBSCRIPTION_BUY = re.compile(
+    r'\bBUY\s+\d+\s+MONTHS?\s+GET\s+\d+\s*(?:MONTHS?\s*)?FREE\b', re.IGNORECASE)
 
 
 def is_promo(text):
-    return bool(text and PROMO.search(text) and not TRADE_VERB.search(text))
+    if not text or not PROMO.search(text):
+        return False
+    return not TRADE_VERB.search(RE_SUBSCRIPTION_BUY.sub('', text))
 
 
 def parse_message(text, style=None):
@@ -2222,6 +2285,15 @@ def parse_message(text, style=None):
         if usig and usig['trade'] not in option_roots and not any(
                 o['trade'] == usig['trade'] for o in out):
             add(usig)
+
+    # 6m. Usha's Analysis's "<TICKER>\n\n[BUY ]AROUND <price>" cash/futures
+    # entry (see comment above _usha_around_entry_signal) -- style-gated to
+    # 'mixed'.
+    if style == 'mixed':
+        asig = _usha_around_entry_signal(text)
+        if asig and asig['trade'] not in option_roots and not any(
+                o['trade'] == asig['trade'] for o in out):
+            add(asig)
 
     if not out:
         return []

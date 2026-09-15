@@ -1484,6 +1484,46 @@ class SignalParserTests(TestCase):
         text = 'PCR is 0.95 around ATM and 0.8 overall- neutral to bullish'
         self.assertEqual(parse_message(text, style='promo'), [])
 
+    def test_usha_around_entry_recovers_ticker_from_prior_line(self):
+        # Usha's Analysis's other entry keyword: "<TICKER>\n\nBUY AROUND
+        # <price>" must recover QUESS, not the filler word "AROUND".
+        from traderacker.signals import parse_message
+        text = 'SHORT TERM EQUITY\n\nQUESS\n\nBUY AROUND 347\n\nTARGET 380,410+\n\nSTOP LOSS TO PREMIUM'
+        sigs = parse_message(text, style='mixed')
+        self.assertEqual(len(sigs), 1)
+        s = sigs[0]
+        self.assertEqual(s['trade'], 'QUESS')
+        self.assertEqual(s['entry'], 347.0)
+        self.assertEqual(s['target'], 380.0)
+
+    def test_usha_around_entry_strips_futures_month_suffix(self):
+        # A futures header with a trailing "<MONTH> FUTURES" suffix must
+        # still resolve to the bare underlying ticker.
+        from traderacker.signals import parse_message
+        text = 'SHORT TERM\n\nMPHASIS AUG FUTURES \n\nAROUND 2515\n\nTARGET 2550,2600+\n\nSTOP LOSS TO PREMIUM'
+        sigs = parse_message(text, style='mixed')
+        self.assertEqual(len(sigs), 1)
+        self.assertEqual(sigs[0]['trade'], 'MPHASIS')
+        self.assertEqual(sigs[0]['entry'], 2515.0)
+
+    def test_subscription_combo_pack_promo_not_a_phantom_trade(self):
+        # Usha's Analysis's subscription-pricing spam ("BUY 1 MONTH GET 2
+        # FREE") must not be misread as a real "BUY <SYM>" trade order,
+        # even though the message contains the literal word "BUY".
+        from traderacker.signals import parse_message
+        text = ("SPECIAL OFFER'S FOR STOCK OPTIONS SERVICES\n\n"
+                "BUY 1 MONTH GET 2 FREE\n\nBUY 3 MONTHS GET 4 FREE\n\n\n"
+                "JOINING LINK\nhttps://cosmofeed.com/vig/xyz")
+        self.assertEqual(parse_message(text, style='mixed'), [])
+
+    def test_subscription_combo_pack_offers_plural_and_pack_word(self):
+        from traderacker.signals import parse_message
+        text = ('SPECIAL COMBO OFFERS\n\nALL IN ONE COMBO PACK\n\n'
+                'BUY 1 MONTH GET 2 MONTHS FREE\n(PRICE 4999)\n\n'
+                'BUY 3 MONTHS GET 4 MONTHS FREE\n(PRICE 6999)\n\n\n'
+                'JOINING LINK\nhttps://cosmofeed.com/vig/xyz')
+        self.assertEqual(parse_message(text, style='mixed'), [])
+
 
 class MarketServiceTests(TestCase):
     """Symbol→ticker mapping and provider fallback (no real network)."""

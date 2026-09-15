@@ -208,6 +208,44 @@ RE_VERB_FIRST_ASHIKA = re.compile(
 # price sits right after the "(<expiry>)" annotation that follows CE/PE.
 RE_OPT_PAREN_CMP = re.compile(
     r'^\s*\([^)]{1,20}\)\s*(?:CMP\s*)?' + NUM, re.IGNORECASE)
+# 20PAISA..COM's dominant option-tip shape: the entry premium AND the level
+# it already ran to sit on the very next non-blank line after the strike,
+# joined by "To" (occasionally "@ <entry> To <exit>" in its "Done Of The
+# Day" recap restating several legs from one message), e.g. "Nifty 22500CE
+# \n\n\n\n\n175 To 260++", "✅Nifty 22600CE @ 177 To 193". Anchored
+# immediately after the CE/PE match (like RE_OPT_PAREN_CMP above) so it
+# only ever reads the number pair that belongs to THIS leg, not a later
+# leg's numbers in the same recap message — filling entry/target here,
+# before the message-level RE_PREMIUM fallback runs, is what keeps a
+# multi-leg "Done Of The Day" recap from having every leg collapse onto
+# the FIRST leg's price (that shared fallback does a single text-wide
+# `.search()`, not one per leg). Consumed only when style == 'mixed';
+# verified against every other 'mixed' channel's full history that this
+# adjacency, immediately after a NIFTY/BANKNIFTY/SENSEX/FINNIFTY CE/PE
+# match, is either absent or (Nivisha Verma/Stock Gainers/Stocky Mind, a
+# handful of cases each) itself a genuine "<entry> to <exit>" leg
+# restatement with no dedicated parser of its own — so filling it in is a
+# strict improvement there too, not a regression.
+RE_OPT_ENTRY_TO_TARGET = re.compile(
+    r'^[\s@]{0,15}' + NUM + r'\s*(?:to|To|TO|-)\s*' + NUM, re.IGNORECASE)
+# 20PAISA..COM's "Done Of The Day" recap also restates a leg that never got
+# a signal at all that day, with NO price of any kind -- "✅BNF 55900CE @ SL
+# Taken", "✅Nifty 24000PE @ 20 Point SL" -- instead of an "<entry> To
+# <exit>" pair. Without this guard, that leg falls through this file's
+# generic per-signal entry with entry=None, and the SHARED message-level
+# "sig['entry'] is None -> fill from RE_PREMIUM.search(text)" fallback near
+# the end of parse_message() (a single text-wide `.search()`, not one per
+# leg) then wrongly stamps it with the FIRST "@ <price>" found anywhere in
+# the same multi-leg message -- an unrelated leg's entry, not this one's
+# (this channel's own recap lists 3-8 legs per message). Emitting nothing
+# for this leg is correct: the channel itself never stated a price for it.
+# Checked channel-agnostic-safe: verified empirically this exact "@ SL
+# Taken|SL Hitt|<N> Point SL" adjacency right after a CE/PE match is 0
+# occurrences across every other channel's full tracked history (54
+# occurrences, all channel 1) -- so left unconditional/ungated rather than
+# style-gated, same convention as the STOP_WORDS entries above.
+RE_OPT_NO_PRICE_CLOSE = re.compile(
+    r'^\s*@?\s*(?:SL\s+Taken|SL\s+Hitt?|\d+\s*Point\s*SL)\b', re.IGNORECASE)
 # Ashika Calls occasionally writes the index name in lower/mixed case
 # ("Nifty  25500 PE (JAN20) CMP 64 to 62  SL 35 TGT 100" instead of the
 # usual "NIFTY 25500 PE") — RE_OPT's root is upper-case only by design (so
@@ -538,6 +576,19 @@ STOCKGAINERS_DENY = {
     'GOING', 'IPO', 'MY', 'SOLID', 'VOLUMES', 'YESTERDAY', 'FOR', 'BEUTIFUL',
     'AGAIN', 'TREND', 'UPPER', 'AMAZING',
 }
+# a candidate whose LAST two words are "STRONG SUPPORT"/"STRONG RESISTANCE"
+# is 20PAISA..COM's plain index-level commentary ("Nifty Strong Support
+# \n\n\n\n24000 To 24050", a support-zone note, not a trade call) matching
+# RE_STOCKGAINERS_RECAP's loose "<up-to-4-word line>\n<N to M>" shape with
+# a real index root ("NIFTY") as its first word, so the existing
+# first-word-only STOCKGAINERS_DENY check lets it through. Checked as a
+# trailing PHRASE rather than folded into STOCKGAINERS_DENY as individual
+# words, because Stockizen Research's genuine "NIFTY SEP FUT SHORT"
+# futures call also ends in a lone DENY word ("SHORT") and must keep
+# matching — this stays scoped to the exact two-word tail, verified 0
+# occurrences as a real ticker's trailing words anywhere in the tracked
+# corpus.
+STOCKGAINERS_TRAILING_DENY = {('STRONG', 'SUPPORT'), ('STRONG', 'RESISTANCE')}
 
 # Ritvi Taneja's third shape (smaller, ~10-100 occurrences depending on
 # overlap with the recap/bullet shapes above): the symbol and its CMP/entry
@@ -1323,6 +1374,11 @@ def parse_message(text, style=None):
             tail = text[m.end():m.end() + 15]
             if re.match(r'\s*\+{1,3}', tail) or re.match(r'\s*PROFIT', tail, re.IGNORECASE):
                 entry = None
+        # 20PAISA..COM's no-price closure recap leg (see RE_OPT_NO_PRICE_CLOSE
+        # comment) -- skip this leg entirely rather than let the shared
+        # message-level entry fallback stamp it with an unrelated leg's price.
+        if entry is None and RE_OPT_NO_PRICE_CLOSE.match(text[m.end():m.end() + 30]):
+            continue
         sig = {'trade': f'{root} {right}',
                'direction': 'CALL (up)' if right == 'CE' else 'PUT (down)',
                'entry': entry, 'target': None, 'stop_loss': None, 'status': 'Open'}
@@ -1437,13 +1493,21 @@ def parse_message(text, style=None):
             # fresh order.
             if any(s[0] < m.end() and s[1] > m.start() for s in exit_price_spans):
                 continue
+            if RE_OPT_NO_PRICE_CLOSE.match(text[m.end():m.end() + 30]):
+                continue
             entry = None
+            target = None
             pc = RE_OPT_PAREN_CMP.match(text[m.end():m.end() + 40])
             if pc:
                 entry = _f(pc.group(1))
+            else:
+                ttm = RE_OPT_ENTRY_TO_TARGET.match(text[m.end():m.end() + 60])
+                if ttm:
+                    entry = _f(ttm.group(1))
+                    target = _f(ttm.group(2))
             add({'trade': trade,
                  'direction': 'CALL (up)' if right == 'CE' else 'PUT (down)',
-                 'entry': entry, 'target': None, 'stop_loss': None, 'status': 'Open'})
+                 'entry': entry, 'target': target, 'stop_loss': None, 'status': 'Open'})
 
     # 1b. broker-style options with an expiry date in the middle:
     # "BUY NIFTY 03 JUL 25 25700 CE 1 lots at 109.00."
@@ -1761,6 +1825,7 @@ def parse_message(text, style=None):
         if m:
             sym = re.sub(r'\s+', ' ', m.group(1).strip()).upper()
             if (_is_symbol(sym.split()[0]) and sym.split()[0] not in STOCKGAINERS_DENY
+                    and tuple(sym.split()[-2:]) not in STOCKGAINERS_TRAILING_DENY
                     and sym not in option_roots and not any(o['trade'] == sym for o in out)):
                 add({'trade': sym, 'direction': 'BUY', 'entry': _f(m.group(2)),
                      'target': _f(m.group(4)), 'stop_loss': _f(m.group(3)),
@@ -1769,6 +1834,7 @@ def parse_message(text, style=None):
         if m:
             sym = re.sub(r'\s+', ' ', m.group(1).strip()).upper()
             if (_is_symbol(sym.split()[0]) and sym.split()[0] not in STOCKGAINERS_DENY
+                    and tuple(sym.split()[-2:]) not in STOCKGAINERS_TRAILING_DENY
                     and sym not in option_roots and not any(o['trade'] == sym for o in out)):
                 entry_v, exit_v = _f(m.group(2)), _f(m.group(3))
                 add({'trade': sym, 'direction': 'BUY' if exit_v >= entry_v else 'SELL',

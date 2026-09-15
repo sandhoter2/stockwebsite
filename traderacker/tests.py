@@ -1258,6 +1258,90 @@ class SignalParserTests(TestCase):
         self.assertEqual(len(sigs), 1)
         self.assertEqual(sigs[0]['entry'], 4408.0)
 
+    def test_paisa20_premium_tip_entry_to_target(self):
+        # 20PAISA..COM's dominant option-tip shape: the entry premium AND
+        # the level it already ran to sit on the next non-blank line,
+        # joined by "To". Mixed-case "Nifty"/"Sensex" root, only visible
+        # via RE_OPT_INDEX_CI (style == 'mixed').
+        from traderacker.signals import parse_message
+        text = 'PREMIUM ✅✅\n\n\n\n\nNifty 22500CE\n\n\n\n\n175 To 260++💙💙✅✅'
+        sigs = parse_message(text, style='mixed')
+        self.assertEqual(len(sigs), 1)
+        s = sigs[0]
+        self.assertEqual(s['trade'], 'NIFTY 22500 CE')
+        self.assertEqual(s['entry'], 175.0)
+        self.assertEqual(s['target'], 260.0)
+
+    def test_paisa20_done_of_the_day_recap_per_leg_prices(self):
+        # A "Done Of The Day" recap restates several legs in ONE message,
+        # each with its own "@ <entry> To <exit>" — regression check that
+        # each leg gets ITS OWN price pair rather than every leg collapsing
+        # onto the first leg's "@" value via the shared message-level
+        # RE_PREMIUM fallback.
+        from traderacker.signals import parse_message
+        text = ('✍ Done Of The Day ✍\n\n\n✅Nifty 22500CE @ 175 To 260+\n\n\n'
+                '✅Nifty 22600CE @ 177 To 193\n\n\n✅Nifty 22600PE @ 170 To 188+')
+        sigs = parse_message(text, style='mixed')
+        by_trade = {s['trade']: s for s in sigs}
+        self.assertEqual(by_trade['NIFTY 22500 CE']['entry'], 175.0)
+        self.assertEqual(by_trade['NIFTY 22500 CE']['target'], 260.0)
+        self.assertEqual(by_trade['NIFTY 22600 CE']['entry'], 177.0)
+        self.assertEqual(by_trade['NIFTY 22600 CE']['target'], 193.0)
+        self.assertEqual(by_trade['NIFTY 22600 PE']['entry'], 170.0)
+        self.assertEqual(by_trade['NIFTY 22600 PE']['target'], 188.0)
+
+    def test_paisa20_no_price_closure_leg_not_phantom_filled(self):
+        # A recap leg that states NO price at all ("@ SL Taken", "@ 20
+        # Point SL") must not be silently stamped with an unrelated leg's
+        # "@ <price>" from earlier in the same multi-leg message -- the
+        # channel-agnostic bug this guarded against (RE_OPT_NO_PRICE_CLOSE).
+        from traderacker.signals import parse_message
+        text = ('✍️ Done Of The Day ✍️\n\n\n✅Nifty 23950CE @ 170 To 196+\n\n\n'
+                '✅Nifty 24000CE @ 20 Point SL \n\n\n✅BNF 55900CE @ SL Taken')
+        sigs = parse_message(text, style='mixed')
+        trades = {s['trade'] for s in sigs}
+        self.assertIn('NIFTY 23950 CE', trades)
+        self.assertNotIn('NIFTY 24000 CE', trades)
+        self.assertNotIn('BNF 55900 CE', trades)
+
+    def test_paisa20_good_above_entry_and_sl(self):
+        text = 'Nifty 22400PE Good Above @ 172\n\n\nSl : 152'
+        from traderacker.signals import parse_message
+        sigs = parse_message(text, style='mixed')
+        self.assertEqual(len(sigs), 1)
+        s = sigs[0]
+        self.assertEqual(s['trade'], 'NIFTY 22400 PE')
+        self.assertEqual(s['entry'], 172.0)
+        self.assertEqual(s['stop_loss'], 152.0)
+        self.assertIsNone(s['target'])
+
+    def test_paisa20_strong_support_commentary_not_a_trade(self):
+        # Plain index-level commentary with no trade content ("Nifty Strong
+        # Support\n\n24000 To 24050") must not be misread as a trade via
+        # the shared Stock Gainers/Ritvi Taneja RE_STOCKGAINERS_RECAP shape
+        # (its first word "NIFTY" is a real index root, so the existing
+        # first-word-only STOCKGAINERS_DENY check alone doesn't catch it).
+        from traderacker.signals import parse_message
+        sigs = parse_message('Nifty Strong Support\n\n\n\n24000 To 24050', style='mixed')
+        self.assertEqual(sigs, [])
+
+    def test_stockizen_futures_short_still_matches_trailing_deny_word(self):
+        # Stockizen Research's genuine futures call also ends in a
+        # STOCKGAINERS_DENY word ("SHORT") -- confirms the new trailing-
+        # phrase check added for 20PAISA..COM's "STRONG SUPPORT" only
+        # blocks that exact two-word tail, not every candidate ending in
+        # any single deny word.
+        from traderacker.signals import parse_message
+        text = ('INTRADAY \n\nNIFTY SEP FUT SHORT\n\n24145 TO 24040 🔥🔥🔥\n\n'
+                'TARGET 1 - 24040 DONE ✅✅\n\nENJOY #FUTUREX TRADE')
+        sigs = parse_message(text, style='mixed')
+        self.assertEqual(len(sigs), 1)
+        s = sigs[0]
+        self.assertEqual(s['trade'], 'NIFTY SEP FUT SHORT')
+        self.assertEqual(s['direction'], 'SELL')
+        self.assertEqual(s['entry'], 24145.0)
+        self.assertEqual(s['target'], 24040.0)
+
 
 class MarketServiceTests(TestCase):
     """Symbol→ticker mapping and provider fallback (no real network)."""

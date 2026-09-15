@@ -69,6 +69,21 @@ STOP_WORDS = {
     # had a bogus "FUT"/"OPTION" Trade row from a prior parse before this
     # fix). Same rationale as the SCALPING/BOTTOMED/INTRADAY entries above.
     'FUT', 'OPTION',
+    # "INVALID BELOW <price> WITH ON CLOSING BASED" -- MARKET MASTER HUB's
+    # recurring setup-invalidation sign-off, phrased as its own "<word>
+    # BELOW <price>" clause right after the real TGT line -- RE_CASH reads
+    # "INVALID" as if it were a second, phantom ticker ("MENON PISTON CMP
+    # 74 ... TGT 94-108-135 ... INVALID BELOW 65 WITH ON CLOSING BASED").
+    # Common English trading-jargon word, not a ticker -- same rationale as
+    # SCALPING/BOTTOMED/INTRADAY/FUT/OPTION above.
+    'INVALID',
+    # "If it rises from 200 to 300 then 20/30 points normal correction" --
+    # The Trading Marvel's ordinary conditional prose, matched by
+    # _darshan_recap_signal's bare "<words> from N to M" shape as if "If"
+    # were a ticker (that function's own symbol check is _is_symbol, i.e.
+    # STOP_WORDS, not the separate STOCKGAINERS_DENY list). Common English
+    # word, not a ticker.
+    'IF',
     # "KEEP ON RADAR ABOVE <price>" -- Nivisha Verma (Bnf_unicorn)'s recurring
     # sign-off phrase after a call's bullet list -- RE_CASH's lazy word-bridge
     # otherwise reads "KEEP" as the symbol when the real symbol/level sits on
@@ -213,6 +228,38 @@ RE_TICKER_MONTH_OPT = re.compile(
     r'APR(?:IL)?|MAY|JUNE?|JULY?|AUG(?:UST)?|SEP(?:TEMBER)?|OCT(?:OBER)?|'
     r'NOV(?:EMBER)?|DEC(?:EMBER)?)\s+(\d[\d,]*(?:\.\d+)?)\s*(CE|PE)\b',
     re.IGNORECASE)
+# STOCK MARKET SCHOOL's dominant option-leg header: index name, then a
+# "<DAY> <MON>" expiry date (no year), then the strike, e.g. "Buy Sensex 10
+# Sep 74700 CE", "Buy Nifty 23 Jul 24150 CE" -- RE_OPT's own `[A-Z]+`
+# root-matcher can't bridge "Sensex " (space) into "10" (its own root+
+# strike shape requires letters directly followed by digits with only
+# whitespace/underscore between, and here a title-case day+month sits in
+# between instead), so this channel matched almost nothing before (7 of
+# 1530 tracked messages). Scoped to the same small enumerated index-root
+# set as RE_NASDAQMASTERS_FX's instrument list rather than a bare
+# `[A-Z]+`, specifically so the case-insensitive month/CE-PE matching this
+# needs (the source title-cases "Sensex"/"Sep") can't also swallow an
+# unrelated capitalized-word-plus-date-plus-number sentence elsewhere.
+RE_SMS_OPT_DATE = re.compile(
+    r'\b(SENSEX|NIFTY|BANKNIFTY|FINNIFTY)\s+\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|'
+    r'Jun|Jul|Aug|Sep|Oct|Nov|Dec)\w*\s+(\d[\d,]*(?:\.\d+)?)\s*(CE|PE|CALL|PUT)\b',
+    re.IGNORECASE)
+# the entry trigger for the shape above: "Only In Range @ 180 - 200 Target
+# 225 240 280 310 350 & Above" -- the FIRST (nearer) number is kept as the
+# entry, same "never average a ladder" convention as elsewhere in this
+# file; "Target ..." is left for the existing message-level RE_TARGET
+# fallback, which already reads a bare "Target <price>" generically.
+# Requiring this phrase is also what keeps this channel-agnostic-safe: the
+# channel's own repeated intraday LTP reposts of the SAME leg ("Dipped @
+# 180 se 273", "Breakdown@ 4325 To 4308") never restate "Range", so they
+# correctly produce no signal at all here instead of a second, blank-
+# valued phantom Trade row for every repost (checked empirically: of the
+# 931 corpus-wide matches for the header regex above, only this channel's
+# own "Range @" messages ever pair with it -- the recap-only shapes at 10
+# other channels that also happen to use a "<DAY> <MON>" header (e.g. "355
+# To 745+", "CMP 22 Hero Zero") never contain the word "Range" either, so
+# this stays a no-op there).
+RE_SMS_RANGE_ENTRY = re.compile(r'\bRange\b\s*@?\s*' + NUM, re.IGNORECASE)
 # broker-style option order with an expiry date between the index and the
 # strike, and a lot-size clause between the CE/PE and the premium, e.g.
 # "BUY NIFTY 03 JUL 25 25700 CE 1 lots at 109.00."
@@ -468,6 +515,19 @@ RE_TARGET_MIXED = re.compile(
     r'\b(?:VIEW|VIEWS|TARGETS?|TGT|TG|SHT)\s*[:\-]?\s*'
     r'(?:AT\s+|ON\s+|NEAR\s+)?(?:\d\)\s*)?' + NUM_NOT_PCT, re.IGNORECASE)
 RE_RANGE = re.compile(r'₹?\s*' + NUM + r'\s*[-–]\s*' + NUM)  # entry-target "₹250-320"
+# Bharath's Market Research / STOCK MARKET SCHOOL's "BUY RANGE - <hi>/<lo>"
+# ladder entry -- see the comment above its use in the RE_OPT loop. Distinct
+# from RE_RANGE above because the two numbers are "/"-separated here, not
+# "-"-separated, and the "BUY RANGE" keyword itself (not just proximity to
+# the strike) is what anchors this so it can't misfire on an unrelated
+# nearby dash/slash pair.
+RE_OPT_BUY_RANGE = re.compile(
+    r'BUY\s+RANGE\s*[-:]?\s*' + NUM + r'(?:\s*[/\-]\s*' + NUM + r')?', re.IGNORECASE)
+# a bare "<price> to <price>" restatement right after an option strike with
+# no SL anywhere in the message -- see the comment above its use in the
+# RE_OPT loop.
+RE_OPT_RECAP_NO_ENTRY = re.compile(
+    r'^\s*' + NUM + r'\s*(?:to|TO|To)\s*' + NUM, re.MULTILINE)
 RE_HOLDING = re.compile(r'\b(HOLDING|HOLD)\b', re.IGNORECASE)
 # a one-line "<option leg> \n\n <entry> TO <exit>" recap with a rupee PROFIT
 # figure nearby, e.g. "BSE 3500 CE\n\n85 TO 114\n\n5,800+++++ PROFIT" (Options
@@ -675,6 +735,14 @@ STOCKGAINERS_DENY = {
     'STOCK', 'GOOD', 'MORNING', 'BLOCKBUSTER', 'EXCELLENT', 'FRIDAY',
     'GOING', 'IPO', 'MY', 'SOLID', 'VOLUMES', 'YESTERDAY', 'FOR', 'BEUTIFUL',
     'AGAIN', 'TREND', 'UPPER', 'AMAZING',
+    # The Trading Marvel's own ordinary-prose sentences that happen to open
+    # with a capitalized word directly above a "N to M" line, matching this
+    # shape's loose "<up-to-4-word line>\n<N to M>" pattern as if the
+    # sentence's first word were a ticker: "If it rises from 200 to 300
+    # then 20/30 points normal correction" -> phantom "IF IT RISES", "What
+    # you say now\n1677 to 1877" -> phantom "WHAT YOU SAY NOW", "Fired
+    # \n700 to 960" -> phantom "FIRED". Common English words, not tickers.
+    'WHAT', 'FIRED',
 }
 # a candidate whose LAST two words are "STRONG SUPPORT"/"STRONG RESISTANCE"
 # is 20PAISA..COM's plain index-level commentary ("Nifty Strong Support
@@ -1468,6 +1536,110 @@ def _usha_around_entry_signal(text):
     return None
 
 
+# Momentum Trades' dominant real-signal shape, found by checking coverage
+# on the full 1678-message tracked history (0 trades existed beforehand --
+# this channel is mostly sarcastic Hinglish commentary/banter with a
+# genuine one-shot entry->target call sitting in single, terse lines):
+# "Graphite 604 to 617", "Skipper 560 to 577", "Ifci 82 to 87",
+# "Kei 4741 to 4900" (single-word symbol, capitalized-only-first-letter,
+# directly followed by "N to M" on the SAME line), or the symbol alone on
+# its own line with the price pair on the next ("Aeroflex\n\n470 to 511").
+# Deliberately narrow: a bare single capitalized word is otherwise a huge
+# false-positive surface in a chatty channel like this one ("For me the
+# range 22000 to 22200...", "Mark Minervini Position Sizing...", "Tariff
+# reduced from 25% to 18%"), so this requires the word to sit IMMEDIATELY
+# against the number (no verb/preposition between), rejects the index
+# roots (this channel also posts "Nifty 22800 to 23800 zones" broad-market
+# commentary, not a single-stock call), and reuses the shared _is_symbol/
+# STOP_WORDS deny check. The many undated "NNN to MMM" progress-update
+# reposts of the SAME running trade with no symbol restated ("813 to 845",
+# then "813 to 870", "813 to 900"...) never match at all since there is no
+# capitalized word to anchor on -- exactly the desired behavior, since
+# re-parsing each update as a fresh trade would be a phantom-duplicate bug.
+# Style-gated to 'cash'; verified empirically against every other 'cash'-
+# style channel's full history (24 Motilal Oswal, 25 Mystocks.in, 47 Short
+# To Mid Term, 60 Swing Trader Vishal, 61 Systematix Group Official): 0
+# false-positive matches after excluding the index roots and a small
+# prose-word deny set.
+RE_MOMENTUM_SAMELINE = re.compile(
+    r'^([A-Z][A-Za-z]{2,15})\s+(\d[\d,]*(?:\.\d+)?)\s+to\s+(\d[\d,]*(?:\.\d+)?)',
+    re.MULTILINE)
+RE_MOMENTUM_NEXTLINE = re.compile(
+    r'^([A-Z][A-Za-z]{2,15})[ \t]*\r?\n[ \t]*\r?\n?[ \t]*'
+    r'(\d[\d,]*(?:\.\d+)?)\s+to\s+(\d[\d,]*(?:\.\d+)?)', re.MULTILINE)
+MOMENTUM_DENY = {'FROM', 'FOR', 'THE', 'RANGE', 'TODAY', 'TARGET', 'SUPPORT',
+                 'AGAIN', 'TRADE', 'CMP', 'NEAR', 'AREA', 'EXPECTED', 'COMING'}
+
+
+# Equity99's dominant "Special Situation Stock" / "Special day pick" /
+# "Investment Pick" pick-of-the-day shape, found by checking coverage on the
+# full 1700-message tracked history (only 3 phantom trades existed
+# beforehand -- torn out of promo prose by the generic fallbacks). The
+# multi-word company name sits alone on its own line immediately followed
+# by "Cmp"/"At" and the current price, e.g. "Rudra Global Infra Cmp 24",
+# "Univastu India Cmp 127", "RTN Power Cmp 10 / 11", optionally with a BSE
+# scrip code in between ("Rudra Global Infra BSE Code 539226 At 37"); the
+# resistance/target ladder follows a paragraph or two later as
+# "Test Resistance 47 / 53" (first number kept as the target, same "never
+# average a ladder" convention as the other multi-target shapes in this
+# file) and an optional "Sl <price>" a few lines after that, which the
+# existing message-level RE_SUPPORT fallback already attaches generically
+# (verified: "SL\b" fires on "Sl 300"/"Sl 7"/"Sl 40" case-insensitively).
+# Style-gated to 'cash'; verified empirically 0 false-positive matches on
+# every other 'cash'-style channel's full history (22 Momentum Trades, 24
+# Motilal Oswal, 25 Mystocks.in, 47 Short To Mid Term, 60 Swing Trader
+# Vishal, 61 Systematix Group Official) -- deliberately NOT style-gated to
+# 'mixed' even though that would also cover this channel, because the same
+# entry regex produces real false positives across several 'mixed' channels
+# ("ON RADAR"/"SL HIT BOOK"/"NET PROFIT"/"GOLD" all match "<word(s)> At/Cmp
+# <num>" incidentally in prose or results digests -- checked empirically
+# across all 19 'mixed' channels before rejecting that gate).
+EQUITY99_SYMWORD = r"(?!(?:At|Cmp)\b)(?i:[A-Za-z][A-Za-z]{1,20})"
+RE_EQUITY99_ENTRY = re.compile(
+    r'^([A-Z][A-Za-z]{1,20}(?:[ \t]+' + EQUITY99_SYMWORD + r'){0,3})'
+    r'[ \t]*(?:BSE[ \t]+Code[ \t]+\d+[ \t]+)?(?:At|(?i:Cmp))\s*[:.]?\s*(\d[\d,]*(?:\.\d+)?)',
+    re.MULTILINE)
+RE_EQUITY99_TARGET = re.compile(
+    r'Test\s+Resistance\s*[:.]?\s*(\d[\d,]*(?:\.\d+)?)', re.IGNORECASE)
+
+
+def _equity99_special_signal(text):
+    # require the "Test Resistance" anchor phrase to co-occur in the SAME
+    # message -- without it, the bare "<Words> At/Cmp <price>" entry shape
+    # alone is a large false-positive surface (verified empirically: it
+    # matches incidental prose like "BUY HINDCOPPER ... AT 55" or "NET
+    # PROFIT ... AT ..." across several other channels' results digests).
+    # Requiring "Test Resistance" too narrows this to 0 matches on every
+    # OTHER channel across the full 82-channel corpus -- this shape is
+    # unique to Equity99.
+    if not RE_EQUITY99_TARGET.search(text):
+        return None
+    m = RE_EQUITY99_ENTRY.search(text)
+    if not m:
+        return None
+    sym = re.sub(r'\s+', ' ', m.group(1).strip()).upper()
+    if not sym or sym.split()[0] in INDEX_ROOTS or not _is_symbol(sym):
+        return None
+    tm = RE_EQUITY99_TARGET.search(text)
+    return {'trade': sym, 'direction': 'BUY', 'entry': _f(m.group(2)),
+            'target': _f(tm.group(1)), 'stop_loss': None, 'status': 'Open'}
+
+
+def _momentum_word_to_word_signal(text):
+    for rx in (RE_MOMENTUM_SAMELINE, RE_MOMENTUM_NEXTLINE):
+        m = rx.search(text)
+        if not m:
+            continue
+        sym = m.group(1).upper()
+        if sym in INDEX_ROOTS or sym in MOMENTUM_DENY or not _is_symbol(sym):
+            continue
+        entry_v, target_v = _f(m.group(2)), _f(m.group(3))
+        return {'trade': sym, 'direction': 'BUY' if target_v >= entry_v else 'SELL',
+                'entry': entry_v, 'target': target_v, 'stop_loss': None,
+                'status': 'Open'}
+    return None
+
+
 # promotional / PR / news posts that are never a trade signal (req 1.c)
 PROMO = re.compile(
     r'\b(offer\b|offers\b|opens here|valid for first|slots only|join\b|'
@@ -1536,6 +1708,26 @@ def parse_message(text, style=None):
         sig['asset_class'] = ac
         out.append(sig)
 
+    # -1. STOCK MARKET SCHOOL's "<INDEX> <DAY> <MON> <STRIKE> CE/PE" option
+    # header (see comment above RE_SMS_OPT_DATE/RE_SMS_RANGE_ENTRY) -- must
+    # run before RE_OPT below so the real ticker is claimed first. Style-
+    # gated to 'options'.
+    if style == 'options':
+        for m in RE_SMS_OPT_DATE.finditer(text):
+            root = m.group(1).upper()
+            strike, right = m.group(2).replace(',', ''), m.group(3).upper()
+            right = {'CALL': 'CE', 'PUT': 'PE'}.get(right, right)
+            trade = f'{root} {strike} {right}'
+            option_roots.add(root)
+            claimed_spans.append(m.span())
+            if any(o['trade'] == trade for o in out):
+                continue
+            rm = RE_SMS_RANGE_ENTRY.search(text[m.end():m.end() + 60])
+            if not rm:
+                continue
+            add({'trade': trade, 'direction': 'CALL (up)' if right == 'CE' else 'PUT (down)',
+                 'entry': _f(rm.group(1)), 'target': None, 'stop_loss': None, 'status': 'Open'})
+
     # 0. Usha's Analysis's "<TICKER> <MONTH> <STRIKE> CE/PE" option header
     # (see comment above RE_TICKER_MONTH_OPT) -- must run before RE_OPT
     # below so the real ticker is claimed first.
@@ -1582,6 +1774,22 @@ def parse_message(text, style=None):
     # 1. options: "BANKNIFTY 57000 PE @ 505", "SENSEX 73,900 PE"
     for m in RE_OPT.finditer(text):
         root, right, prem = m.group(1).strip().upper(), m.group(2).upper(), m.group(3)
+        # CHANNEL-AGNOSTIC BUG: an expiry date written "24-SEP-2026" right
+        # after the strike+CE/PE (MARKET MASTER HUB's dominant shape, "BUY
+        # #JIOFIN 270 CE 24-SEP-2026 AT 5.7") gets its leading DAY number
+        # ("24") read by this regex's own optional trailing NUM as if it
+        # were the premium -- entry became a constant "24" (or "8", "28",
+        # ...) on hundreds of DIFFERENT option legs regardless of their
+        # real stated price, silently discarding the real "AT 5.7"/"AT 20"
+        # a few words later. Verified empirically unique to this channel
+        # across the full 82-channel corpus (420 occurrences, channel 19
+        # only) -- drop the false premium here so the later "AT <price>"
+        # fallback further down in this loop gets a chance to fill the
+        # real one instead.
+        if prem and re.match(r'\s*-[A-Za-z]{3}-\d{4}', text[m.end(3):]):
+            date_tail = text[m.end(3):m.end(3) + 40]
+            at_m = re.match(r'\s*-[A-Za-z]{3}-\d{4}\s+AT\s+' + NUM, date_tail, re.IGNORECASE)
+            prem = at_m.group(1) if at_m else None
         root = re.sub(r'\s+', ' ', root).replace(',', '').replace('_', ' ')
         root = re.sub(r'\s+', ' ', root).strip()
         root_word = root.split()[0] if root.split() else root
@@ -1770,6 +1978,31 @@ def parse_message(text, style=None):
                 # shape.
                 if len(rng.group(2)) >= len(rng.group(1)):
                     sig['target'] = _f(rng.group(2))
+        # Bharath's Market Research's dominant "<ROOT> <STRIKE>CE/PE ...
+        # Series\n\nBUY RANGE - <high>/<low>\n\nSL <price>" ladder (also
+        # used, with the same "/"-separated range, by STOCK MARKET SCHOOL) —
+        # found by checking coverage on the full tracked history: 313 of
+        # 410 pre-existing trades had entry=None because the generic
+        # dash-range fallback above (RE_RANGE) only recognizes a "-"-
+        # separated pair immediately after the strike, and this channel's
+        # own range separator is "/", arriving a few words later ("Sep
+        # Series"/"JUNE SERIES" sits in between) — up to 21 characters away
+        # in the tracked corpus, comfortably inside this fallback's 60-char
+        # budget. Takes the FIRST (higher, more conservative) number as the
+        # entry, same "never average a ladder" convention as the dash-range
+        # fallback right above; SL/TARGETS are left for the existing
+        # message-level RE_SUPPORT/RE_TARGET fallback further down, which
+        # already reads "SL <price>"/"Stoploss - <price>"/"TARGETS -
+        # <price>" generically with no change needed here. Style-gated to
+        # 'options'; verified empirically 0 effect on the other two
+        # 'options'-style channels (MarketWolf, Stock Thunder) — every
+        # "Buy Range"/"BUY RANGE" occurrence in their own tracked history
+        # already has an entry filled in by an earlier fallback in this
+        # same loop before this one gets a turn.
+        if style == 'options' and entry is None and sig['entry'] is None:
+            br = RE_OPT_BUY_RANGE.search(text[m.end():m.end() + 60])
+            if br:
+                sig['entry'] = _f(br.group(1))
         # THEBULLOPTIONS reposts the SAME option leg many times through the
         # day as a running-LTP ticker: "\U0001F4CA SENSEX 74000 PE (04 JUN)
         # \n375", "...\n380", ..., "...\nFIRST TARGET DONE", "...\nBoom 370
@@ -1792,6 +2025,29 @@ def parse_message(text, style=None):
             ab = RE_ABOVE_BELOW.search(text[m.end():])
             if ab:
                 sig['entry'] = _f(ab.group(1))
+        # a same-day recap restating "<price> to <price>+" right after the
+        # strike, with NO SL/stop-loss wording anywhere else in the message,
+        # is never a fresh entry -- it's a same-day repost of an ALREADY-
+        # given call's running result (Bharath's Market Research / STOCK
+        # MARKET SCHOOL's "<ROOT> <STRIKE> CE/PE SEP Series\n11.2 to
+        # 13.5+\nTarget 1 Done & Dusted", no "Buy Range" this time). Without
+        # this, the recap creates a second, blank-valued phantom Trade row
+        # alongside the real entry (their (channel, trade, entry) upsert
+        # keys differ -- None vs the real price -- so they can't merge).
+        # Genuine first-time entries that also happen to state "<price> to
+        # <price>" right after the strike (e.g. Stock Thunder's own
+        # dominant shape) always state an SL *somewhere* in the same
+        # message -- checked empirically across the whole 82-channel corpus:
+        # this exact "no premium marker, recap number pair, no SL anywhere"
+        # combination is 619/620 real entries for Stock Thunder (kept, SL
+        # present) vs 51/52 genuine recaps for this channel (correctly
+        # dropped, SL absent), with only a handful of stray one-two-message
+        # cases elsewhere, so requiring SL's absence is what keeps this
+        # channel-agnostic-safe rather than needing a style gate.
+        if sig['entry'] is None:
+            tail = text[m.end():m.end() + 60]
+            if RE_OPT_RECAP_NO_ENTRY.search(tail) and not RE_SUPPORT.search(text):
+                continue
         add(sig)
 
     # 1a. Ashika Calls' lower/mixed-case index option names (see comment
@@ -2294,6 +2550,23 @@ def parse_message(text, style=None):
         if asig and asig['trade'] not in option_roots and not any(
                 o['trade'] == asig['trade'] for o in out):
             add(asig)
+
+    # 6n. Momentum Trades' one-word-symbol "<Symbol> N to M" recap (see
+    # comment above _momentum_word_to_word_signal) -- style-gated to 'cash'.
+    if style == 'cash':
+        msig = _momentum_word_to_word_signal(text)
+        if msig and msig['trade'] not in option_roots and not any(
+                o['trade'] == msig['trade'] for o in out):
+            add(msig)
+
+    # 6o. Equity99's "<Company Name> Cmp/At <price> ... Test Resistance
+    # <price>" pick-of-the-day shape (see comment above
+    # _equity99_special_signal) -- style-gated to 'cash'.
+    if style == 'cash':
+        esig = _equity99_special_signal(text)
+        if esig and esig['trade'] not in option_roots and not any(
+                o['trade'] == esig['trade'] for o in out):
+            add(esig)
 
     if not out:
         return []

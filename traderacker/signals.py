@@ -659,6 +659,145 @@ def _samco_note_signal(text):
             'status': 'Open'}
 
 
+# Trading Ideas By Darshan's two dominant shapes, found by checking
+# coverage on the full 1903-message tracked history (0 trades existed
+# before this fix -- most of the channel is astrology/"Planetary Aspects"
+# commentary and macro news, correctly left unparsed, but a real minority
+# of messages are option/cash calls in a consistent house style).
+# A. the forward option order: "Nifty 26100 Ce (13 Jan Expiry)\nCmp 151\n
+#    Target Open\nStoploss 120\n\n*Keep Proper Risk Management..." -- "Cmp"
+#    is the entry, "Target Open" means no stated numeric target (kept
+#    blank rather than guessed), "Stoploss" self-explanatory.
+# B. the retrospective recap: "Sail from 129.3 to 141", "Sensex 74900 Ce
+#    From 5 to 160", "Nifty 26100 Ce\nFrom 151 to 223" -- same "no
+#    confident close, so stays Open" convention as RE_STOCKY_RECAP
+#    elsewhere in this file. Shared between cash equities/indices and
+#    option legs: a trailing "<strike> CE|PE" on the symbol candidate is
+#    normalized into this codebase's "ROOT STRIKE CE/PE" convention by
+#    _normalize_darshan_symbol; direction for an option leg comes from
+#    CE/PE (never guessed from the price move), for cash/index from
+#    whichever side of the range is higher (same convention as
+#    RE_STOCKY_RECAP).
+# Style-gated to 'mixed'; verified empirically that neither shape's
+# keyword combination ("Cmp"+"Target Open"+"Stoploss" on consecutive
+# lines, or a bare "<name> from <N> to <M>") appears in any other 'mixed'
+# channel's history.
+RE_DARSHAN_OPT_ENTRY = re.compile(
+    r'^([A-Za-z][A-Za-z0-9 &]{1,25}?)\s+(\d[\d,]*(?:\.\d+)?)\s*(CE|PE)\b[^\n]*\n'
+    r'\s*Cmp\s*[:\-]?\s*(\d[\d,]*(?:\.\d+)?)\s*\n'
+    r'(?:Target[^\n]*\n)?'
+    r'\s*Stoploss\s*[:\-]?\s*(\d[\d,]*(?:\.\d+)?)',
+    re.MULTILINE | re.IGNORECASE)
+RE_DARSHAN_RECAP = re.compile(
+    r'^([A-Za-z][A-Za-z0-9 &]{1,25}?)\s*\n?\s*(?:from|From|FROM)\s+'
+    r'(\d[\d,]*(?:\.\d+)?)\s*(?:to|To|TO)\s*(\d[\d,]*(?:\.\d+)?)', re.MULTILINE)
+# candidate words that ride along into the symbol group because they sit
+# directly before "from" in ordinary market-commentary prose ("Gold
+# rallied from...", "Silver moved from...") -- checked against every word
+# in the candidate, not just the first (unlike STOP_WORDS elsewhere),
+# since these are always the LAST word of a multi-word candidate.
+DARSHAN_VERB_DENY = {'RALLIED', 'SURGED', 'MOVED', 'WENT', 'JUMPED',
+                     'CRASHED', 'DROPPED', 'FELL', 'SPIKED', 'RECOVERED',
+                     'BREAKOUT', 'MASSIVE'}
+
+
+def _normalize_darshan_symbol(raw):
+    raw = re.sub(r'\s+', ' ', (raw or '').strip()).upper()
+    m = re.match(r'^(.+?)\s+(\d[\d,]*(?:\.\d+)?)\s*(CE|PE)$', raw)
+    if m:
+        return f'{m.group(1).strip()} {m.group(2).replace(",", "")} {m.group(3)}'
+    return raw
+
+
+def _darshan_option_entry_signal(text):
+    m = RE_DARSHAN_OPT_ENTRY.search(text)
+    if not m:
+        return None
+    root = re.sub(r'\s+', ' ', m.group(1).strip()).upper()
+    if not _is_symbol(root.split()[0]):
+        return None
+    right = m.group(3).upper()
+    sym = f'{root} {m.group(2).replace(",", "")} {right}'
+    return {'trade': sym, 'direction': 'CALL (up)' if right == 'CE' else 'PUT (down)',
+            'entry': _f(m.group(4)), 'target': None,
+            'stop_loss': _f(m.group(5)), 'status': 'Open'}
+
+
+def _darshan_recap_signal(text):
+    m = RE_DARSHAN_RECAP.search(text)
+    if not m:
+        return None
+    words = m.group(1).strip().upper().split()
+    if not words or any(w in DARSHAN_VERB_DENY for w in words):
+        return None
+    sym = _normalize_darshan_symbol(m.group(1))
+    if not sym or not _is_symbol(sym.split()[0]):
+        return None
+    entry_v, exit_v = _f(m.group(2)), _f(m.group(3))
+    if sym.endswith(' CE') or sym.endswith(' PE'):
+        direction = 'CALL (up)' if sym.endswith('CE') else 'PUT (down)'
+    else:
+        direction = 'BUY' if exit_v >= entry_v else 'SELL'
+    return {'trade': sym, 'direction': direction, 'entry': entry_v,
+            'target': exit_v, 'stop_loss': None, 'status': 'Open'}
+
+
+# 𝐅𝐈𝐍𝐀𝐍𝐂𝐈𝐀𝐋 𝐒𝐀𝐑𝐓𝐇𝐈𝐒's dominant option-order shape, found by checking
+# coverage on the full 1897-message tracked history: about half its real
+# calls write CE/PE/PUT/CALL in lower or mixed case ("Dr reddy option\n\n
+# 1320 ce at 14 sl 6 target 22 and 30", "Bank nifty 55000 ce at 1100 sl
+# 1000 tgt 1180 and 1250", "Sensex 83500 put ... at 485 sl 360 target 585
+# and 650"), invisible to every other option regex in this file (all
+# case-sensitive on CE/PE by design, to keep ordinary prose from becoming
+# a phantom ticker). Deliberately requires the FULL "<root> <strike>
+# CE/PE/CALL/PUT ... SL <n> ... TARGET/TGT <n>" structure in one match,
+# not just a bare "<number> CE/PE" -- this channel constantly discusses
+# "<strike> PUT WRITER"/"<strike> CALL WRITER" market positioning as
+# commentary, not as its own trade calls (e.g. "Bankex 65100 put from 12
+# to 100", "24200 put writer are still there"), and requiring SL+TARGET
+# excludes all of it without a separate WRITER-specific exclusion. Style-
+# gated to 'mixed'; a full-corpus check found only two harmless side
+# effects elsewhere: Angel One Research's "BANKNIFTY MAR 49500 CE @
+# 361-365 SL 407 TGT 300" now gets its real entry (361) instead of no
+# signal at all (this shape's multi-word root capture tolerates the
+# "MAR" expiry token RE_OPT's own MONTH_ABBR guard has to reject
+# elsewhere), and 4 already-mostly-covered Ashika Calls messages gain a
+# second, blank-entry duplicate of a trade Ashika's own parser already
+# captured correctly (harmless: same (channel, trade) key, no new row).
+RE_FINSARTHI_OPT = re.compile(
+    r'\b([A-Za-z][A-Za-z&\-]{0,20}(?:[ \t]+[A-Za-z][A-Za-z&\-]{0,20}){0,3})'
+    r'[ \t]+(\d[\d,]*(?:\.\d+)?)[ \t]*(CE|PE|CALL|PUT)\b'
+    r'(?:[ \t]*(?:AT|@)[ \t]*(\d[\d,]*(?:\.\d+)?)(?:[ \t]*-[ \t]*\d[\d,]*(?:\.\d+)?)?)?'
+    r'[^\n]{0,40}?\bSL\b[ \t]*[:\-]?[ \t]*(\d[\d,]*(?:\.\d+)?)'
+    r'[^\n]{0,40}?\b(?:TARGET|TGT)\b[ \t]*[:\-]?[ \t]*(\d[\d,]*(?:\.\d+)?)',
+    re.IGNORECASE)
+# leading filler words this channel prefixes the root with, stripped
+# before use as the ticker ("BUY BNF 57000CE..." -> "BNF", "OPTION HZ
+# NIFTY 24200CE..." -> "NIFTY").
+RE_FINSARTHI_LEAD_STRIP = re.compile(
+    r'^(?:BUY|SELL|OPTION|HZ|HERO|ZERO|INDEX)[ \t]+', re.IGNORECASE)
+
+
+def _finsarthi_option_signal(text):
+    m = RE_FINSARTHI_OPT.search(text)
+    if not m:
+        return None
+    root = m.group(1).strip()
+    while True:
+        stripped = RE_FINSARTHI_LEAD_STRIP.sub('', root)
+        if stripped == root:
+            break
+        root = stripped
+    root = re.sub(r'\s+', ' ', root).strip().upper()
+    if not root or not _is_symbol(root.split()[0]):
+        return None
+    right = {'CALL': 'CE', 'PUT': 'PE'}.get(m.group(3).upper(), m.group(3).upper())
+    sym = f'{root} {m.group(2).replace(",", "")} {right}'
+    return {'trade': sym, 'direction': 'CALL (up)' if right == 'CE' else 'PUT (down)',
+            'entry': _f(m.group(4)) if m.group(4) else None,
+            'target': _f(m.group(6)), 'stop_loss': _f(m.group(5)), 'status': 'Open'}
+
+
 RE_STOCKGAINERS_RECAP = re.compile(
     r'^(' + STOCKGAINERS_SYM + r')[ \t]*\r?\n\s*'
     r'(\d[\d,]*(?:\.\d+)?)\s*(?:to|To|TO)\s*(\d[\d,]*(?:\.\d+)?)', re.MULTILINE)
@@ -1101,6 +1240,29 @@ def parse_message(text, style=None):
             if sm:
                 claimed_spans.append(sm.span())
 
+    # 1h. 𝐅𝐈𝐍𝐀𝐍𝐂𝐈𝐀𝐋 𝐒𝐀𝐑𝐓𝐇𝐈𝐒's lower/mixed-case option-order shape (see
+    # comment above RE_FINSARTHI_OPT) -- style-gated to 'mixed'. Runs here
+    # rather than at step 6+ for the same reason as Samco's Note line
+    # above: claims the root via option_roots before the generic verb-
+    # first/cash fallbacks below get a chance to misread the same text.
+    # Step 1's RE_OPT, unconditional and case-sensitive-immune to this
+    # multi-word root ("Bank nifty 55000 ce" -> RE_OPT already grabbed a
+    # truncated "NIFTY 55000 CE" moments earlier, entry blank, from the
+    # lowercase "nifty" alone since its root pattern can't span the
+    # space), has ALREADY run by this point -- drop that truncated
+    # placeholder in favor of this shape's full root rather than leaving
+    # both a correct and a blank-duplicate row for the same strike/right.
+    if style == 'mixed':
+        fsig = _finsarthi_option_signal(text)
+        if fsig and fsig['trade'] not in option_roots and not any(
+                o['trade'] == fsig['trade'] for o in out):
+            suffix = ' ' + ' '.join(fsig['trade'].split()[-2:])
+            out[:] = [o for o in out if not (
+                o['entry'] is None and o['trade'] != fsig['trade']
+                and o['trade'].endswith(suffix))]
+            add(fsig)
+            option_roots.add(fsig['trade'].split()[0])
+
     # 2. crypto futures: "ONDO LONG 20x"
     for m in RE_CRYPTO.finditer(text):
         sym, side = m.group(1), m.group(2).upper()
@@ -1258,6 +1420,27 @@ def parse_message(text, style=None):
         if ssig and ssig['trade'] not in option_roots and not any(
                 o['trade'] == ssig['trade'] for o in out):
             add(ssig)
+
+    # 6f. Trading Ideas By Darshan's option-entry and recap shapes (see
+    # comment above _darshan_option_entry_signal/_darshan_recap_signal) —
+    # style-gated to 'mixed'. An option leg stated as "Nifty 24150 Ce\n
+    # From 113 to 227" (no "@"/premium marker right after "Ce") is ALSO
+    # matched by step 1's generic RE_OPT with entry=None (that step runs
+    # unconditionally, before any style-specific shape gets a turn, and
+    # doesn't consult `out`) — rather than silently losing the real entry/
+    # target this shape states, patch that blank placeholder in place
+    # instead of skipping when one is already sitting in `out`.
+    if style == 'mixed':
+        for sig_fn in (_darshan_option_entry_signal, _darshan_recap_signal):
+            dsig = sig_fn(text)
+            if not dsig or dsig['trade'] in option_roots:
+                continue
+            existing = next((o for o in out if o['trade'] == dsig['trade']), None)
+            if existing is None:
+                add(dsig)
+            elif existing['entry'] is None and dsig['entry'] is not None:
+                existing.update(entry=dsig['entry'], target=dsig['target'],
+                                stop_loss=dsig['stop_loss'], direction=dsig['direction'])
 
     if not out:
         return []

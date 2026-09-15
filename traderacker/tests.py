@@ -1148,6 +1148,57 @@ class SignalParserTests(TestCase):
             style='mixed')
         self.assertFalse(any(s['trade'].startswith('MAR ') for s in sigs), sigs)
 
+    def test_darshan_option_entry_target_open(self):
+        # "Target Open" means no stated numeric target -- kept blank
+        # rather than guessed.
+        from traderacker.signals import parse_message
+        text = ('Nifty 26100 Ce (13 Jan Expiry)\nCmp 151\nTarget Open\nStoploss 120\n\n'
+                '*Keep Proper Risk Management\nCalculate your RISK First')
+        sigs = parse_message(text, style='mixed')
+        self.assertEqual(len(sigs), 1)
+        s = sigs[0]
+        self.assertEqual(s['trade'], 'NIFTY 26100 CE')
+        self.assertEqual(s['entry'], 151.0)
+        self.assertIsNone(s['target'])
+        self.assertEqual(s['stop_loss'], 120.0)
+        self.assertEqual(s['direction'], 'CALL (up)')
+
+    def test_darshan_recap_cash_and_option(self):
+        from traderacker.signals import parse_message
+        cash = parse_message('Sail from 129.3 to 141\n\nAlmost 10% Returns in 12 Trading Sessions',
+                             style='mixed')
+        self.assertEqual(len(cash), 1)
+        self.assertEqual(cash[0]['trade'], 'SAIL')
+        self.assertEqual(cash[0]['direction'], 'BUY')
+        self.assertEqual(cash[0]['target'], 141.0)
+
+        opt = parse_message('Sensex 74900 Ce From 5 to 160\n\n32x', style='mixed')
+        self.assertEqual(len(opt), 1)
+        self.assertEqual(opt[0]['trade'], 'SENSEX 74900 CE')
+        self.assertEqual(opt[0]['direction'], 'CALL (up)')
+
+    def test_finsarthi_lowercase_option_order(self):
+        # Roughly half this channel's real calls write ce/pe/put in lower
+        # or mixed case, invisible to every case-sensitive option regex.
+        # Requires the full SL+TARGET structure so it never fires on this
+        # channel's frequent "<strike> put writer"/"<strike> call writer"
+        # market-positioning commentary.
+        from traderacker.signals import parse_message
+        text = 'Bank nifty 55000 ce at 1100 sl 1000 tgt 1180 and 1250\nIf someone holding'
+        sigs = parse_message(text, style='mixed')
+        self.assertEqual(len(sigs), 1)
+        s = sigs[0]
+        self.assertEqual(s['trade'], 'BANK NIFTY 55000 CE')
+        self.assertEqual(s['entry'], 1100.0)
+        self.assertEqual(s['stop_loss'], 1000.0)
+        self.assertEqual(s['target'], 1180.0)
+
+    def test_finsarthi_put_writer_commentary_not_a_signal(self):
+        from traderacker.signals import parse_message
+        sigs = parse_message('24200 put writer are still there\nSo Nifty post CAS 24219',
+                             style='mixed')
+        self.assertEqual(sigs, [])
+
 
 class MarketServiceTests(TestCase):
     """Symbol→ticker mapping and provider fallback (no real network)."""

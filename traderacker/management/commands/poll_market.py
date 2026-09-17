@@ -39,17 +39,25 @@ class Command(BaseCommand):
         if opts['user']:
             qs = qs.filter(user__username=opts['user'])
 
-        priced = closed = no_quote = 0
+        priced = closed = errors = no_quote = 0
         for pt in qs:
             price, _src = market.get_price(pt.symbol, pt.asset_class)
-            if price is None:
-                no_quote += 1
-                if pt.mark(None):   # still enforces max-hold, no matter what
+            try:
+                if price is None:
+                    no_quote += 1
+                    if pt.mark(None):   # still enforces max-hold, no matter what
+                        closed += 1
+                    continue
+                priced += 1
+                if pt.mark(price):
                     closed += 1
-                continue
-            priced += 1
-            if pt.mark(price):
-                closed += 1
+            except Exception as exc:
+                # One bad row (e.g. a duplicate-key race with a concurrent
+                # run) must not abort the whole batch -- log and keep going.
+                errors += 1
+                self.stderr.write(self.style.WARNING(f'paper trade {pt.id} mark failed: {exc}'))
+        if errors:
+            self.stdout.write(self.style.WARNING(f'Paper trades: {errors} error(s), see above'))
         self.stdout.write(self.style.SUCCESS(
             f'Paper trades marked: {priced} priced · {closed} closed · {no_quote} no-quote'))
 
@@ -72,6 +80,11 @@ class Command(BaseCommand):
                 no_quote += 1
                 continue
             priced += 1
-            if t.mark_live(price):
-                closed += 1
+            try:
+                if t.mark_live(price):
+                    closed += 1
+            except Exception as exc:
+                # One bad row (e.g. a duplicate-key race with a concurrent
+                # run) must not abort the whole batch -- log and keep going.
+                self.stderr.write(self.style.WARNING(f'trade {t.id} mark_live failed: {exc}'))
         return priced, closed, no_quote

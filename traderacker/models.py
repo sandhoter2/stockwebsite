@@ -394,8 +394,22 @@ class Trade(models.Model):
                 reason = 'target'
         if reason is None:
             return False
+        realized = round((price - self.entry) if is_buy else (self.entry - price), 2)
+        # Another row may already occupy this (channel, date, trade, entry,
+        # Closed) slot -- e.g. a duplicate re-posted signal the channel
+        # itself already closed. Merge into that twin instead of violating
+        # uniq_trade_row (same pattern as parse_signals.book()/close_at_price()).
+        dup = Trade.objects.filter(channel=self.channel, date=self.date, trade=self.trade,
+                                   entry=self.entry, status='Closed').exclude(pk=self.pk).first()
+        if dup:
+            if dup.realized is None or realized > dup.realized:
+                dup.realized = realized
+                dup.ltp_exit = price
+                dup.save(update_fields=['realized', 'ltp_exit'])
+            self.delete()
+            return True
         self.ltp_exit = price
-        self.realized = round((price - self.entry) if is_buy else (self.entry - price), 2)
+        self.realized = realized
         self.status = 'Closed'
         self.note = (self.note + f' [auto-closed:{reason}@live {price}]').strip()
         self.save(update_fields=['status', 'ltp_exit', 'realized', 'note'])

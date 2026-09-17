@@ -1,0 +1,90 @@
+<!doctype html>
+{% load static %}
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>KTL · TradeGuru Admin</title>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css" rel="stylesheet">
+  <link href="{% static 'css/tokens.css' %}" rel="stylesheet">
+  <style>
+    body { background:var(--tt-paper); font-family:var(--tt-font-body); color:var(--tt-ink); }
+    .ktl-bar { background:linear-gradient(90deg,#713f12,#a16207 55%,var(--tt-yellow)); color:#fff; }
+    .ktl-bar .badge-admin { background:rgba(255,255,255,.2); }
+    .job-ok { border-left:4px solid var(--tt-green); }
+    .job-failed { border-left:4px solid var(--tt-red); }
+    .job-missing { border-left:4px solid #94a3b8; }
+    .issue-critical { border-left:4px solid var(--tt-red); background:#fef2f2; }
+    .issue-warning { border-left:4px solid var(--tt-amber); background:#fffbeb; }
+    .card { border:0; box-shadow:var(--tt-shadow); }
+  </style>
+</head>
+<body>
+  <nav class="navbar ktl-bar mb-4">
+    <div class="container-fluid">
+      <span class="navbar-brand mb-0 h1 text-white">⚙ KTL — Keep The Lights On <span class="badge badge-admin ms-2">Admin only</span></span>
+      <a href="/" class="btn btn-sm btn-outline-light">← Back to app</a>
+    </div>
+  </nav>
+
+  <div class="container-fluid px-4 pb-5">
+    <h6 class="text-uppercase text-muted small fw-bold mb-2">Cron job health</h6>
+    <div class="row g-2 mb-4">
+      {% for job in jobs %}
+      <div class="col-md-4">
+        <div class="card {% if job.status == 'ok' %}job-ok{% else %}job-failed{% endif %}">
+          <div class="card-body py-2 px-3">
+            <div class="d-flex justify-content-between align-items-center">
+              <strong>{{ job.name }}</strong>
+              <span class="badge {% if job.status == 'ok' %}text-bg-success{% else %}text-bg-danger{% endif %}">{{ job.status }}</span>
+            </div>
+            <div class="small text-muted">Last run: {{ job.finished_at }} ({{ job.duration_seconds }}s)</div>
+            {% if job.detail %}<div class="small text-muted text-truncate" title="{{ job.detail }}">{{ job.detail }}</div>{% endif %}
+          </div>
+        </div>
+      </div>
+      {% empty %}
+      <div class="col-12"><div class="alert alert-light border">No job runs recorded yet — the daily_*.sh scripts call
+        <code>manage.py ktl_record</code> as their last step; nothing has run since this was added.</div></div>
+      {% endfor %}
+    </div>
+
+    <h6 class="text-uppercase text-muted small fw-bold mb-2">Open tickets ({{ open_issues|length }})</h6>
+    <div class="mb-4">
+      {% for issue in open_issues %}
+      <div class="card issue-{{ issue.severity }} mb-2">
+        <div class="card-body py-2 px-3 d-flex justify-content-between align-items-start gap-3">
+          <div>
+            <span class="badge {% if issue.severity == 'critical' %}text-bg-danger{% else %}text-bg-warning{% endif %} me-2">{{ issue.severity }}</span>
+            <strong>{{ issue.kind }}</strong>
+            <div class="small text-muted mt-1">{{ issue.message }}</div>
+            <div class="small text-muted">First seen {{ issue.detected_at }} · last seen {{ issue.last_seen_at }}</div>
+          </div>
+          <form method="post" action="{% url 'ktl-resolve-issue' issue.id %}">
+            {% csrf_token %}
+            <button class="btn btn-sm btn-outline-secondary">Mark resolved</button>
+          </form>
+        </div>
+      </div>
+      {% empty %}
+      <div class="alert alert-success border-0">✓ No open tickets — everything's green.</div>
+      {% endfor %}
+    </div>
+
+    {% if resolved_issues %}
+    <h6 class="text-uppercase text-muted small fw-bold mb-2">Recently resolved</h6>
+    <div class="table-responsive bg-white rounded shadow-sm">
+      <table class="table table-sm mb-0">
+        <thead class="table-light"><tr><th>Kind</th><th>Severity</th><th>Resolved</th><th>By</th></tr></thead>
+        <tbody>
+          {% for issue in resolved_issues %}
+          <tr><td>{{ issue.kind }}</td><td>{{ issue.severity }}</td><td>{{ issue.resolved_at }}</td>
+              <td>{{ issue.resolved_by|default:'—' }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </div>
+</body>
+</html>

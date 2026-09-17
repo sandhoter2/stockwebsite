@@ -2050,6 +2050,34 @@ class TradeMarkLiveTests(TestCase):
         t = self._open(target=None, stop_loss=None)
         self.assertFalse(t.mark_live(4000.0))
 
+    def test_closing_merges_into_existing_closed_duplicate(self):
+        # Two Open rows for the same re-posted signal (channel/date/trade/
+        # entry identical) -- closing one via live price must not violate
+        # uniq_trade_row against a twin some OTHER path already closed.
+        d = dt.date(2026, 9, 15)
+        t = Trade.objects.create(channel=self.ch, date=d, trade='LTM', direction='BUY',
+                                 entry=4575.0, target=4595.0, stop_loss=4535.0,
+                                 status='Open', asset_class='stock', source_mid=1)
+        dup = Trade.objects.create(channel=self.ch, date=d, trade='LTM', direction='BUY',
+                                   entry=4575.0, status='Closed', realized=10.0,
+                                   asset_class='stock', source_mid=2)
+        self.assertTrue(t.mark_live(4530.0))  # stop-loss hit, realized = -45
+        self.assertFalse(Trade.objects.filter(pk=t.pk).exists())  # merged away, not duplicated
+        dup.refresh_from_db()
+        self.assertEqual(dup.realized, 10.0)  # existing twin's better realized wins
+
+    def test_closing_merge_keeps_better_realized(self):
+        d = dt.date(2026, 9, 15)
+        t = Trade.objects.create(channel=self.ch, date=d, trade='LTM', direction='BUY',
+                                 entry=4575.0, target=4595.0, stop_loss=4535.0,
+                                 status='Open', asset_class='stock', source_mid=1)
+        dup = Trade.objects.create(channel=self.ch, date=d, trade='LTM', direction='BUY',
+                                   entry=4575.0, status='Closed', realized=-100.0,
+                                   asset_class='stock', source_mid=2)
+        self.assertTrue(t.mark_live(4600.0))  # target hit, realized = +25, beats -100
+        dup.refresh_from_db()
+        self.assertEqual(dup.realized, 25.0)
+
     def test_option_is_never_auto_closed(self):
         # Premium (entry/target/SL) is not comparable to the underlying's
         # spot price -- must be skipped outright, not just filtered by the

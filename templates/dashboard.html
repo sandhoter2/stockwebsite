@@ -232,6 +232,7 @@
     const iso = d => d.toISOString().slice(0, 10);
     function rangeDates(key, custom) {
       const now = Date.now();
+      if (key === '1d')  return { from: iso(new Date(now - 1*864e5)), to: null };
       if (key === '7d')  return { from: iso(new Date(now - 7*864e5)), to: null };
       if (key === '30d') return { from: iso(new Date(now - 30*864e5)), to: null };
       if (key === '90d') return { from: iso(new Date(now - 90*864e5)), to: null };
@@ -303,7 +304,7 @@
     }
 
     function RangeBar({ rangeKey, setRangeKey, custom, setCustom, sectors, toggleSector }) {
-      const opts = [['7d','7 days'],['30d','30 days'],['90d','90 days'],['all','All time'],['custom','Custom']];
+      const opts = [['1d','1 day'],['7d','7 days'],['30d','30 days'],['90d','90 days'],['all','All time'],['custom','Custom']];
       return (
         <div className="mb-3">
           <div className="d-flex flex-wrap align-items-center gap-2 mb-2">

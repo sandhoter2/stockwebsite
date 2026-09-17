@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Telegram Trade Tracker</title>
+  <title>TradeGuru</title>
   <meta name="csrf-token" content="{{ csrf_token }}">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css" rel="stylesheet">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -230,9 +230,12 @@
     }
 
     const iso = d => d.toISOString().slice(0, 10);
+    // IST (UTC+5:30) calendar date -- Trade.date is the trading day the
+    // channel posted in, which for NSE-hours channels is an IST date.
+    const istDate = d => iso(new Date(d.getTime() + 5.5*3600e3));
     function rangeDates(key, custom) {
       const now = Date.now();
-      if (key === '1d')  return { from: iso(new Date(now - 1*864e5)), to: null };
+      if (key === '1d')  return { from: istDate(new Date(now - 1*864e5)), to: null };
       if (key === '7d')  return { from: iso(new Date(now - 7*864e5)), to: null };
       if (key === '30d') return { from: iso(new Date(now - 30*864e5)), to: null };
       if (key === '90d') return { from: iso(new Date(now - 90*864e5)), to: null };
@@ -267,8 +270,7 @@
       return (
         <nav className="navbar navbar-expand-lg navbar-dark navbar-tt mb-3">
           <div className="container-fluid">
-            <span className="navbar-brand mb-0 h1">₹ Telegram Trade Tracker
-              <small className="text-light opacity-50 ms-2">Django · DRF · React</small></span>
+            <span className="navbar-brand mb-0 h1">₹ TradeGuru</span>
             <button className="navbar-toggler" type="button" data-bs-toggle="collapse"
                     data-bs-target="#topbarNav" aria-controls="topbarNav" aria-expanded="false"
                     aria-label="Toggle navigation">
@@ -278,7 +280,7 @@
               <ul className="nav nav-tabs mb-0 border-0 flex-wrap align-items-lg-center me-lg-auto mt-3 mt-lg-0" role="tablist">
                 <li className="nav-item"><button className={'nav-link '+(effTab==='overview' && active===null?'active':'')}
                   role="tab" aria-selected={effTab==='overview' && active===null}
-                  onClick={()=>{setActive(null); setTab('overview');}}>All channels <span className="badge text-bg-light text-dark ms-1">{channelsCount}</span></button></li>
+                  onClick={()=>{setActive(null); setTab('overview');}}>Telegram Channels <span className="badge text-bg-light text-dark ms-1">{channelsCount}</span></button></li>
                 <li className="nav-item"><button className={'nav-link '+(effTab==='overview' && active!==null?'active':'')}
                   role="tab" aria-selected={effTab==='overview' && active!==null} onClick={()=>setTab('overview')}>Overview</button></li>
                 {tabs.filter(([k])=>k!=='overview').map(([k,l]) => (
@@ -582,13 +584,14 @@
     }
 
     /* ---------- paper trading (per user) ---------- */
-    function PaperTrading() {
+    function PaperTrading({ channels }) {
       const [trades, setTrades] = useState([]);
       const [prefs, setPrefs] = useState(null);
       const [loading, setLoading] = useState(true);
       const [err, setErr] = useState('');
       const [filter, setFilter] = useState('Open');
       const [form, setForm] = useState({ symbol: '', side: 'BUY', asset_class: 'stock', entry_price: '' });
+      const [chQuery, setChQuery] = useState('');
 
       const load = useCallback(async () => {
         setLoading(true); setErr('');
@@ -629,6 +632,10 @@
         try { const u = await apiMutate('PUT', '/api/tracker/prefs/', { ...prefs, ...patch }); setPrefs(u); }
         catch (e2) { setErr(e2.message); }
       }
+      function toggleConsumer(id) {
+        const cur = prefs.auto_consumers || [];
+        savePref({ auto_consumers: cur.includes(id) ? cur.filter(x => x !== id) : [...cur, id] });
+      }
 
       const stat = (label, val, c) => (
         <div className="col-6 col-md-3"><div className="card pulse-card h-100" style={{ '--accent': '#4f46e5', '--tint': '#fff' }}>
@@ -666,6 +673,28 @@
                   <input type="number" step="0.5" className="form-control form-control-sm ms-2 d-inline-block" style={{ width: 74 }}
                          value={prefs.trailing_pct} aria-label="Trailing stop percent"
                          onChange={e => savePref({ trailing_pct: parseFloat(e.target.value) || 0 })} /></label>
+              </div>
+            </div></div>}
+
+          {prefs && channels &&
+            <div className="card mb-3"><div className="card-body py-2 px-3">
+              <div className="d-flex align-items-center justify-content-between mb-2">
+                <span className="small fw-semibold">Auto-paper-trade these channels ({(prefs.auto_consumers||[]).length} selected)</span>
+                <input className="form-control form-control-sm" style={{maxWidth:220}} placeholder="🔍 Search channels…"
+                       aria-label="Search channels to auto paper-trade" value={chQuery}
+                       onChange={e=>setChQuery(e.target.value)} />
+              </div>
+              <div className="d-flex flex-wrap gap-1" style={{maxHeight:160, overflowY:'auto'}}>
+                {channels.filter(c=>(c.name+' '+(c.short||'')).toLowerCase().includes(chQuery.toLowerCase())).map(c => {
+                  const on = (prefs.auto_consumers||[]).includes(c.id);
+                  return (
+                    <button key={c.id} type="button"
+                            className={'pill ' + (on ? 'active' : '')}
+                            style={on ? {background:'var(--tt-indigo)', borderColor:'var(--tt-indigo)'} : {}}
+                            onClick={()=>toggleConsumer(c.id)}>
+                      {on ? '✓ ' : ''}{c.short || c.name}
+                    </button>);
+                })}
               </div>
             </div></div>}
 
@@ -1274,7 +1303,7 @@
       const [picks, setPicks] = useState([]);
       const [active, setActive] = useState(null);
       const [tab, setTab] = useState('overview');
-      const [rangeKey, setRangeKey] = useState('all');
+      const [rangeKey, setRangeKey] = useState('1d');
       const [custom, setCustom] = useState({from:'',to:''});
       const [sectors, setSectors] = useState([]);
       const [chQuery, setChQuery] = useState('');
@@ -1320,25 +1349,30 @@
       const load = useCallback(async () => {
         setLoading(true); setErr('');
         try {
-          const [me, chans, trs] = await Promise.all([
-            api('/api/auth/me/'), api('/api/tracker/channels/'), fetchAllPages('/api/tracker/trades/')]);
-          setUser(me); setChannels(chans.results); setTrades(trs);
+          const [me, chans] = await Promise.all([api('/api/auth/me/'), api('/api/tracker/channels/')]);
+          setUser(me); setChannels(chans.results);
         } catch (e) { if (e.message !== 'auth') setErr(e.message); }
         finally { setLoading(false); }
       }, []);
 
+      // Trades is fetched here too (not just stats/board/picks/summary) so it
+      // stays scoped to the same range/channel/sector filter as everything
+      // else -- fetching every trade unconditionally on every load, then
+      // filtering client-side, meant a 26-request page-through of the whole
+      // table (12k+ rows) on every visit regardless of the date filter shown.
       async function loadAnalytics() {
         setStats(null);
         const base = active ? qs(range, sectors, ['channel='+active]) : qs(range, sectors);
         const sumBase = qs(range, sectors);
         try {
-          const [st, bd, pk, sm] = await Promise.all([
+          const [st, bd, pk, sm, trs] = await Promise.all([
             api('/api/tracker/stats/' + base),
             api('/api/tracker/stats/breakdown/' + qs(range, sectors)),
             api('/api/tracker/picks/' + base),
             api('/api/tracker/summary/' + sumBase),
+            fetchAllPages('/api/tracker/trades/' + base),
           ]);
-          setStats(st); setBoard(bd.results); setPicks(pk.results); setSummary(sm);
+          setStats(st); setBoard(bd.results); setPicks(pk.results); setSummary(sm); setTrades(trs);
         } catch (e) { if (e.message !== 'auth') setErr(e.message); }
       }
 
@@ -1348,7 +1382,7 @@
       async function onLogout(){ await fetch('/api/auth/logout/',{method:'POST',credentials:'same-origin'}); window.location.href='/login/'; }
 
       const activeChannel = channels.find(c=>c.id===active);
-      const pulseName = active ? (activeChannel?.short||activeChannel?.name||'channel') : 'All channels';
+      const pulseName = active ? (activeChannel?.short||activeChannel?.name||'channel') : 'Telegram Channels';
       const sectorLabel = sectors.length ? sectors.map(s=>SECTOR_LABEL[s]).join(' + ') : 'All sectors';
       const rangeLabel = range.from||range.to ? ((range.from||'…')+' → '+(range.to||'today')) : 'All time';
 
@@ -1411,10 +1445,13 @@
         return list.slice().sort(CH_SORTS[chSort].fn);
       }, [channels, chQuery, chSort, boardByChannel, followedOnly, followedIds]);
 
-      // Leaderboard & Today's calls tabs only on the summary (All channels) view
-      const tabs = active===null ? [['overview','Overview'],['calls',"Today's calls"],['board','Leaderboard'],['picks','Favorite picks'],['paper','Paper trading'],['trades','Trades']]
+      // Leaderboard & Today's calls only on the summary (all-channels) view;
+      // Trades only once a single channel is selected (it's that channel's
+      // own trade list/performance, not a global one).
+      const tabs = active===null ? [['overview','Overview'],['calls',"Today's calls"],['board','Leaderboard'],['picks','Favorite picks'],['paper','Paper trading']]
                                  : [['overview','Overview'],['picks','Favorite picks'],['paper','Paper trading'],['trades','Trades']];
-      const effTab = ((tab==='board' || tab==='calls') && active!==null) ? 'overview' : tab;
+      const effTab = ((tab==='board' || tab==='calls') && active!==null) ? 'overview'
+                    : (tab==='trades' && active===null) ? 'overview' : tab;
       const MARKET_INTEL_TITLE = {
         congress: 'Congress Trades · largest disclosed House trades',
         institutional: 'Institutional Reports · BlackRock & JPMorgan outlook',
@@ -1445,7 +1482,7 @@
               </div>
               <nav className="list-group sidebar shadow-sm" aria-label="Channels">
                 <button className={'list-group-item list-group-item-action '+(active===null?'active':'')} onClick={()=>setActive(null)}>
-                  All channels <span className="badge text-bg-secondary">{channels.length}</span></button>
+                  Telegram Channels <span className="badge text-bg-secondary">{channels.length}</span></button>
                 {filteredChannels.map(c=>{ const followed = followedIds.has(c.id); return (
                   <div key={c.id} className={'list-group-item list-group-item-action d-flex justify-content-between align-items-center gap-1 '+(active===c.id?'active':'')}
                        style={{cursor:'pointer'}} onClick={()=>setActive(c.id)} title={c.name}>
@@ -1487,7 +1524,7 @@
 
               {effTab==='paper' &&
                 <Section title={'Paper trading · '+(user?user.username:'you')} open={true}>
-                  <PaperTrading /></Section>}
+                  <PaperTrading channels={channels} /></Section>}
 
               {effTab==='congress' &&
                 <Section title={MARKET_INTEL_TITLE.congress} open={true}>
@@ -1504,6 +1541,10 @@
               {effTab==='superinvestors' &&
                 <Section title={MARKET_INTEL_TITLE.superinvestors} open={true}>
                   <SuperInvestorsTab /></Section>}
+
+              {effTab==='trades' &&
+                <Section title={'Performance · '+pulseName} open={openPulse} onToggle={()=>setOpenPulse(!openPulse)}>
+                  <ChannelPulse stats={stats} /></Section>}
 
               {effTab==='trades' &&
                 <Section title={'Individual trades'} open={openTrades} onToggle={()=>setOpenTrades(!openTrades)}

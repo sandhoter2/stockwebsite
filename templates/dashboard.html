@@ -274,23 +274,20 @@
               <span className="navbar-toggler-icon"></span>
             </button>
             <div className="collapse navbar-collapse" id="topbarNav">
-              <ul className="nav nav-tabs mb-0 border-0 align-items-lg-center me-lg-auto mt-3 mt-lg-0" role="tablist">
+              <ul className="nav nav-tabs mb-0 border-0 flex-wrap align-items-lg-center me-lg-auto mt-3 mt-lg-0" role="tablist">
                 <li className="nav-item"><button className={'nav-link '+(effTab==='overview' && active===null?'active':'')}
                   role="tab" aria-selected={effTab==='overview' && active===null}
                   onClick={()=>{setActive(null); setTab('overview');}}>All channels <span className="badge text-bg-light text-dark ms-1">{channelsCount}</span></button></li>
                 <li className="nav-item"><button className={'nav-link '+(effTab==='overview' && active!==null?'active':'')}
                   role="tab" aria-selected={effTab==='overview' && active!==null} onClick={()=>setTab('overview')}>Overview</button></li>
+                {tabs.filter(([k])=>k!=='overview').map(([k,l]) => (
+                  <li className="nav-item" key={k}><button className={'nav-link '+(effTab===k?'active':'')}
+                    role="tab" aria-selected={effTab===k} onClick={()=>setTab(k)}>{l}</button></li>))}
                 <li className="nav-item dropdown">
-                  <button className={'nav-link dropdown-toggle burger-toggle '+(effTab!=='overview'?'active':'')}
-                          data-bs-toggle="dropdown" aria-expanded="false" role="tab" aria-label="More sections"
-                          aria-selected={effTab!=='overview'}>
-                    ☰ {effTab!=='overview' ? (tabs.find(([k])=>k===effTab)||MARKET_INTEL_TABS.find(([k])=>k===effTab)||[])[1] : 'Menu'}
-                  </button>
+                  <button className={'nav-link dropdown-toggle '+(MARKET_INTEL_KEYS.includes(effTab)?'active':'')}
+                          data-bs-toggle="dropdown" aria-expanded="false" role="tab"
+                          aria-selected={MARKET_INTEL_KEYS.includes(effTab)}>Market Intel</button>
                   <ul className="dropdown-menu">
-                    {tabs.filter(([k])=>k!=='overview').map(([k,l]) => (
-                      <li key={k}><button className={'dropdown-item '+(effTab===k?'active':'')} onClick={()=>setTab(k)}>{l}</button></li>))}
-                    <li><hr className="dropdown-divider" /></li>
-                    <li><h6 className="dropdown-header">Market Intel</h6></li>
                     {MARKET_INTEL_TABS.map(([k,l]) => (
                       <li key={k}><button className={'dropdown-item '+(effTab===k?'active':'')} onClick={()=>setTab(k)}>{l}</button></li>))}
                   </ul>

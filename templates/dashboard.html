@@ -151,6 +151,21 @@
       return <span className="sector-badge" style={{background:bg, color:fg}}>{SECTOR_LABEL[ac]||ac}</span>;
     }
 
+    // Shared KPI/stat tile -- was reimplemented ~5x with tiny prop drift
+    // (SummaryCards, PaperTrading, ChannelPulse, CongressProfile, InvestorProfile).
+    function StatCard({ label, value, extra, accent, tint, hint, colClass, center }) {
+      return (
+        <div className={colClass || 'col-6 col-lg-3 col-md-4'}>
+          <div className="card pulse-card h-100" style={{'--accent':accent, '--tint':tint}} title={hint}>
+            <div className={'card-body py-2 ' + (center ? 'px-2 text-center' : 'px-3')}>
+              <div className="label">{label}</div>
+              <div className="value">{value}</div>
+              {extra && <div className="small text-muted">{extra}</div>}
+            </div>
+          </div>
+        </div>);
+    }
+
     function Pagination({ page, setPage, total, pageSize }) {
       const pages = Math.max(1, Math.ceil(total / pageSize));
       if (pages <= 1) return null;
@@ -348,15 +363,9 @@
       return (
         <div className="row g-2 mb-3 cards">
           {items.map(([label,val,accent,tint,hint]) => (
-            <div className="col-6 col-md-4 col-lg-2" key={label}>
-              <div className="card pulse-card h-100" style={{'--accent':accent,'--tint':tint}} title={hint}>
-                <div className="card-body py-2 px-3">
-                  <div className="label">{label}</div>
-                  <div className={'value '+(label.includes('₹')?cls(val):'')}>
-                    {typeof val==='number'&&label.includes('₹')?INR(val):(val ?? '—')}</div>
-                </div>
-              </div>
-            </div>
+            <StatCard key={label} colClass="col-6 col-md-4 col-lg-2" label={label} accent={accent} tint={tint} hint={hint}
+              value={<span className={label.includes('₹')?cls(val):''}>
+                {typeof val==='number'&&label.includes('₹')?INR(val):(val ?? '—')}</span>} />
           ))}
         </div>
       );
@@ -622,9 +631,9 @@
           load();
         } catch (e2) { setErr(e2.message); }
       }
-      async function del(id, symbol) {
-        if (!window.confirm('Delete paper trade ' + symbol + '? This cannot be undone.')) return;
-        try { await apiMutate('DELETE', '/api/tracker/paper/' + id + '/'); load(); }
+      const [confirmDelete, setConfirmDelete] = useState(null);
+      async function del(id) {
+        try { await apiMutate('DELETE', '/api/tracker/paper/' + id + '/'); setConfirmDelete(null); load(); }
         catch (e2) { setErr(e2.message); }
       }
       async function savePref(patch) {
@@ -638,9 +647,8 @@
       }
 
       const stat = (label, val, c) => (
-        <div className="col-6 col-md-3"><div className="card pulse-card h-100" style={{ '--accent': '#4f46e5', '--tint': '#fff' }}>
-          <div className="card-body py-2 px-3"><div className="label">{label}</div>
-          <div className={'value ' + (c || '')}>{val}</div></div></div></div>);
+        <StatCard colClass="col-6 col-md-3" label={label} accent="#4f46e5" tint="#fff"
+                  value={<span className={c || ''}>{val}</span>} />);
 
       return (
         <div>
@@ -745,8 +753,15 @@
                     <td className="text-end text-muted small">{t.stop_loss_pct}/{t.trailing_pct}</td>
                     <td><span className="badge text-bg-light border">{t.price_source}</span></td>
                     <td><span className={'badge ' + (t.status === 'Open' ? 'badge-open' : 'badge-closed')}>{t.status}</span></td>
-                    <td><button className="btn btn-sm btn-outline-danger py-0" aria-label={'Delete ' + t.symbol}
-                                onClick={() => del(t.id, t.symbol)}>✕</button></td>
+                    <td>{confirmDelete === t.id ? (
+                      <span className="d-flex gap-1">
+                        <button className="btn btn-sm btn-danger py-0" onClick={() => del(t.id)}>Delete</button>
+                        <button className="btn btn-sm btn-outline-secondary py-0" onClick={() => setConfirmDelete(null)}>Cancel</button>
+                      </span>
+                    ) : (
+                      <button className="btn btn-sm btn-outline-danger py-0" aria-label={'Delete ' + t.symbol}
+                              onClick={() => setConfirmDelete(t.id)}>✕</button>
+                    )}</td>
                   </tr>))}
                 {!loading && shown.length === 0 &&
                   <tr><td colSpan="11" className="text-center text-muted py-4">No {filter.toLowerCase()} paper trades. Run paper_autotrade or add one manually.</td></tr>}
@@ -809,9 +824,7 @@
       const total=stats.wins+stats.losses+stats.flat||0, denom=total||1;
       const wp=100*stats.wins/denom, lp=100*stats.losses/denom, fp=100*stats.flat/denom;
       const card=(label,value,extra,accent,tint)=>(
-        <div className="col-6 col-lg-3 col-md-4"><div className="card pulse-card" style={{'--accent':accent,'--tint':tint}}>
-          <div className="card-body py-2 px-3"><div className="label">{label}</div><div className="value">{value}</div>
-          {extra&&<div className="small text-muted">{extra}</div>}</div></div></div>);
+        <StatCard label={label} value={value} extra={extra} accent={accent} tint={tint} />);
       return (<div>
         <div className="row g-2 mb-2">
           {card('Invested (Σ entry)',INR(stats.invested),stats.trades+' trades · '+stats.open+' open','#2563eb','#eff6ff')}
@@ -938,9 +951,7 @@
       }, [politician]);
 
       const card = (label,value,extra,accent,tint) => (
-        <div className="col-6 col-lg-3 col-md-4"><div className="card pulse-card" style={{'--accent':accent,'--tint':tint}}>
-          <div className="card-body py-2 px-3"><div className="label">{label}</div><div className="value">{value}</div>
-          {extra && <div className="small text-muted">{extra}</div>}</div></div></div>);
+        <StatCard label={label} value={value} extra={extra} accent={accent} tint={tint} />);
 
       return (
         <div>
@@ -987,8 +998,8 @@
           const params = ['days=' + days, 'limit=150'];
           if (party) params.push('party=' + party);
           if (politician) params.push('politician=' + encodeURIComponent(politician));
-          const d = await fetchAllPages('/api/congress/trades/?' + params.join('&'));
-          setRows(d);
+          const d = await api('/api/congress/trades/?' + params.join('&'));
+          setRows(d.results);
         } catch (e) { setErr(e.message); setRows([]); }
       }, [days, party, politician]);
       useEffect(() => { load(); }, [load]);
@@ -1205,11 +1216,7 @@
                 ['New', profile.moves_new], ['Increased', profile.moves_increased],
                 ['Decreased', profile.moves_decreased], ['Closed', profile.moves_closed],
               ].map(([label, val]) => (
-                <div className="col-4 col-md-2" key={label}>
-                  <div className="card pulse-card h-100"><div className="card-body py-2 px-2 text-center">
-                    <div className="label">{label}</div><div className="value">{val}</div>
-                  </div></div>
-                </div>))}
+                <StatCard key={label} colClass="col-4 col-md-2" center label={label} value={val} />))}
             </div>
             <div className="row g-2 mb-3">
               <div className="col-md-6">
@@ -1311,6 +1318,7 @@
       const [status, setStatus] = useState('All');
       const [q, setQ] = useState('');
       const [loading, setLoading] = useState(true);
+      const [analyticsLoading, setAnalyticsLoading] = useState(true);
       const [err, setErr] = useState('');
       const [openPulse, setOpenPulse] = useState(true);
       const [openPicks, setOpenPicks] = useState(true);
@@ -1361,7 +1369,7 @@
       // filtering client-side, meant a 26-request page-through of the whole
       // table (12k+ rows) on every visit regardless of the date filter shown.
       async function loadAnalytics() {
-        setStats(null);
+        setStats(null); setAnalyticsLoading(true);
         const base = active ? qs(range, sectors, ['channel='+active]) : qs(range, sectors);
         const sumBase = qs(range, sectors);
         try {
@@ -1374,6 +1382,7 @@
           ]);
           setStats(st); setBoard(bd.results); setPicks(pk.results); setSummary(sm); setTrades(trs);
         } catch (e) { if (e.message !== 'auth') setErr(e.message); }
+        finally { setAnalyticsLoading(false); }
       }
 
       useEffect(()=>{ load(); }, []);
@@ -1588,8 +1597,8 @@
                         })()}
                       </tr></thead>
                       <tbody>
-                        {loading && <tr><td colSpan="10" className="text-center py-4">Loading…</td></tr>}
-                        {!loading && tradesPage.map(t=>(
+                        {analyticsLoading && <tr><td colSpan="10" className="text-center py-4">Loading…</td></tr>}
+                        {!analyticsLoading && tradesPage.map(t=>(
                           <tr key={t.id}>
                             <td className="d-none d-xxl-table-cell">{t.date||'—'}</td>
                             <td className="text-muted d-none d-xxl-table-cell">{IST(t.posted_at)||'—'}</td>
@@ -1604,7 +1613,7 @@
                             <td><span className={'badge '+(t.status==='Open'?'badge-open':'badge-closed')}>{t.status}</span></td>
                             <td className="text-truncate d-none d-xxl-table-cell" style={{maxWidth:'12rem'}} title={t.note}>{t.note}</td>
                           </tr>))}
-                        {!loading && shown.length===0 && <tr><td colSpan="10" className="text-center text-muted py-4">No trades match.</td></tr>}
+                        {!analyticsLoading && shown.length===0 && <tr><td colSpan="10" className="text-center text-muted py-4">No trades match.</td></tr>}
                       </tbody>
                     </table>
                   </div>

@@ -283,15 +283,9 @@
                 {tabs.filter(([k])=>k!=='overview').map(([k,l]) => (
                   <li className="nav-item" key={k}><button className={'nav-link '+(effTab===k?'active':'')}
                     role="tab" aria-selected={effTab===k} onClick={()=>setTab(k)}>{l}</button></li>))}
-                <li className="nav-item dropdown">
-                  <button className={'nav-link dropdown-toggle '+(MARKET_INTEL_KEYS.includes(effTab)?'active':'')}
-                          data-bs-toggle="dropdown" aria-expanded="false" role="tab"
-                          aria-selected={MARKET_INTEL_KEYS.includes(effTab)}>Market Intel</button>
-                  <ul className="dropdown-menu">
-                    {MARKET_INTEL_TABS.map(([k,l]) => (
-                      <li key={k}><button className={'dropdown-item '+(effTab===k?'active':'')} onClick={()=>setTab(k)}>{l}</button></li>))}
-                  </ul>
-                </li>
+                {MARKET_INTEL_TABS.map(([k,l]) => (
+                  <li className="nav-item" key={k}><button className={'nav-link '+(effTab===k?'active':'')}
+                    role="tab" aria-selected={effTab===k} onClick={()=>setTab(k)}>{l}</button></li>))}
               </ul>
               <div className="d-flex flex-column flex-lg-row align-items-lg-center gap-2 gap-lg-3 mt-3 mt-lg-0">
                 <a className="link-light small" href="/api/tracker/" target="_blank" rel="noreferrer">API docs</a>
@@ -1268,7 +1262,6 @@
       ['congress', 'Congress Trades'], ['institutional', 'Institutional Reports'],
       ['news', 'Market News'], ['superinvestors', 'Super Investors'],
     ];
-    const MARKET_INTEL_KEYS = MARKET_INTEL_TABS.map(([k]) => k);
 
     function App() {
       const [user, setUser] = useState(null);

@@ -17,3 +17,6 @@ db.sqlite3.bak-*
 
 # OS / editor
 .DS_Store
+
+# Claude Code local agent state (other sessions' worktrees, local plugin config)
+.claude/

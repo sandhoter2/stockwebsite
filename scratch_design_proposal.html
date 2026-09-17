@@ -1,0 +1,400 @@
+<title>Trade Tracker Redesign</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink:#14162b; --paper:#f5f4fb; --surface:#ffffff; --surface-2:#faf9ff;
+    --line:#e4e2f0; --line-soft:#edecf7; --slate:#5b5e76; --slate-soft:#8b8ea3;
+    --indigo:#4338ca; --indigo-soft:#eeecfd; --sky:#2563eb;
+    --gain:#0f7a4e; --gain-soft:#e3f6ec; --loss:#c22a2a; --loss-soft:#fdeaea;
+    --amber:#a2620b; --amber-soft:#fbf0dd;
+    --shadow:0 1px 2px rgba(20,22,43,.05), 0 6px 20px rgba(20,22,43,.06);
+    --radius:14px; --radius-sm:8px;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ink:#eeedf7; --paper:#131421; --surface:#191a2b; --surface-2:#1e1f33;
+      --line:#2c2d45; --line-soft:#232438; --slate:#a7aac0; --slate-soft:#787c96;
+      --indigo:#8b7ffb; --indigo-soft:#26234a; --sky:#6ea8ff;
+      --gain:#3ecf8e; --gain-soft:#12291f; --loss:#ff6b6b; --loss-soft:#2e1717;
+      --amber:#e0a944; --amber-soft:#2e2410;
+      --shadow:0 1px 2px rgba(0,0,0,.3), 0 10px 30px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ink:#eeedf7; --paper:#131421; --surface:#191a2b; --surface-2:#1e1f33;
+    --line:#2c2d45; --line-soft:#232438; --slate:#a7aac0; --slate-soft:#787c96;
+    --indigo:#8b7ffb; --indigo-soft:#26234a; --sky:#6ea8ff;
+    --gain:#3ecf8e; --gain-soft:#12291f; --loss:#ff6b6b; --loss-soft:#2e1717;
+    --amber:#e0a944; --amber-soft:#2e2410;
+    --shadow:0 1px 2px rgba(0,0,0,.3), 0 10px 30px rgba(0,0,0,.35);
+  }
+  * { box-sizing:border-box; }
+  body {
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:"IBM Plex Sans",-apple-system,Segoe UI,sans-serif;
+    padding:0 20px; padding-block:48px 96px;
+  }
+  .wrap { max-width:980px; margin:0 auto; }
+  h1,h2,h3 { font-family:"Manrope",-apple-system,sans-serif; text-wrap:balance; margin:0; }
+  .num { font-family:"IBM Plex Mono",ui-monospace,monospace; font-variant-numeric:tabular-nums; }
+  .eyebrow { font-family:"IBM Plex Mono",monospace; font-size:.72rem; letter-spacing:.09em; text-transform:uppercase; color:var(--indigo); font-weight:600; }
+  header.hero { padding-block:8px 40px; border-bottom:1px solid var(--line); margin-bottom:40px; }
+  header.hero h1 { font-size:clamp(1.7rem,3.4vw,2.4rem); font-weight:800; margin-top:.5rem; letter-spacing:-.01em; }
+  header.hero p { max-width:60ch; color:var(--slate); font-size:1rem; line-height:1.6; margin-top:.85rem; }
+  section { margin-bottom:52px; }
+  section > .label { display:flex; align-items:baseline; gap:.6rem; margin-bottom:18px; }
+  section > .label .n { font-family:"IBM Plex Mono",monospace; font-size:.78rem; color:var(--slate-soft); }
+  section > .label h2 { font-size:1.15rem; font-weight:700; }
+  section > .intro { color:var(--slate); font-size:.92rem; line-height:1.65; max-width:66ch; margin-bottom:20px; }
+
+  .findings { display:grid; gap:10px; }
+  .finding { display:grid; grid-template-columns:auto 1fr; gap:14px; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-sm); padding:14px 16px; }
+  .finding .sev { font-family:"IBM Plex Mono",monospace; font-size:.68rem; font-weight:600; letter-spacing:.04em; padding:.2rem .5rem; border-radius:5px; height:fit-content; white-space:nowrap; }
+  .sev.high { background:var(--loss-soft); color:var(--loss); }
+  .sev.med { background:var(--amber-soft); color:var(--amber); }
+  .finding h4 { margin:0 0 3px; font-size:.9rem; font-weight:600; }
+  .finding p { margin:0; color:var(--slate); font-size:.84rem; line-height:1.55; }
+
+  .swatches { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px; }
+  .swatch { border:1px solid var(--line); border-radius:var(--radius-sm); overflow:hidden; background:var(--surface); }
+  .swatch .chip { height:54px; }
+  .swatch .meta { padding:8px 10px; }
+  .swatch .meta .name { font-size:.78rem; font-weight:600; }
+  .swatch .meta .hex { font-family:"IBM Plex Mono",monospace; font-size:.72rem; color:var(--slate); }
+
+  .type-row { display:flex; align-items:baseline; gap:16px; padding:14px 0; border-bottom:1px solid var(--line-soft); }
+  .type-row:last-child { border-bottom:0; }
+  .type-row .tag { font-family:"IBM Plex Mono",monospace; font-size:.68rem; color:var(--slate-soft); width:130px; flex:none; text-transform:uppercase; letter-spacing:.06em; }
+  .type-row .sample.display { font-family:"Manrope"; font-weight:800; font-size:1.5rem; }
+  .type-row .sample.body { font-family:"IBM Plex Sans"; font-size:1rem; }
+  .type-row .sample.mono { font-family:"IBM Plex Mono",monospace; font-size:.95rem; }
+
+  .compare { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  @media (max-width:720px) { .compare { grid-template-columns:1fr; } }
+  .compare .pane { border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; background:var(--surface); }
+  .compare .pane .tag { font-family:"IBM Plex Mono",monospace; font-size:.68rem; letter-spacing:.06em; text-transform:uppercase; padding:8px 12px; border-bottom:1px solid var(--line); color:var(--slate); }
+  .compare .pane.before .tag { color:var(--loss); }
+  .compare .pane.after .tag { color:var(--gain); }
+  .compare .pane .body { padding:12px; }
+
+  /* before: cramped current nav */
+  .old-navbar { background:linear-gradient(90deg,#1e1b4b,#312e81 55%,#1d4ed8); border-radius:8px; padding:8px 10px; color:#fff; font-size:.78rem; font-weight:700; margin-bottom:8px; }
+  .old-tabs { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:6px; }
+  .old-tabs span { font-size:.7rem; padding:4px 8px; border-radius:5px 5px 0 0; background:var(--line-soft); color:var(--slate); }
+  .old-tabs span.active { background:var(--indigo); color:#fff; }
+  .old-drop { font-size:.7rem; padding:4px 8px; border:1px dashed var(--slate-soft); border-radius:5px; color:var(--slate); display:inline-block; }
+  .old-note { font-size:.76rem; color:var(--slate); margin-top:10px; line-height:1.5; }
+
+  /* after: unified rail concept */
+  .rail-demo { display:grid; grid-template-columns:150px 1fr; gap:10px; }
+  .rail-demo .rail { background:var(--surface-2); border-radius:8px; padding:8px; display:flex; flex-direction:column; gap:2px; }
+  .rail-group-label { font-family:"IBM Plex Mono",monospace; font-size:.6rem; letter-spacing:.07em; text-transform:uppercase; color:var(--slate-soft); padding:6px 8px 2px; }
+  .rail-item { font-size:.74rem; padding:6px 8px; border-radius:6px; color:var(--slate); }
+  .rail-item.active { background:var(--indigo); color:#fff; font-weight:600; }
+  .rail-demo .content { background:var(--surface-2); border-radius:8px; padding:10px; }
+  .after-note { font-size:.76rem; color:var(--slate); margin-top:10px; line-height:1.5; }
+
+  /* mockup screen */
+  .mock { border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; box-shadow:var(--shadow); background:var(--surface); }
+  .mock-topbar { display:flex; align-items:center; justify-content:space-between; padding:12px 18px; background:linear-gradient(90deg,var(--ink),var(--indigo)); color:#fff; }
+  .mock-topbar .brand { display:flex; align-items:center; gap:8px; font-family:"Manrope"; font-weight:800; font-size:.95rem; }
+  .mock-topbar .brand .rupee { width:26px;height:26px;border-radius:7px;background:rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center;font-size:.9rem; }
+  .mock-topbar .user { display:flex; align-items:center; gap:10px; font-size:.78rem; opacity:.9; }
+  .mock-topbar .avatar { width:26px;height:26px;border-radius:50%;background:var(--sky);display:flex;align-items:center;justify-content:center;font-size:.68rem;font-weight:700; }
+  .mock-body { display:grid; grid-template-columns:200px 1fr; }
+  @media (max-width:680px) { .mock-body { grid-template-columns:1fr; } .mock-rail { display:none; } }
+  .mock-rail { background:var(--surface-2); border-right:1px solid var(--line); padding:14px 10px; }
+  .mock-rail .search { width:100%; font-size:.76rem; padding:6px 8px; border-radius:6px; border:1px solid var(--line); background:var(--surface); color:var(--slate); margin-bottom:10px; }
+  .mock-rail .group-label { font-family:"IBM Plex Mono",monospace; font-size:.6rem; letter-spacing:.07em; text-transform:uppercase; color:var(--slate-soft); padding:10px 8px 4px; }
+  .mock-rail .item { display:flex; justify-content:space-between; align-items:center; font-size:.78rem; padding:7px 8px; border-radius:6px; color:var(--slate); cursor:default; }
+  .mock-rail .item.active { background:var(--indigo-soft); color:var(--indigo); font-weight:600; }
+  .mock-rail .item .b { font-family:"IBM Plex Mono",monospace; font-size:.68rem; color:var(--slate-soft); }
+  .mock-rail .item.active .b { color:var(--indigo); }
+  .mock-rail .chan { display:flex; justify-content:space-between; align-items:center; font-size:.76rem; padding:6px 8px; border-radius:6px; color:var(--slate); }
+  .mock-rail .chan .star { color:var(--amber); }
+  .mock-main { padding:16px 18px; }
+  .kpis { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:16px; }
+  @media (max-width:680px) { .kpis { grid-template-columns:repeat(2,1fr); } }
+  .kpi { border:1px solid var(--line); border-left:3px solid var(--accent,var(--indigo)); border-radius:10px; padding:10px 12px; background:var(--surface); }
+  .kpi .l { font-size:.65rem; text-transform:uppercase; letter-spacing:.05em; color:var(--slate-soft); font-weight:600; }
+  .kpi .v { font-family:"IBM Plex Mono",monospace; font-size:1.15rem; font-weight:600; margin-top:3px; }
+  .kpi.gain .v { color:var(--gain); } .kpi.loss .v { color:var(--loss); }
+  .seg { display:flex; gap:4px; margin-bottom:14px; flex-wrap:wrap; }
+  .seg span { font-size:.76rem; font-weight:600; padding:6px 12px; border-radius:7px; color:var(--slate); }
+  .seg span.active { background:var(--indigo); color:#fff; }
+  .card2 { border:1px solid var(--line); border-radius:10px; background:var(--surface); overflow:hidden; }
+  .card2 .h { display:flex; justify-content:space-between; align-items:center; padding:9px 12px; border-bottom:1px solid var(--line-soft); font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--slate); }
+  table.mt { width:100%; border-collapse:collapse; font-size:.78rem; }
+  table.mt th { text-align:left; font-size:.65rem; text-transform:uppercase; letter-spacing:.04em; color:var(--slate-soft); padding:8px 12px; border-bottom:1px solid var(--line); }
+  table.mt td { padding:7px 12px; border-bottom:1px solid var(--line-soft); }
+  table.mt td.num, table.mt th.num { text-align:right; font-family:"IBM Plex Mono",monospace; }
+  .tag2 { font-size:.66rem; font-weight:700; padding:.15rem .5rem; border-radius:1rem; }
+  .tier { font-size:.66rem; font-weight:700; padding:.15rem .5rem; border-radius:1rem; background:var(--gain-soft); color:var(--gain); }
+  .tier.watch { background:var(--amber-soft); color:var(--amber); }
+
+  ol.roadmap { list-style:none; margin:0; padding:0; display:grid; gap:10px; counter-reset:step; }
+  ol.roadmap li { counter-increment:step; display:grid; grid-template-columns:34px 1fr; gap:14px; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-sm); padding:13px 15px; }
+  ol.roadmap li::before { content:counter(step); font-family:"IBM Plex Mono",monospace; font-weight:600; color:var(--indigo); background:var(--indigo-soft); width:26px; height:26px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:.78rem; }
+  ol.roadmap h4 { margin:0 0 3px; font-size:.88rem; font-weight:700; }
+  ol.roadmap p { margin:0; font-size:.83rem; color:var(--slate); line-height:1.55; }
+
+  footer { margin-top:60px; padding-top:20px; border-top:1px solid var(--line); font-size:.78rem; color:var(--slate-soft); }
+
+  .tblwrap { overflow-x:auto; border:1px solid var(--line); border-radius:var(--radius-sm); background:var(--surface); }
+  table.dtable { width:100%; border-collapse:collapse; font-size:.83rem; }
+  table.dtable th { text-align:left; background:var(--surface-2); font-size:.66rem; text-transform:uppercase; letter-spacing:.05em; color:var(--slate-soft); font-weight:600; padding:10px 14px; border-bottom:1px solid var(--line); white-space:nowrap; }
+  table.dtable td { padding:12px 14px; border-bottom:1px solid var(--line-soft); vertical-align:top; color:var(--slate); line-height:1.5; }
+  table.dtable tr:last-child td { border-bottom:0; }
+  table.dtable td.strong { color:var(--ink); font-weight:600; }
+  table.dtable td.center { text-align:center; }
+  .swatch-cell { display:flex; align-items:center; gap:8px; white-space:nowrap; }
+  .swatch-dot { width:16px; height:16px; border-radius:5px; flex:none; border:1px solid rgba(0,0,0,.06); }
+  .sev-chip { font-family:"IBM Plex Mono",monospace; font-size:.66rem; font-weight:600; letter-spacing:.04em; padding:.2rem .5rem; border-radius:5px; white-space:nowrap; }
+  .sev-chip.high { background:var(--loss-soft); color:var(--loss); }
+  .sev-chip.med { background:var(--amber-soft); color:var(--amber); }
+  .step-chip { font-family:"IBM Plex Mono",monospace; font-weight:700; color:var(--indigo); background:var(--indigo-soft); width:24px; height:24px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:.74rem; }
+  .sample.display { font-family:"Manrope"; font-weight:800; font-size:1.25rem; color:var(--ink); }
+  .sample.body { font-family:"IBM Plex Sans"; font-size:.92rem; color:var(--ink); }
+  .sample.mono { font-family:"IBM Plex Mono",monospace; font-size:.88rem; color:var(--ink); }
+</style>
+
+<div class="wrap">
+  <header class="hero">
+    <div class="eyebrow">Design review · Telegram Trade Tracker</div>
+    <h1>One system, one way to move around</h1>
+    <p>The app works — parsing is solid, trust tiers are useful, the data is real. What's missing is a shared visual language: the login screen, top bar, tabs and Market Intel menu were each designed separately, so every screen re-teaches the same navigation. This is a concrete proposal for a unified design system and a single-nav layout, with a working mockup below.</p>
+  </header>
+
+  <section>
+    <div class="label"><span class="n">01</span><h2>What's inconsistent today</h2></div>
+    <p class="intro">Pulled directly from <span class="num">templates/login.html</span> and <span class="num">templates/dashboard.html</span>.</p>
+    <div class="tblwrap">
+      <table class="dtable">
+        <thead><tr><th>Severity</th><th>Where</th><th>Issue</th><th>Why it matters</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="sev-chip high">High</span></td>
+            <td class="strong">login.html vs dashboard.html</td>
+            <td>Login and dashboard don't look like the same product</td>
+            <td>Login uses a plain slate‑to‑navy gradient with a generic Bootstrap card; the dashboard uses an indigo→blue navbar gradient, custom badges, tier colors and hover states. A first‑time user gets no visual preview of the app they're about to enter.</td>
+          </tr>
+          <tr>
+            <td><span class="sev-chip high">High</span></td>
+            <td class="strong">Navbar + tab row + dropdown</td>
+            <td>Three navigation patterns for one job</td>
+            <td>Top navbar (brand + logout), a horizontal tab row (Overview / Today's calls / Leaderboard / Picks / Paper / Trades), and a "Market Intel" dropdown bolted onto the end of the tab row for four more sections.</td>
+          </tr>
+          <tr>
+            <td><span class="sev-chip med">Medium</span></td>
+            <td class="strong">Sidebar vs tabs</td>
+            <td>Channel switching and section switching don't share a model</td>
+            <td>The channel list lives in a left sidebar as a scrollable <span class="num">list-group</span>; sections live in tabs above the content. Both are "pick one destination from a list," styled and positioned as if they were unrelated.</td>
+          </tr>
+          <tr>
+            <td><span class="sev-chip med">Medium</span></td>
+            <td class="strong">Color system</td>
+            <td>Color is used for two unrelated systems at once</td>
+            <td>Indigo/blue means "selected navigation." Green/red means "gain/loss." Amber/purple/teal are spent again on sector tags and the divergence badge. On a dense row all five can appear together with no priority between them.</td>
+          </tr>
+          <tr>
+            <td><span class="sev-chip med">Medium</span></td>
+            <td class="strong">Per‑tab headers</td>
+            <td>No shared page header pattern</td>
+            <td>Each tab invents its own header row (title + badges + right‑aligned meta, or nothing). Trades shows row count and totals; Leaderboard and Paper Trading show nothing. No consistent read on which filters are shaping the view.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <div class="label"><span class="n">02</span><h2>Proposed system</h2></div>
+    <p class="intro">A small, named palette and a two‑typeface pairing, applied everywhere instead of invented per‑component.</p>
+    <div class="tblwrap">
+      <table class="dtable">
+        <thead><tr><th>Swatch</th><th>Token</th><th>Hex</th><th>Used for</th></tr></thead>
+        <tbody>
+          <tr><td><span class="swatch-cell"><span class="swatch-dot" style="background:var(--ink)"></span></span></td><td class="strong">Ink</td><td class="num">#14162b</td><td>Body text, headings</td></tr>
+          <tr><td><span class="swatch-cell"><span class="swatch-dot" style="background:var(--indigo)"></span></span></td><td class="strong">Indigo</td><td class="num">#4338ca</td><td>Navigation, active/selected state — nothing else</td></tr>
+          <tr><td><span class="swatch-cell"><span class="swatch-dot" style="background:var(--sky)"></span></span></td><td class="strong">Sky</td><td class="num">#2563eb</td><td>Links, secondary accents</td></tr>
+          <tr><td><span class="swatch-cell"><span class="swatch-dot" style="background:var(--gain)"></span></span></td><td class="strong">Gain</td><td class="num">#0f7a4e</td><td>Positive P/L only</td></tr>
+          <tr><td><span class="swatch-cell"><span class="swatch-dot" style="background:var(--loss)"></span></span></td><td class="strong">Loss</td><td class="num">#c22a2a</td><td>Negative P/L only</td></tr>
+          <tr><td><span class="swatch-cell"><span class="swatch-dot" style="background:var(--amber)"></span></span></td><td class="strong">Amber</td><td class="num">#a2620b</td><td>"Watch" tier / caution states</td></tr>
+          <tr><td><span class="swatch-cell"><span class="swatch-dot" style="background:var(--slate)"></span></span></td><td class="strong">Slate</td><td class="num">#5b5e76</td><td>Secondary / muted text</td></tr>
+          <tr><td><span class="swatch-cell"><span class="swatch-dot" style="background:var(--paper);border-color:var(--line)"></span></span></td><td class="strong">Paper</td><td class="num">#f5f4fb</td><td>Page background</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="intro" style="margin-top:14px">Rule going forward: indigo/sky are reserved for navigation and interactive selection. Green/red are reserved for P/L, full stop — sector tags and tiers move to neutral‑tinted badges instead of a saturated fill, so P/L stays the one thing that jumps out on a dense row.</p>
+
+    <div class="tblwrap" style="margin-top:22px">
+      <table class="dtable">
+        <thead><tr><th>Role</th><th>Typeface</th><th>Sample</th></tr></thead>
+        <tbody>
+          <tr><td class="strong">Display</td><td>Manrope 800</td><td><span class="sample display">Track record · 20paisa.com</span></td></tr>
+          <tr><td class="strong">Body / UI</td><td>IBM Plex Sans</td><td><span class="sample body">Trust tiers, filters and section text — legible at 13–14px across dense tables.</span></td></tr>
+          <tr><td class="strong">Data</td><td>IBM Plex Mono</td><td><span class="sample mono num">₹12,480.50 · 68% · NIFTY 24800 CE</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="intro" style="margin-top:10px">Plex Mono for every number column (entry, target, SL, P/L, %, dates) — tabular figures line up instead of jittering column‑to‑column the way proportional digits do today.</p>
+  </section>
+
+  <section>
+    <div class="label"><span class="n">03</span><h2>Navigation: collapse three patterns into one</h2></div>
+    <p class="intro">Sections and channels are both "pick a destination" — put them in the same left rail, grouped, instead of splitting the job across a navbar, a tab strip and a dropdown.</p>
+    <div class="tblwrap">
+      <table class="dtable">
+        <thead><tr><th style="width:14%">Job</th><th style="width:43%">Today — 3 patterns</th><th style="width:43%">Proposed — 1 pattern</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="strong">Brand / account</td>
+            <td>Top navbar, gradient background, logout button</td>
+            <td>Stays as a slim top bar — brand left, active filters + avatar right</td>
+          </tr>
+          <tr>
+            <td class="strong">Core sections</td>
+            <td>Horizontal tab row: Overview / Today's calls / Leaderboard / Picks / Paper / Trades</td>
+            <td>"Sections" group in the left rail — same rows, vertical instead of a wrapping tab strip</td>
+          </tr>
+          <tr>
+            <td class="strong">Market Intel</td>
+            <td>Hidden behind a dropdown bolted onto the end of the tab row (Congress, Institutional, News, Super Investors)</td>
+            <td>Its own labeled group in the rail — visible, not one extra click away</td>
+          </tr>
+          <tr>
+            <td class="strong">Channels</td>
+            <td>Separate scrollable sidebar list below everything, own search/sort controls</td>
+            <td>Third rail group, right under Sections — same "pick a destination" interaction, same place</td>
+          </tr>
+          <tr>
+            <td class="strong">Mobile</td>
+            <td>Navbar collapses independently of the tab row, which just wraps onto more lines</td>
+            <td>Whole rail becomes one slide‑out drawer behind a single menu button</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="intro" style="margin-top:14px">Live comparison — the current top bar/tabs pattern on the left, the grouped rail on the right:</p>
+    <div class="compare">
+      <div class="pane before">
+        <div class="tag">Before</div>
+        <div class="body">
+          <div class="old-navbar">₹ Telegram Trade Tracker</div>
+          <div class="old-tabs">
+            <span class="active">Overview</span><span>Today's calls</span><span>Leaderboard</span><span>Picks</span><span>Paper</span><span>Trades</span>
+          </div>
+          <div class="old-drop">Market Intel ▾</div>
+        </div>
+      </div>
+      <div class="pane after">
+        <div class="tag">After</div>
+        <div class="body">
+          <div class="rail-demo">
+            <div class="rail">
+              <div class="rail-group-label">Sections</div>
+              <div class="rail-item active">Overview</div>
+              <div class="rail-item">Today's calls</div>
+              <div class="rail-item">Leaderboard</div>
+              <div class="rail-item">Trades</div>
+              <div class="rail-group-label">Market intel</div>
+              <div class="rail-item">Congress</div>
+              <div class="rail-item">News</div>
+              <div class="rail-group-label">Channels</div>
+              <div class="rail-item">20paisa.com</div>
+            </div>
+            <div class="content"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="label"><span class="n">04</span><h2>Applied to a real screen</h2></div>
+    <p class="intro">The Overview screen for a single channel, rebuilt on the system above. Example data, shaped like the app's own.</p>
+    <div class="mock">
+      <div class="mock-topbar">
+        <div class="brand"><span class="rupee">₹</span> Trade Tracker</div>
+        <div class="user"><span>All time · Options</span><span class="avatar">MP</span></div>
+      </div>
+      <div class="mock-body">
+        <div class="mock-rail">
+          <input class="search" placeholder="Search channels…" disabled>
+          <div class="group-label">Sections</div>
+          <div class="item active">Overview <span class="b">128</span></div>
+          <div class="item">Today's calls <span class="b">6</span></div>
+          <div class="item">Leaderboard <span class="b">14</span></div>
+          <div class="item">Trades <span class="b">341</span></div>
+          <div class="group-label">Market intel</div>
+          <div class="item">Congress <span class="b">9</span></div>
+          <div class="item">Institutional <span class="b">3</span></div>
+          <div class="group-label">Channels</div>
+          <div class="chan"><span class="star">★</span> 20paisa.com <span class="b">62</span></div>
+          <div class="chan">Angel One Research <span class="b">48</span></div>
+          <div class="chan">Option Bulls <span class="b">31</span></div>
+        </div>
+        <div class="mock-main">
+          <div class="seg"><span class="active">Overview</span><span>Picks</span><span>Paper trading</span></div>
+          <div class="kpis">
+            <div class="kpi" style="--accent:var(--indigo)"><div class="l">Closed calls</div><div class="v">62</div></div>
+            <div class="kpi gain" style="--accent:var(--gain)"><div class="l">Success rate</div><div class="v">68%</div></div>
+            <div class="kpi gain" style="--accent:var(--gain)"><div class="l">Realized P/L</div><div class="v">₹18,240</div></div>
+            <div class="kpi loss" style="--accent:var(--loss)"><div class="l">Open drawdown</div><div class="v">−₹1,120</div></div>
+          </div>
+          <div class="card2">
+            <div class="h"><span>Recent calls</span><span class="tier">Top tier</span></div>
+            <table class="mt">
+              <thead><tr><th>Date</th><th>Trade</th><th>Sector</th><th class="num">Entry</th><th class="num">P/L</th><th>Status</th></tr></thead>
+              <tbody>
+                <tr><td>12 Sep</td><td>NIFTY 24800 CE</td><td><span class="tag2" style="background:var(--indigo-soft);color:var(--indigo)">Option</span></td><td class="num">142.50</td><td class="num" style="color:var(--gain)">+2,480.00</td><td><span class="tier">Closed</span></td></tr>
+                <tr><td>11 Sep</td><td>RELIANCE</td><td><span class="tag2" style="background:var(--indigo-soft);color:var(--indigo)">Stock</span></td><td class="num">2,940.00</td><td class="num" style="color:var(--loss)">−320.00</td><td><span class="tier watch">Open</span></td></tr>
+                <tr><td>10 Sep</td><td>BANKNIFTY 51000 PE</td><td><span class="tag2" style="background:var(--indigo-soft);color:var(--indigo)">Option</span></td><td class="num">88.20</td><td class="num" style="color:var(--gain)">+1,150.00</td><td><span class="tier">Closed</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="label"><span class="n">05</span><h2>Rollout order</h2></div>
+    <div class="tblwrap">
+      <table class="dtable">
+        <thead><tr><th style="width:6%">Phase</th><th>Change</th><th>Touches</th><th>Outcome</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="center"><span class="step-chip">1</span></td>
+            <td class="strong">Foundation — tokens</td>
+            <td>login.html, dashboard.html <span class="num">&lt;style&gt;</span></td>
+            <td>Replace the ad‑hoc CSS variables and Bootstrap defaults with the palette and type scale above. No layout changes yet; fixes most of the login/dashboard mismatch on its own.</td>
+          </tr>
+          <tr>
+            <td class="center"><span class="step-chip">2</span></td>
+            <td class="strong">Navigation — unified rail</td>
+            <td><span class="num">App()</span> + sidebar markup in dashboard.html</td>
+            <td>Merge the navbar, tab strip and Market Intel dropdown into the single grouped rail. Biggest structural change of the four.</td>
+          </tr>
+          <tr>
+            <td class="center"><span class="step-chip">3</span></td>
+            <td class="strong">Page header pattern</td>
+            <td>The <span class="num">Section</span> component and each tab body</td>
+            <td>Give every section the same header: title, active filters as chips, right‑aligned summary — so Leaderboard and Paper Trading get the context row Trades already has.</td>
+          </tr>
+          <tr>
+            <td class="center"><span class="step-chip">4</span></td>
+            <td class="strong">Table & badge pass</td>
+            <td>Trades table, SectorTag, TierBadge</td>
+            <td>Tabular‑nums on every number column, neutral‑tinted sector/tier badges, P/L kept as the one saturated color signal on each row.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>Prepared for review — nothing has been changed in the running app yet. Say the word on which phase to start with.</footer>
+</div>

@@ -1,0 +1,597 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Stockpro Online — signal table</title>
+<style>
+  body { font-family: -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; padding: 24px; background: #0e1117; color: #e6e6e6; }
+  h1, h2 { font-weight: 600; }
+  .cards { display: flex; gap: 16px; flex-wrap: wrap; margin: 16px 0 28px; }
+  .card { background: #171b24; border: 1px solid #2a2f3a; border-radius: 10px; padding: 14px 18px; min-width: 150px; }
+  .card .num { font-size: 26px; font-weight: 700; }
+  .card .label { font-size: 12px; color: #9aa4b2; text-transform: uppercase; letter-spacing: .04em; }
+  table { border-collapse: collapse; width: 100%; margin: 10px 0 24px; font-size: 13px; }
+  th, td { border: 1px solid #2a2f3a; padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { background: #171b24; position: sticky; top: 0; cursor: pointer; }
+  tr:nth-child(even) { background: #12151c; }
+  .badge { display:inline-block; background:#2a3550; color:#9fc4ff; border-radius:4px; padding:1px 5px; font-size:10px; margin-right:4px;}
+  .conv { color: #ffb454; font-size: 11px; display:block; margin-top:2px;}
+  .bars { display:flex; align-items:flex-end; gap:2px; height:110px; margin: 8px 0 24px; overflow-x:auto; border-bottom:1px solid #2a2f3a; padding-bottom:2px;}
+  .bar-wrap { display:flex; align-items:flex-end; }
+  .bar { width:4px; background:#4f8cff; border-radius:2px 2px 0 0; }
+  input[type=text] { background:#171b24; border:1px solid #2a2f3a; color:#e6e6e6; padding:6px 10px; border-radius:6px; width:280px; margin-bottom:10px;}
+  select { background:#171b24; border:1px solid #2a2f3a; color:#e6e6e6; padding:6px; border-radius:6px; margin-bottom:10px;}
+  details { margin: 6px 0; }
+  pre { white-space: pre-wrap; background:#0b0d12; padding:8px; border-radius:6px; border:1px solid #2a2f3a; }
+  .footnote { font-size: 12px; color:#9aa4b2; }
+  .warn { color:#ff6b6b; }
+</style>
+</head>
+<body>
+<h1>Stockpro Online — full-history signal table</h1>
+<p class="footnote">Peer -1001389090145. Pulled via Telethon <code>get_messages(limit=2000)</code>, oldest-first, exact API timestamps.
+Corpus span: 2026-07-22T04:00:59+00:00 to 2026-09-14T09:31:42+00:00 (2000 messages). This is a read-only, standalone extraction — not connected to any app database.</p>
+
+<div class="cards">
+  <div class="card"><div class="num">2000</div><div class="label">messages pulled</div></div>
+  <div class="card"><div class="num">279</div><div class="label">signal posts parsed</div></div>
+  <div class="card"><div class="num">275</div><div class="label">distinct calls (deduped)</div></div>
+  <div class="card"><div class="num">276</div><div class="label">open / unresolved</div></div>
+  <div class="card"><div class="num">3</div><div class="label">explicitly closed</div></div>
+</div>
+
+<h2>Per-day signal volume</h2>
+<div class="bars"><div class='bar-wrap' title='2026-07-22: 7 signal posts'><div class='bar' style='height:63px'></div></div><div class='bar-wrap' title='2026-07-23: 8 signal posts'><div class='bar' style='height:72px'></div></div><div class='bar-wrap' title='2026-07-24: 9 signal posts'><div class='bar' style='height:81px'></div></div><div class='bar-wrap' title='2026-07-27: 7 signal posts'><div class='bar' style='height:63px'></div></div><div class='bar-wrap' title='2026-07-28: 7 signal posts'><div class='bar' style='height:63px'></div></div><div class='bar-wrap' title='2026-07-29: 6 signal posts'><div class='bar' style='height:54px'></div></div><div class='bar-wrap' title='2026-07-30: 9 signal posts'><div class='bar' style='height:81px'></div></div><div class='bar-wrap' title='2026-07-31: 8 signal posts'><div class='bar' style='height:72px'></div></div><div class='bar-wrap' title='2026-08-03: 11 signal posts'><div class='bar' style='height:100px'></div></div><div class='bar-wrap' title='2026-08-04: 8 signal posts'><div class='bar' style='height:72px'></div></div><div class='bar-wrap' title='2026-08-05: 6 signal posts'><div class='bar' style='height:54px'></div></div><div class='bar-wrap' title='2026-08-06: 9 signal posts'><div class='bar' style='height:81px'></div></div><div class='bar-wrap' title='2026-08-07: 8 signal posts'><div class='bar' style='height:72px'></div></div><div class='bar-wrap' title='2026-08-10: 9 signal posts'><div class='bar' style='height:81px'></div></div><div class='bar-wrap' title='2026-08-11: 9 signal posts'><div class='bar' style='height:81px'></div></div><div class='bar-wrap' title='2026-08-12: 11 signal posts'><div class='bar' style='height:100px'></div></div><div class='bar-wrap' title='2026-08-13: 10 signal posts'><div class='bar' style='height:90px'></div></div><div class='bar-wrap' title='2026-08-14: 9 signal posts'><div class='bar' style='height:81px'></div></div><div class='bar-wrap' title='2026-08-17: 11 signal posts'><div class='bar' style='height:100px'></div></div><div class='bar-wrap' title='2026-08-18: 8 signal posts'><div class='bar' style='height:72px'></div></div><div class='bar-wrap' title='2026-08-19: 5 signal posts'><div class='bar' style='height:45px'></div></div><div class='bar-wrap' title='2026-08-20: 8 signal posts'><div class='bar' style='height:72px'></div></div><div class='bar-wrap' title='2026-08-21: 8 signal posts'><div class='bar' style='height:72px'></div></div><div class='bar-wrap' title='2026-08-24: 7 signal posts'><div class='bar' style='height:63px'></div></div><div class='bar-wrap' title='2026-08-25: 8 signal posts'><div class='bar' style='height:72px'></div></div><div class='bar-wrap' title='2026-08-26: 8 signal posts'><div class='bar' style='height:72px'></div></div><div class='bar-wrap' title='2026-08-27: 5 signal posts'><div class='bar' style='height:45px'></div></div><div class='bar-wrap' title='2026-08-28: 5 signal posts'><div class='bar' style='height:45px'></div></div><div class='bar-wrap' title='2026-08-31: 9 signal posts'><div class='bar' style='height:81px'></div></div><div class='bar-wrap' title='2026-09-01: 7 signal posts'><div class='bar' style='height:63px'></div></div><div class='bar-wrap' title='2026-09-02: 8 signal posts'><div class='bar' style='height:72px'></div></div><div class='bar-wrap' title='2026-09-03: 6 signal posts'><div class='bar' style='height:54px'></div></div><div class='bar-wrap' title='2026-09-04: 4 signal posts'><div class='bar' style='height:36px'></div></div><div class='bar-wrap' title='2026-09-07: 3 signal posts'><div class='bar' style='height:27px'></div></div><div class='bar-wrap' title='2026-09-08: 8 signal posts'><div class='bar' style='height:72px'></div></div><div class='bar-wrap' title='2026-09-09: 5 signal posts'><div class='bar' style='height:45px'></div></div><div class='bar-wrap' title='2026-09-10: 4 signal posts'><div class='bar' style='height:36px'></div></div><div class='bar-wrap' title='2026-09-11: 1 signal posts'><div class='bar' style='height:9px'></div></div></div>
+
+<h2>Tier A — shape classification (full corpus)</h2>
+<table>
+<tr><th>shape family</th><th>count</th></tr>
+<tr><td>restated_confirmation</td><td>634</td></tr><tr><td>made_a_high_of_announcement</td><td>397</td></tr><tr><td>signal_positional_scalping_ladder</td><td>279</td></tr><tr><td>other_unclassified</td><td>158</td></tr><tr><td>fresh_breakout_announcement_no_sl_target</td><td>124</td></tr><tr><td>watch_symbol_mention</td><td>104</td></tr><tr><td>course_webinar_promo</td><td>96</td></tr><tr><td>nifty_banknifty_oi_dump</td><td>55</td></tr><tr><td>youtube_video_promo</td><td>46</td></tr><tr><td>educational_chart_restated_unicode_digits</td><td>39</td></tr><tr><td>media_only_empty</td><td>27</td></tr><tr><td>upper_circuit_announcement</td><td>26</td></tr><tr><td>news_article_link</td><td>10</td></tr><tr><td>crossed_all_targets_closeout</td><td>5</td></tr>
+</table>
+<details><summary>fresh_breakout_announcement_no_sl_target — example (mid 131683)</summary><pre>MRPL fresh breakout above 180</pre></details>
+<details><summary>signal_positional_scalping_ladder — example (mid 131684)</summary><pre>POSITIONAL RESEARCH
+
+ANANT RAJ
+
+Looks good above 628-629
+
+SL 600
+
+Targets 640-650-660-675-685-700
+
+Hold few weeks 
+
+
+
+Please consult your financial advisor before investing
+All research is for educational purposes only.
+
+Stock is ready to cross past barriers with good volumes.</pre></details>
+<details><summary>restated_confirmation — example (mid 131686)</summary><pre>🏆Massive Breakout in MPS LTD🏆
+
+MPS LTD 🔥 - We shared the research 6th July 2026 only that it looks good above 2026
+
+Today it made a high of 2469, Stock has delivered potential 21.86% upmove in few days only
+
+😍😍😍💪💪💪😎😎😎
+
+💡 Want to learn the method to select such powerful stocks well in advance? Enroll in the Master Trader Course for the July 2026 batch Starting From Today!
+
+📞 Contact StockPro-Team Now
+
++91 8077849992
+
+📱 WhatsApp: https://wa.me/918077849992</pre></details>
+<details><summary>made_a_high_of_announcement — example (mid 131689)</summary><pre>❇️DATA PATTERN  made a high of 4399🚀🚀</pre></details>
+<details><summary>watch_symbol_mention — example (mid 131695)</summary><pre>Watch ANANT RAJ</pre></details>
+<details><summary>course_webinar_promo — example (mid 131697)</summary><pre>❇️We have just started today&#x27;s LIVE Market session
+
+❇️Please register and join fast via goto webinar
+
+https://attendee.gotowebinar.com/register/8953818419668545630</pre></details>
+<details><summary>nifty_banknifty_oi_dump — example (mid 131708)</summary><pre>NIFTY
+23800 - 
+Longs - 86840 (Intraday - 21974)
+Shorts - 18456 (Intraday - 11031)
+23900 -
+Longs - 67925 (Intraday - 10080)
+Shorts - 36802 (Intraday - 27939)
+23950 -
+Longs - 43127 (Intraday - 28275)
+Shorts - 30066 (Intraday - 28699)
+24000 -
+Longs - 1.76L (Intraday - 57138)
+Shorts - 2.24L (Intraday - 1.49L)
+24050 -
+Longs - 41115 (Intraday - 28523)
+Shorts - 95300 (Intraday - 91793)
+24100 -
+Longs - 1.10L (Intraday - 31654)
+Shorts - 1.99L (Intraday - 1.41L)
+24150 -
+Longs - 20542 (Intraday - 2315)
+Shorts - 79904 (Intraday - 59285)
+24200 -
+Longs - 1.35L (Intraday - minus 10867)
+Shorts - 2.58L (Intraday - 82298)
+
+
+BANKNIFTY
+56000 -
+Longs - 39910 (Intraday - 4343)
+Shorts - 3098 (Intraday - 49)
+56500 -
+Longs - 21582 (Intraday - minus 1102)
+Shorts - 1900 (Intraday - 294)
+57000 -
+Longs - 33450 (Intraday - 6425)
+Shorts - 16910 (Intraday - 2966)
+57500 -
+Longs - 22912 (Intraday - minus 1600)
+Shorts - 28342 (Intraday - 15070)
+58000 -
+Longs - 38648 (Intraday - minus 6827)
+Shorts - 78803 (Intraday - 15642)
+
+
+Data negative.
+VIX 3.33% up.
+DOW FUTs42pts down.</pre></details>
+<details><summary>educational_chart_restated_unicode_digits — example (mid 131713)</summary><pre>BAJAJ AUTO LIMITED
+✅𝟏𝟑/𝟓/𝟐𝟎𝟐6,we shared an educational chart analysis highlighting a key level around  𝟏𝟎𝟐𝟗𝟗
+✅ 𝗧𝗼𝗱𝗮𝘆, 𝘁𝗵𝗲 𝘀𝘁𝗼𝗰𝗸 𝘁𝗼𝘂𝗰𝗵𝗲𝗱 𝗮 𝗵𝗶𝗴𝗵 𝗼𝗳 ₹𝟏𝟎𝟖𝟑𝟖, aligning with the technical study discussed
+📊 A classic example of how technical levels and price action can provide insights for learning purposes only
+
+🎥 Watch the full analysis:
+https://youtu.be/X2Wh2XHaJiI?si=ABSLJ2J3ZVZOa5AD
+ Please consult a SEBI-registered advisor before making decisions</pre></details>
+<details><summary>upper_circuit_announcement — example (mid 131726)</summary><pre>❇️MPS LTD made a high of 2556.60🚀🚀🚀
+Locked in upper circuit😎😎😎</pre></details>
+<details><summary>other_unclassified — example (mid 131730)</summary><pre>Data neutral with negative bias.
+VIX 6.10% up.
+DOW FUTs 14PTS down.</pre></details>
+<details><summary>youtube_video_promo — example (mid 131738)</summary><pre>🔥Today&#x27;s Informative Youtube Video Out🔥
+
+StockPro | Analyzing The Market + Some New Stock Charts I Am Studying Today
+
+https://youtu.be/rg49hB6tpWk?si=6GqD-GX8mJ_wxXwW</pre></details>
+<details><summary>crossed_all_targets_closeout — example (mid 131803)</summary><pre>TIMEX crossed all targets, currently at 600</pre></details>
+<details><summary>news_article_link — example (mid 132915)</summary><pre>In 2020, 1.83 lakh foreign patients flew to India for treatment. By 2025, that number was 5.07 lakh — a nearly threefold increase through a pandemic and global disruption. This is the story of why they&#x27;re coming, what&#x27;s keeping them, and why this is far bigger than tourism. It&#x27;s a convergence of affordability, quality care, digital health infrastructure, and a growing ecosystem that puts pharma, hospitality, AYUSH, and advanced surgery all under one roof.
+
+https://www.linkedin.com/pulse/he-flew-5000-kilometres-surgery-saved-rs-4-crore-doing-dr-seema-jain-f4jlc</pre></details>
+
+<h2>Signal table</h2>
+<input type="text" id="filterBox" placeholder="Filter by symbol / date / unit..." onkeyup="filterTable()">
+<select id="statusFilter" onchange="filterTable()">
+  <option value="">All statuses</option>
+  <option value="open">Open only</option>
+  <option value="closed">Closed only</option>
+</select>
+<table id="sigTable">
+<thead>
+<tr>
+  <th onclick="sortTable(0)">mid</th>
+  <th onclick="sortTable(1)">date</th>
+  <th onclick="sortTable(2)">symbol</th>
+  <th onclick="sortTable(3)">dir</th>
+  <th onclick="sortTable(4)">entry</th>
+  <th onclick="sortTable(5)">stop</th>
+  <th onclick="sortTable(6)">targets</th>
+  <th onclick="sortTable(7)">exit</th>
+  <th onclick="sortTable(8)">per-share P&amp;L</th>
+</tr>
+</thead>
+<tbody>
+<tr><td>131684</td><td>2026-07-22</td><td>ANANT RAJ<br><small>ANANTRAJ</small></td><td>LONG</td><td>628-629</td><td>600</td><td><span class='badge'>ABS</span> 640-650-660-675-685-700</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>131688</td><td>2026-07-22</td><td>DATA PATTERN<br><small>DATAPATTERN</small></td><td>LONG</td><td>4370</td><td>4200</td><td><span class='badge'>ABS</span> 4450-4550-4650-4750</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>131691</td><td>2026-07-22</td><td>RR KABEL<br><small>RRKABEL</small></td><td>LONG</td><td>2436-2438</td><td>2350</td><td><span class='badge'>ABS</span> 2475-2500-2550-2600-2650</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>131694</td><td>2026-07-22</td><td>M&amp;M FIN<br><small>MMFIN</small></td><td>LONG</td><td>378</td><td>355</td><td><span class='badge'>OFFSET</span> 5-10-15-20-25 -30</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>131699</td><td>2026-07-22</td><td>NESTLE<br><small>NESTLE</small></td><td>LONG</td><td>1475</td><td>1460</td><td><span class='badge'>OFFSET</span> 7-10-15-20-25 -30</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>131703</td><td>2026-07-22</td><td>PN GADGIL<br><small>PNGJL</small></td><td>LONG</td><td>660</td><td>610</td><td><span class='badge'>ABS</span> 700-725-750-775-800</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>131723</td><td>2026-07-22</td><td>APOLLO Micro<br><small>APOLLOMICRO</small></td><td>LONG</td><td>405-407</td><td>380</td><td><span class='badge'>OFFSET</span> 7-15-25-30-35-40-50-60</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>131752</td><td>2026-07-23</td><td>PANAMA PETRO<br><small>PANAMAPETRO</small></td><td>LONG</td><td>504</td><td>470</td><td><span class='badge'>ABS</span> 520-540-560-580-600</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>131753</td><td>2026-07-23</td><td>HEG<br><small>HEG</small></td><td>LONG</td><td>625</td><td>570</td><td><span class='badge'>ABS</span> 650-675-700-725</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>131754</td><td>2026-07-23</td><td>Wakefit<br><small>WAKEFIT</small></td><td>LONG</td><td>148</td><td>135</td><td><span class='badge'>ABS</span> 155-160-165-170</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>131758</td><td>2026-07-23</td><td>UNITED SPIRITS<br><small>UNITEDSPIRITS</small></td><td>LONG</td><td>1435</td><td>1425</td><td><span class='badge'>OFFSET</span> 5-10-15-20-25 -30</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>131759</td><td>2026-07-23</td><td>UNITED SPIRITS<br><small>UNITEDSPIRITS</small></td><td>LONG</td><td>1435</td><td>1425</td><td><span class='badge'>OFFSET</span> 5-10-15-20-25 -30</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>131761</td><td>2026-07-23</td><td>BAJAJ HOLDING<br><small>BAJAJHOLDING</small></td><td>LONG</td><td>10550</td><td>10000</td><td><span class='badge'>OFFSET</span> 200-400-600-800-1000</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>131778</td><td>2026-07-23</td><td>NTPC GREEN<br><small>NTPCGREEN</small></td><td>LONG</td><td>100</td><td>97</td><td><span class='badge'>OFFSET</span> 1-2-3-4-5-6-7-8</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>131791</td><td>2026-07-23</td><td>KARNTKA BANK<br><small>KARNTKABANK</small></td><td>LONG</td><td>285</td><td>265</td><td><span class='badge'>ABS</span> 295-300-310-325-330</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>131829</td><td>2026-07-24</td><td>SURYODAY<br><small>SURYODAY</small></td><td>LONG</td><td>214</td><td>190</td><td><span class='badge'>ABS</span> 225-235-250-265</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>131831</td><td>2026-07-24</td><td>THYROCARE<br><small>THYROCARE</small></td><td>LONG</td><td>600</td><td>560</td><td><span class='badge'>ABS</span> 625-650-675-700</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>131832</td><td>2026-07-24</td><td>CIPLA<br><small>CIPLA</small></td><td>LONG</td><td>1445</td><td>1422</td><td><span class='badge'>OFFSET</span> 10-15-20-25-30</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>131835</td><td>2026-07-24</td><td>GRAPHITE IND<br><small>GRAPHITEIND</small></td><td>LONG</td><td>680</td><td>630</td><td><span class='badge'>ABS</span> 700-725-750-775-800</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>131836</td><td>2026-07-24</td><td>HCL Tech<br><small>HCLTECH</small></td><td>LONG</td><td>1276</td><td>1256</td><td><span class='badge'>OFFSET</span> 10-20-30-40</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>131840</td><td>2026-07-24</td><td>PIIND<br><small>PIIND</small></td><td>LONG</td><td>2760</td><td>2740</td><td><span class='badge'>OFFSET</span> 10-15-20-25-30-35-40</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>131846</td><td>2026-07-24</td><td>COFORGE<br><small>COFORGE</small></td><td>LONG</td><td>1473-1475</td><td>1450</td><td><span class='badge'>OFFSET</span> 10-15-20-25-30-35-40</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>131848</td><td>2026-07-24</td><td>GANDHAR OIL<br><small>GANDHAROIL</small></td><td>LONG</td><td>295</td><td>285</td><td><span class='badge'>OFFSET</span> 5- 10-15-20-25</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>131855</td><td>2026-07-24</td><td>CUMMINS<br><small>CUMMINS</small></td><td>LONG</td><td>5680</td><td>5550</td><td><span class='badge'>OFFSET</span> 50-100-150-200-250-300-350-400-500</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>131921</td><td>2026-07-27</td><td>CREDITACCESS<br><small>CREDITACCESS</small></td><td>LONG</td><td>1610</td><td>1550</td><td><span class='badge'>ABS</span> 1640-1675-1700-1725-1750-1800</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>131922</td><td>2026-07-27</td><td>Sterlite Tech<br><small>STERLITETECH</small></td><td>LONG</td><td>593</td><td>560</td><td><span class='badge'>ABS</span> 615-625-650-675-700-725</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>131932</td><td>2026-07-27</td><td>RBL Bank<br><small>RBLBANK</small></td><td>LONG</td><td>360.5</td><td>356</td><td><span class='badge'>OFFSET</span> 2-4-6-8-10-13-15</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>131933</td><td>2026-07-27</td><td>POLYCAB<br><small>POLYCAB</small></td><td>LONG</td><td>9040</td><td>8980</td><td><span class='badge'>OFFSET</span> 30-60-90-120-150-200-250</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>131936</td><td>2026-07-27</td><td>PIDILITE<br><small>PIDILITE</small></td><td>LONG</td><td>1605</td><td>1585</td><td><span class='badge'>OFFSET</span> 10-15 -20-25-30-35</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>131938</td><td>2026-07-27</td><td>BLUESTONE<br><small>BLUESTONE</small></td><td>LONG</td><td>812</td><td>750</td><td><span class='badge'>ABS</span> 850-875-900-925-950</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>131944</td><td>2026-07-27</td><td>CONFIDENCE PETRO<br><small>CONFIPET</small></td><td>LONG</td><td>82.5</td><td>73</td><td><span class='badge'>ABS</span> 85-88-90-92-95-98-100</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>131987</td><td>2026-07-28</td><td>TATA ELXSI<br><small>TATAELXSI</small></td><td>LONG</td><td>3625</td><td>3590</td><td><span class='badge'>OFFSET</span> 10-15 -20-25-30-35-40-45-50-60</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>131990</td><td>2026-07-28</td><td>ASIAN PAINTS<br><small>ASIANPAINTS</small></td><td>LONG</td><td>2728</td><td>2700</td><td><span class='badge'>OFFSET</span> 10-15 -20-25-30-35-40-45-50-60</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>131991</td><td>2026-07-28</td><td>AEROFLEX<br><small>AEROFLEX</small></td><td>LONG</td><td>454</td><td>420</td><td><span class='badge'>ABS</span> 475-500-525-550</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>131993</td><td>2026-07-28</td><td>TFCIL<br><small>TFCIL</small></td><td>LONG</td><td>98</td><td>94</td><td><span class='badge'>OFFSET</span> 2-4-6-8-10-12</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132000</td><td>2026-07-28</td><td>CONCOR<br><small>CONCOR</small></td><td>LONG</td><td>522</td><td>516</td><td><span class='badge'>OFFSET</span> 3-5-7-9-12-15</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132006</td><td>2026-07-28</td><td>TECHM<br><small>TECHM</small></td><td>LONG</td><td>1628</td><td>1615</td><td><span class='badge'>OFFSET</span> 7-9-12-15-20-25-30-35</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132011</td><td>2026-07-28</td><td>Bectorfood<br><small>BECTORFOOD</small></td><td>LONG</td><td>220</td><td>205</td><td><span class='badge'>ABS</span> 230-240-250</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132049</td><td>2026-07-29</td><td>REC LTD<br><small>RECLTD</small></td><td>LONG</td><td>372.5</td><td>368</td><td><span class='badge'>OFFSET</span> 2-4-6-8-10</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132055</td><td>2026-07-29</td><td>SAIL<br><small>SAIL</small></td><td>LONG</td><td>176</td><td>172</td><td><span class='badge'>OFFSET</span> 2-4-6-8-10</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132060</td><td>2026-07-29</td><td>FSL<br><small>FSL</small></td><td>LONG</td><td>286</td><td>260</td><td><span class='badge'>ABS</span> 295-305-315-325-335</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132065</td><td>2026-07-29</td><td>APOLLO HOSPITAL<br><small>APOLLOHOSPITAL</small></td><td>LONG</td><td>8970</td><td>8880</td><td><span class='badge'>OFFSET</span> 50-100-150-200-250-300</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132070</td><td>2026-07-29</td><td>TIL LTD<br><small>TILLTD</small></td><td>LONG</td><td>238-240</td><td>220</td><td><span class='badge'>ABS</span> 250-260-270-280-290</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132106</td><td>2026-07-29</td><td>KPIT TECH<br><small>KPITTECH</small></td><td>LONG</td><td>635</td><td>620</td><td><span class='badge'>OFFSET</span> 5-10-15-20-25-30</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132150</td><td>2026-07-30</td><td>SYRMA SGS<br><small>SYRMASGS</small></td><td>LONG</td><td>1428-1430</td><td>1350</td><td><span class='badge'>ABS</span> 1475-1500-1550-1600-1650</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132151</td><td>2026-07-30</td><td>SML MAHINDRA<br><small>SMLMAH</small></td><td>LONG</td><td>5280</td><td>5100</td><td><span class='badge'>OFFSET</span> 50-100-150-200-250-300+350-400</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132153</td><td>2026-07-30</td><td>VGUARD<br><small>VGUARD</small></td><td>LONG</td><td>330</td><td>300</td><td><span class='badge'>ABS</span> 345-360-375</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132154</td><td>2026-07-30</td><td>VBL<br><small>VBL</small></td><td>LONG</td><td>455.5</td><td>451</td><td><span class='badge'>OFFSET</span> 2-4-6-8-10</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132156</td><td>2026-07-30</td><td>BALKRISHNA IND<br><small>BALKRISHNAIND</small></td><td>LONG</td><td>2300</td><td>2240</td><td><span class='badge'>OFFSET</span> 50-100-150-200</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132159</td><td>2026-07-30</td><td>LTM<br><small>LTM</small></td><td>LONG</td><td>4515</td><td>4460</td><td><span class='badge'>OFFSET</span> 20-40-60-80-100-150-200</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132169</td><td>2026-07-30</td><td>NTPC<br><small>NTPC</small></td><td>LONG</td><td>345</td><td>343</td><td><span class='badge'>OFFSET</span> 1-2-3-4-5</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132174</td><td>2026-07-30</td><td>SHADOWFAX<br><small>SHADOWFAX</small></td><td>LONG</td><td>220</td><td>200</td><td><span class='badge'>ABS</span> 230-240-250-260</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132175</td><td>2026-07-30</td><td>COAL IND<br><small>COALIND</small></td><td>LONG</td><td>417</td><td>410</td><td><span class='badge'>OFFSET</span> 3-4-5-6-7-8-9-10</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132218</td><td>2026-07-31</td><td>ASTRA MICRO<br><small>ASTRAMICRO</small></td><td>LONG</td><td>1960</td><td>1900</td><td><span class='badge'>ABS</span> 200-2050-2100-2150</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132226</td><td>2026-07-31</td><td>BEL<br><small>BEL</small></td><td>LONG</td><td>391</td><td>386</td><td><span class='badge'>OFFSET</span> 3-4-5-6-7-8-9</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132228</td><td>2026-07-31</td><td>VAML<br><small>VAML</small></td><td>LONG</td><td>465-466</td><td>430</td><td><span class='badge'>ABS</span> 500-525-550-575-600</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132232</td><td>2026-07-31</td><td>HINDALCO<br><small>HINDALCO</small></td><td>LONG</td><td>985</td><td>978</td><td><span class='badge'>OFFSET</span> 3-4-5-6-7-8-9</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132233</td><td>2026-07-31</td><td>REDINGTON<br><small>REDINGTON</small></td><td>LONG</td><td>325</td><td>305</td><td><span class='badge'>ABS</span> 335-350-365-375-385</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132235</td><td>2026-07-31</td><td>ESCORTS<br><small>ESCORTS</small></td><td>LONG</td><td>3065-3070</td><td>2800</td><td><span class='badge'>ABS</span> 3200-3400-3600-3800-4000</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132240</td><td>2026-07-31</td><td>SCHNEIDER<br><small>SCHNEIDER</small></td><td>LONG</td><td>1380</td><td>1280</td><td><span class='badge'>ABS</span> 1430-1480-1530-1600</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132254</td><td>2026-07-31</td><td>PNB Housing<br><small>PNBHOUSING</small></td><td>LONG</td><td>1050</td><td>1030</td><td><span class='badge'>OFFSET</span> 7-10-12-15-20-25-30</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132306</td><td>2026-08-03</td><td>YASHO IND<br><small>YASHOIND</small></td><td>LONG</td><td>4200</td><td>4000</td><td><span class='badge'>OFFSET</span> 100-200-300-400</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132308</td><td>2026-08-03</td><td>HFCL<br><small>HFCL</small></td><td>LONG</td><td>204</td><td>180</td><td><span class='badge'>ABS</span> 215-225-235-245-265</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132309</td><td>2026-08-03</td><td>RAYMOND LTD<br><small>RAYMONDLTD</small></td><td>LONG</td><td>598-600</td><td>575</td><td><span class='badge'>ABS</span> 615-630-650-675-700</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132313</td><td>2026-08-03</td><td>NBCC<br><small>NBCC</small></td><td>LONG</td><td>96.5</td><td>95</td><td><span class='badge'>OFFSET</span> 1-2-3-4</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132316</td><td>2026-08-03</td><td>KUSUMGAR<br><small>KUSUMGAR</small></td><td>LONG</td><td>630</td><td>574</td><td><span class='badge'>ABS</span> 650-675-700-725-750</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132318</td><td>2026-08-03</td><td>SPORTKING<br><small>SPORTKING</small></td><td>LONG</td><td>237</td><td>210</td><td><span class='badge'>ABS</span> 241-250-269-270-280</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132319</td><td>2026-08-03</td><td>SHRIRAM FINANCE<br><small>SHRIRAMFINANCE</small></td><td>LONG</td><td>1080</td><td>1070</td><td><span class='badge'>OFFSET</span> 5-10-15-20-25-30</td><td>CLOSED (mid 132320, 2026-08-03T05:04:46+00:00)<br><span class='conv'>APPLIED CONVENTION: exit message named no symbol; attributed to the nearest PRECEDING signal by timestamp (only candidate open at that moment). Exit price assumed = stated SL (channel gave no fill price).</span></td><td>-10.0 <span class='conv'>(applied convention: fill assumed at stated SL)</span></td></tr>
+<tr><td>132325</td><td>2026-08-03</td><td>INDIGO<br><small>INDIGO</small></td><td>LONG</td><td>5375-5380</td><td>5300</td><td><span class='badge'>OFFSET</span> 25-50-75-100-125-150-175-200</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132329</td><td>2026-08-03</td><td>APAR IND<br><small>APARIND</small></td><td>LONG</td><td>14900</td><td>14300</td><td><span class='badge'>ABS</span> 15259&amp;15500-15750-16000</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132342</td><td>2026-08-03</td><td>BIRLA SOFT<br><small>BIRLASOFT</small></td><td>LONG</td><td>323</td><td>290</td><td><span class='badge'>ABS</span> 333-345-355-365-375</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132351</td><td>2026-08-03</td><td>SEDEMAC<br><small>SEDEMAC</small></td><td>LONG</td><td>2877-2880</td><td>2700</td><td><span class='badge'>ABS</span> 2950-300-3050-3100-3200-3300</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132383</td><td>2026-08-04</td><td>HINDALCO<br><small>HINDALCO</small></td><td>LONG</td><td>1010</td><td>995</td><td><span class='badge'>OFFSET</span> 5-10-15-20-25-30</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132384</td><td>2026-08-04</td><td>GODFREY PHILLIPS<br><small>GODFREYPHILLIPS</small></td><td>LONG</td><td>2410</td><td>2375</td><td><span class='badge'>OFFSET</span> 15-20-25-30-35-40-45-50</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132387</td><td>2026-08-04</td><td>PAYTM<br><small>PAYTM</small></td><td>LONG</td><td>1437</td><td>1415</td><td><span class='badge'>OFFSET</span> 7-15-20-25-30-35</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132390</td><td>2026-08-04</td><td>POLYCAB<br><small>POLYCAB</small></td><td>LONG</td><td>9220</td><td>9170</td><td><span class='badge'>OFFSET</span> 25-50-75-100-125-150-175-200-250-300</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132395</td><td>2026-08-04</td><td>KIRLOSKAR OIL<br><small>KIRLOSKAROIL</small></td><td>LONG</td><td>2375</td><td>2250</td><td><span class='badge'>ABS</span> 2325-2375-2425-2500</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132397</td><td>2026-08-04</td><td>OFSS<br><small>OFSS</small></td><td>LONG</td><td>11560</td><td>11460</td><td><span class='badge'>OFFSET</span> 100-125-150-175-200-250-300-400-500</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132399</td><td>2026-08-04</td><td>RBA<br><small>RBA</small></td><td>LONG</td><td>81.5</td><td>80</td><td><span class='badge'>OFFSET</span> 1-2-3-4</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132404</td><td>2026-08-04</td><td>SIEMENS<br><small>SIEMENS</small></td><td>LONG</td><td>4065</td><td>4000</td><td><span class='badge'>OFFSET</span> 30-60-100-125-150-175-200</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132448</td><td>2026-08-05</td><td>JUBLFOOD<br><small>JUBLFOOD</small></td><td>LONG</td><td>480</td><td>472</td><td><span class='badge'>OFFSET</span> 3-6-9-12-15</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132460</td><td>2026-08-05</td><td>CELLO<br><small>CELLO</small></td><td>LONG</td><td>373</td><td>345</td><td><span class='badge'>ABS</span> 385-400-425-450</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132469</td><td>2026-08-05</td><td>HIND COPPER<br><small>HINDCOPPER</small></td><td>LONG</td><td>511-515</td><td>475</td><td><span class='badge'>ABS</span> 535-550-75-600 625-650</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132472</td><td>2026-08-05</td><td>NAM IND<br><small>NAMIND</small></td><td>LONG</td><td>1210</td><td>1195</td><td><span class='badge'>OFFSET</span> 7-9-12-15-20-25-30</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132477</td><td>2026-08-05</td><td>ASHOK Leyland<br><small>ASHOKLEYLAND</small></td><td>LONG</td><td>178</td><td>173</td><td><span class='badge'>OFFSET</span> 2-4-6-8-10</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132481</td><td>2026-08-05</td><td>VEDANT FASHIONS<br><small>MANYAVAR</small></td><td>LONG</td><td>506-508</td><td>450</td><td><span class='badge'>ABS</span> 535-550-75-600 625-650</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132530</td><td>2026-08-06</td><td>MOREPEN LAB<br><small>MOREPENLAB</small></td><td>LONG</td><td>79</td><td>65</td><td><span class='badge'>ABS</span> 85-90-95-100-110</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132532</td><td>2026-08-06</td><td>NEULAND<br><small>NEULAND</small></td><td>LONG</td><td>21900</td><td>20000</td><td><span class='badge'>ABS</span> 22500-23000-23500-24000</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132533</td><td>2026-08-06</td><td>NEULAND<br><small>NEULAND</small></td><td>LONG</td><td>21900</td><td>20000</td><td><span class='badge'>ABS</span> 22500-23000-23500-24000</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132534</td><td>2026-08-06</td><td>KPITTECH<br><small>KPITTECH</small></td><td>LONG</td><td>640</td><td>632</td><td><span class='badge'>OFFSET</span> 3-4-6-8-10-12-15</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132535</td><td>2026-08-06</td><td>TATA TECH<br><small>TATATECH</small></td><td>LONG</td><td>788-790</td><td>725</td><td><span class='badge'>ABS</span> 815-835-850-875-900-950-1000</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132538</td><td>2026-08-06</td><td>PARAS Defence<br><small>PARASDEFENCE</small></td><td>LONG</td><td>1335</td><td>1250</td><td><span class='badge'>ABS</span> 1375-1400-1425-1450-1500</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132540</td><td>2026-08-06</td><td>CIPLA<br><small>CIPLA</small></td><td>LONG</td><td>1482</td><td>1472</td><td><span class='badge'>OFFSET</span> 5-10-12-15-20-25-30</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132547</td><td>2026-08-06</td><td>INDO MIM<br><small>INDOMIM</small></td><td>LONG</td><td>845</td><td>745</td><td><span class='badge'>ABS</span> 900-950-1000-1050</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132549</td><td>2026-08-06</td><td>CALIBER MINING<br><small>CMLL</small></td><td>LONG</td><td>585-590</td><td>500</td><td><span class='badge'>ABS</span> 625-650-675-700</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132599</td><td>2026-08-07</td><td>PTC IND<br><small>PTCIND</small></td><td>LONG</td><td>18800</td><td>17000</td><td><span class='badge'>ABS</span> 19500-20000-21000-22000-23000-24000-25000</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132600</td><td>2026-08-07</td><td>SHIVALIK BIMETAL<br><small>SHIVALIKBIMETAL</small></td><td>LONG</td><td>897-900</td><td>770</td><td><span class='badge'>ABS</span> 950-1000-1050</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132602</td><td>2026-08-07</td><td>BRITANNIA<br><small>BRITANNIA</small></td><td>LONG</td><td>5655</td><td>5600</td><td><span class='badge'>OFFSET</span> 20-25-30-35-40-50-75-85-100-125-150</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132604</td><td>2026-08-07</td><td>MV ELECTROSYSTEM<br><small>MVELECTRO</small></td><td>LONG</td><td>683-684</td><td>650</td><td><span class='badge'>OFFSET</span> 20-25-30-35-40-50-60</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132607</td><td>2026-08-07</td><td>VARROC<br><small>VARROC</small></td><td>LONG</td><td>822</td><td>775</td><td><span class='badge'>OFFSET</span> 20-25-30-35-40-50</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132613</td><td>2026-08-07</td><td>BSE<br><small>BSE</small></td><td>LONG</td><td>3478</td><td>3445</td><td><span class='badge'>OFFSET</span> 15-20-25-30-35-40-50</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132617</td><td>2026-08-07</td><td>AVALON TECH<br><small>AVALONTECH</small></td><td>LONG</td><td>1865-1870</td><td>1700</td><td><span class='badge'>ABS</span> 1950-2000-2050-2100-2150-2200</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132621</td><td>2026-08-07</td><td>GOCL CORP<br><small>GOCLCORP</small></td><td>LONG</td><td>429-432</td><td>400</td><td><span class='badge'>ABS</span> 450-475-500</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132705</td><td>2026-08-10</td><td>TATA CONSUMER<br><small>TATACONSUMER</small></td><td>LONG</td><td>1090</td><td>1070</td><td><span class='badge'>OFFSET</span> 5-1015-20-25-30</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132706</td><td>2026-08-10</td><td>TATA CONSUMER<br><small>TATACONSUMER</small></td><td>LONG</td><td>1090</td><td>1070</td><td><span class='badge'>OFFSET</span> 5-1015-20-25-30</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132707</td><td>2026-08-10</td><td>RAMCO IND<br><small>RAMCOIND</small></td><td>LONG</td><td>350</td><td>320</td><td><span class='badge'>ABS</span> 375-385-400-425</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132712</td><td>2026-08-10</td><td>HCL TECH<br><small>HCLTECH</small></td><td>LONG</td><td>1362</td><td>1350</td><td><span class='badge'>OFFSET</span> 5-1015-20-25-30</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132714</td><td>2026-08-10</td><td>DALMIA BHARAT<br><small>DALMIABHARAT</small></td><td>LONG</td><td>1835</td><td>1820</td><td><span class='badge'>OFFSET</span> 5-1015-20-25-30</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132716</td><td>2026-08-10</td><td>INFY<br><small>INFY</small></td><td>LONG</td><td>1185</td><td>1175</td><td><span class='badge'>OFFSET</span> 5-1015-20-25-30</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132726</td><td>2026-08-10</td><td>NAUKRI<br><small>NAUKRI</small></td><td>LONG</td><td>1271</td><td>1261</td><td><span class='badge'>OFFSET</span> 5-1015-20-25-30</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132733</td><td>2026-08-10</td><td>FCL (Fineotex Chemical Ltd)<br><small>FCLFINEOTEXCHEMICALLTD</small></td><td>LONG</td><td>44</td><td>37</td><td><span class='badge'>ABS</span> 47-50-52-55-58</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132737</td><td>2026-08-10</td><td>NRB BEARING<br><small>NRBBEARING</small></td><td>LONG</td><td>467-470</td><td>420</td><td><span class='badge'>ABS</span> 500-525-550-575</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132789</td><td>2026-08-11</td><td>LUMAX AUTO<br><small>LUMAXTECH</small></td><td>LONG</td><td>1940</td><td>1800</td><td><span class='badge'>ABS</span> 2000-2050-2100-2150-2175-2200</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132794</td><td>2026-08-11</td><td>MUTHOOT FIN<br><small>MUTHOOTFIN</small></td><td>LONG</td><td>2950</td><td>2930</td><td><span class='badge'>OFFSET</span> 1015-20-25-30-35-40-45-50</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132795</td><td>2026-08-11</td><td>HIND ZINC<br><small>HINDZINC</small></td><td>LONG</td><td>610</td><td>602</td><td><span class='badge'>OFFSET</span> 3-5-7-10-12-15-20</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132796</td><td>2026-08-11</td><td>ADITYA INFOTECH<br><small>CPPLUS</small></td><td>LONG</td><td>3900</td><td>3700</td><td><span class='badge'>ABS</span> 4000-4250-4500-4750-5000</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132800</td><td>2026-08-11</td><td>AMBER<br><small>AMBER</small></td><td>LONG</td><td>7210</td><td>7100</td><td><span class='badge'>OFFSET</span> 30-40-50-60-75-100-125-150-200</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132801</td><td>2026-08-11</td><td>ATHER ENERGY<br><small>ATHERENERGY</small></td><td>LONG</td><td>1525</td><td>1400</td><td><span class='badge'>ABS</span> 1575-1625-1700-1750</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132802</td><td>2026-08-11</td><td>MANIPAL<br><small>MANIPALHOS</small></td><td>LONG</td><td>711-714</td><td>659</td><td><span class='badge'>ABS</span> 750-800-850-900</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132804</td><td>2026-08-11</td><td>NAM IND<br><small>NAMIND</small></td><td>LONG</td><td>1183</td><td>1165</td><td><span class='badge'>OFFSET</span> 10-15-20-25-30</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132815</td><td>2026-08-11</td><td>AARTI PHARMA<br><small>AARTIPHARMA</small></td><td>LONG</td><td>927</td><td>875</td><td><span class='badge'>OFFSET</span> 25-50-75-100</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132861</td><td>2026-08-12</td><td>STANDARD ENGINEERING<br><small>SETL</small></td><td>LONG</td><td>307-310</td><td>270</td><td><span class='badge'>ABS</span> 325-350-375-400</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132862</td><td>2026-08-12</td><td>FINOLEX CABLES<br><small>FINOLEXCABLES</small></td><td>LONG</td><td>1375</td><td>1250</td><td><span class='badge'>ABS</span> 1425-1475-1525-1600</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132863</td><td>2026-08-12</td><td>TD POWER<br><small>TDPOWER</small></td><td>LONG</td><td>1515</td><td>1400</td><td><span class='badge'>ABS</span> 1550-1600-1650-1700</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132865</td><td>2026-08-12</td><td>ANAND RATHEE<br><small>ANANDRATHEE</small></td><td>LONG</td><td>2210</td><td>2100</td><td><span class='badge'>ABS</span> 2250-2300-2350-2400-2450-2500</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132866</td><td>2026-08-12</td><td>MAN IND<br><small>MANIND</small></td><td>LONG</td><td>634-635</td><td>550</td><td><span class='badge'>ABS</span> 675-700-725-750-775-800</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132868</td><td>2026-08-12</td><td>PIDILITE<br><small>PIDILITE</small></td><td>LONG</td><td>1693</td><td>1683</td><td><span class='badge'>OFFSET</span> 5-10-15-20-25-30-40</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132873</td><td>2026-08-12</td><td>SBIN<br><small>SBIN</small></td><td>LONG</td><td>1085</td><td>1075</td><td><span class='badge'>OFFSET</span> 5-10-15-20-25-30-40</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132874</td><td>2026-08-12</td><td>HINDALCO<br><small>HINDALCO</small></td><td>LONG</td><td>1088</td><td>1060</td><td><span class='badge'>OFFSET</span> 5-10-15-20-25-30</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132877</td><td>2026-08-12</td><td>VIJAYA DIAGNOSTIC<br><small>VIJAYADIAGNOSTIC</small></td><td>LONG</td><td>1495</td><td>1375</td><td><span class='badge'>ABS</span> 1550-1600-1650-1700</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132879</td><td>2026-08-12</td><td>YATRA<br><small>YATRA</small></td><td>LONG</td><td>118</td><td>90</td><td><span class='badge'>ABS</span> 125-135-150-165-175</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132880</td><td>2026-08-12</td><td>LICI<br><small>LICI</small></td><td>LONG</td><td>411</td><td>405</td><td><span class='badge'>OFFSET</span> 3-5-7-9-12-15</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132930</td><td>2026-08-13</td><td>BDL<br><small>BDL</small></td><td>LONG</td><td>1372</td><td>1362</td><td><span class='badge'>OFFSET</span> 5-10-12-15-20-25-30</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132932</td><td>2026-08-13</td><td>POLYCAB<br><small>POLYCAB</small></td><td>LONG</td><td>9385-9390</td><td>9300</td><td><span class='badge'>OFFSET</span> 40-60-80-100-125-150-175-200-250-300</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132934</td><td>2026-08-13</td><td>JOHN COCKRIL<br><small>JOHNCOCKRIL</small></td><td>LONG</td><td>10000</td><td>9000</td><td><span class='badge'>ABS</span> 10500-11000-11500-12000</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132935</td><td>2026-08-13</td><td>SOLAR IND<br><small>SOLARIND</small></td><td>LONG</td><td>18975</td><td>18850</td><td><span class='badge'>OFFSET</span> 100-125-150-175-200-250-300</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132938</td><td>2026-08-13</td><td>M&amp;M<br><small>MM</small></td><td>LONG</td><td>3440</td><td>3400</td><td><span class='badge'>OFFSET</span> 20-40-60-80-100</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132944</td><td>2026-08-13</td><td>COCHIN SHIPYARD<br><small>COCHINSHIPYARD</small></td><td>LONG</td><td>1525</td><td>1510</td><td><span class='badge'>OFFSET</span> 7-15-20-25-30-35-40</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132945</td><td>2026-08-13</td><td>MUTHOOT FIN<br><small>MUTHOOTFIN</small></td><td>LONG</td><td>2900</td><td>2860</td><td><span class='badge'>OFFSET</span> 20-25-30-35-40-60-80</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132950</td><td>2026-08-13</td><td>MUNJALAU (MUNJAL AUTO)<br><small>MUNJALAUMUNJALAUTO</small></td><td>LONG</td><td>115</td><td>112</td><td><span class='badge'>OFFSET</span> 1-2-3-4-5-6</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132951</td><td>2026-08-13</td><td>AZAD<br><small>AZAD</small></td><td>LONG</td><td>2650</td><td>2400</td><td><span class='badge'>ABS</span> 2700-2750-2800-2850-2900-3000</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>132953</td><td>2026-08-13</td><td>PNB Housing<br><small>PNBHOUSING</small></td><td>LONG</td><td>1167</td><td>1157</td><td><span class='badge'>OFFSET</span> 5-10-15-20-25-30</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133000</td><td>2026-08-14</td><td>GODREJCP<br><small>GODREJCP</small></td><td>LONG</td><td>941.5-942</td><td>935</td><td><span class='badge'>OFFSET</span> 3-5-10-15-20</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133002</td><td>2026-08-14</td><td>APEX<br><small>APEX</small></td><td>LONG</td><td>433</td><td>400</td><td><span class='badge'>ABS</span> 450-475-500</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133005</td><td>2026-08-14</td><td>ELGI EQUIPMENT<br><small>ELGIEQUIPMENT</small></td><td>LONG</td><td>610</td><td>575</td><td><span class='badge'>ABS</span> 635-650-675-800</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133006</td><td>2026-08-14</td><td>EICHER<br><small>EICHER</small></td><td>LONG</td><td>8110</td><td>8000</td><td><span class='badge'>OFFSET</span> 50-100-150-200-250-300-350-400</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133007</td><td>2026-08-14</td><td>KRBL LTD<br><small>KRBLLTD</small></td><td>LONG</td><td>400</td><td>350</td><td><span class='badge'>ABS</span> 425-450-575-500</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133014</td><td>2026-08-14</td><td>CAR Trade<br><small>CARTRADE</small></td><td>LONG</td><td>2805-2810</td><td>2600</td><td><span class='badge'>ABS</span> 2850-2900-2950-3000-3100</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133016</td><td>2026-08-14</td><td>MOTISONS JEWELLERS<br><small>MOTISONSJEWELLERS</small></td><td>LONG</td><td>16.1</td><td>13.5</td><td><span class='badge'>ABS</span> 16.5 17-17.5-18-18.5-19-20</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133020</td><td>2026-08-14</td><td>RPEL<br><small>RPEL</small></td><td>LONG</td><td>1473-1475</td><td>1350</td><td><span class='badge'>ABS</span> 1500-1535-1550-1575-1600-1650-1700</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133027</td><td>2026-08-14</td><td>LODHA<br><small>LODHA</small></td><td>LONG</td><td>1245</td><td>1225</td><td><span class='badge'>OFFSET</span> 7-10-15-20-25-30-35</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133082</td><td>2026-08-17</td><td>LASER POWER<br><small>LASERPOWER</small></td><td>LONG</td><td>321-323</td><td>275</td><td><span class='badge'>ABS</span> 350-375-400</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133083</td><td>2026-08-17</td><td>TD POWER<br><small>TDPOWER</small></td><td>LONG</td><td>1520-1525</td><td>1350</td><td><span class='badge'>ABS</span> 1575-1625-1700&amp;1750-1800</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133084</td><td>2026-08-17</td><td>GNFC<br><small>GNFC</small></td><td>LONG</td><td>591-593</td><td>550</td><td><span class='badge'>ABS</span> 620-650-675-700</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133087</td><td>2026-08-17</td><td>HINDALCO<br><small>HINDALCO</small></td><td>LONG</td><td>1045-1046</td><td>1038</td><td><span class='badge'>OFFSET</span> 4- 7-10-15-20-25</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133090</td><td>2026-08-17</td><td>BEL<br><small>BEL</small></td><td>LONG</td><td>414</td><td>408</td><td><span class='badge'>OFFSET</span> 3-5  7-10-12-14</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133098</td><td>2026-08-17</td><td>MANORAMA<br><small>MANORAMA</small></td><td>LONG</td><td>1867-1872</td><td>1700</td><td><span class='badge'>ABS</span> 1900-1950-2000-2050-2100</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133101</td><td>2026-08-17</td><td>SUPREME IND<br><small>SUPREMEIND</small></td><td>LONG</td><td>3650</td><td>3620</td><td><span class='badge'>OFFSET</span> 15-25-45-40-50-60-75</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133102</td><td>2026-08-17</td><td>NAUKRI<br><small>NAUKRI</small></td><td>LONG</td><td>1362</td><td>1342</td><td><span class='badge'>OFFSET</span> 19-15-25-30</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133106</td><td>2026-08-17</td><td>BALU FORGE<br><small>BALUFORGE</small></td><td>LONG</td><td>530</td><td>500</td><td><span class='badge'>OFFSET</span> 15-25-45-40</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133107</td><td>2026-08-17</td><td>UNO MINDA<br><small>UNOMINDA</small></td><td>LONG</td><td>1262-1263</td><td>1245</td><td><span class='badge'>OFFSET</span> 7-10-15-20-25-30</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133126</td><td>2026-08-17</td><td>NEOGEN CHEMICAL<br><small>NEOGENCHEMICAL</small></td><td>LONG</td><td>2280-2285</td><td>2100</td><td><span class='badge'>ABS</span> 2350-2400-2450-2500-2550</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133173</td><td>2026-08-18</td><td>DATA Pattern<br><small>DATAPATTERN</small></td><td>LONG</td><td>4665-4670</td><td>4500</td><td><span class='badge'>ABS</span> 4700-4800-4900-5000</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133177</td><td>2026-08-18</td><td>DECCAN GOLD<br><small>DECCANGOLD</small></td><td>LONG</td><td>247-250</td><td>220</td><td><span class='badge'>ABS</span> 260-270-289-290-300</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133179</td><td>2026-08-18</td><td>MAZDOCK<br><small>MAZDOCK</small></td><td>LONG</td><td>2580</td><td>2560</td><td><span class='badge'>OFFSET</span> 15-20-25-30-40-50-60-75</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133182</td><td>2026-08-18</td><td>CIPLA<br><small>CIPLA</small></td><td>LONG</td><td>1437</td><td>1427</td><td><span class='badge'>OFFSET</span> 5-10-15-20-25-30</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133191</td><td>2026-08-18</td><td>BHAGYANAGAR<br><small>BHAGYANAGAR</small></td><td>LONG</td><td>392-393</td><td>350</td><td><span class='badge'>ABS</span> 425-450-475-500</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133208</td><td>2026-08-18</td><td>SAMVARDHANA MOTHER SON SUMI<br><small>SAMVARDHANAMOTHERSONSUMI</small></td><td>LONG</td><td>171</td><td>169</td><td><span class='badge'>OFFSET</span> 1-2-3-4-5-6</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133209</td><td>2026-08-18</td><td>IFCI<br><small>IFCI</small></td><td>LONG</td><td>82</td><td>70</td><td><span class='badge'>ABS</span> 85-90-95-100</td><td>CLOSED (mid 134135, 2026-09-03T03:46:11+00:00)<br><span class='conv'>Channel explicitly stated all targets crossed but gave no price in that message. Status marked closed; per-share P&amp;L left blank rather than fabricated.</span></td><td>—</td></tr>
+<tr><td>133212</td><td>2026-08-18</td><td>DHOOT TRANSMISSION<br><small>DHOOTTRANSMISSION</small></td><td>LONG</td><td>1238-1242</td><td>1180</td><td><span class='badge'>ABS</span> 1260-1300-1325-1350-1400</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133262</td><td>2026-08-19</td><td>COFORGE<br><small>COFORGE</small></td><td>LONG</td><td>1812-1815</td><td>1790</td><td><span class='badge'>OFFSET</span> 10-20-30-40-50</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133268</td><td>2026-08-19</td><td>ASTER DM<br><small>ASTERDM</small></td><td>LONG</td><td>831-835</td><td>770</td><td><span class='badge'>ABS</span> 860-874-900-925-950</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133276</td><td>2026-08-19</td><td>LEAPIND<br><small>LEAPIND</small></td><td>LONG</td><td>162</td><td>150</td><td><span class='badge'>ABS</span> 170-175-180-185-190</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133284</td><td>2026-08-19</td><td>TECHNOCRAFT VENTURES<br><small>TECHNOCRAFTVENTURES</small></td><td>LONG</td><td>323</td><td>290</td><td><span class='badge'>ABS</span> 340-350-360-370-380-390-400</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133287</td><td>2026-08-19</td><td>MSTC<br><small>MSTC</small></td><td>LONG</td><td>720</td><td>659</td><td><span class='badge'>ABS</span> 750-775-800-825-850</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133335</td><td>2026-08-20</td><td>HIND ZINC<br><small>HINDZINC</small></td><td>LONG</td><td>574</td><td>568</td><td><span class='badge'>OFFSET</span> 3-5-7-9-12-15</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133336</td><td>2026-08-20</td><td>TATA ELXSI<br><small>TATAELXSI</small></td><td>LONG</td><td>3710</td><td>3660</td><td><span class='badge'>OFFSET</span> 15-30-45-60-75-100</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133339</td><td>2026-08-20</td><td>BLEL<br><small>BLEL</small></td><td>LONG</td><td>548</td><td>520</td><td><span class='badge'>ABS</span> 565-575-580-600</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133341</td><td>2026-08-20</td><td>STRIDES PHARMA<br><small>STAR</small></td><td>LONG</td><td>1057</td><td>1000</td><td><span class='badge'>ABS</span> 1100-1150-1200-1250</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133346</td><td>2026-08-20</td><td>ACME SOLAR<br><small>ACMESOLAR</small></td><td>LONG</td><td>394-395</td><td>360</td><td><span class='badge'>ABS</span> 410-425-435-450-465-475</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133352</td><td>2026-08-20</td><td>DHOOT TRANSMISSION<br><small>DHOOTTRANSMISSION</small></td><td>LONG</td><td>1445</td><td>1360</td><td><span class='badge'>ABS</span> 1500-1550-1600-1650-1700</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133353</td><td>2026-08-20</td><td>JUNIPER GREEN<br><small>JNPR</small></td><td>LONG</td><td>265</td><td>245</td><td><span class='badge'>ABS</span> 275-285-300-325</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133365</td><td>2026-08-20</td><td>MUTHOOT<br><small>MUTHOOT</small></td><td>LONG</td><td>2987-2988</td><td>2955</td><td><span class='badge'>OFFSET</span> 15-30-45-60</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133410</td><td>2026-08-21</td><td>WELSPUN CORP<br><small>WELSPUNCORP</small></td><td>LONG</td><td>2245-2248</td><td>2100</td><td><span class='badge'>ABS</span> 2300-2350-2400-2450-2500</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133412</td><td>2026-08-21</td><td>SBIN<br><small>SBIN</small></td><td>LONG</td><td>1053-1055</td><td>1035</td><td><span class='badge'>OFFSET</span> 10-15-20-25-30-35</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133420</td><td>2026-08-21</td><td>AMAGI<br><small>AMAGI</small></td><td>LONG</td><td>625-627</td><td>575</td><td><span class='badge'>ABS</span> 650-675-700-725-750</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133423</td><td>2026-08-21</td><td>INDO BORAX<br><small>INDOBORAX</small></td><td>LONG</td><td>520</td><td>475</td><td><span class='badge'>ABS</span> 550-575-600-625- 650</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133432</td><td>2026-08-21</td><td>JINDAL SAW<br><small>JINDALSAW</small></td><td>LONG</td><td>283-284</td><td>260</td><td><span class='badge'>ABS</span> 300-325-350</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133434</td><td>2026-08-21</td><td>URBAN COMPANY<br><small>URBANCOMPANY</small></td><td>LONG</td><td>158-160</td><td>145</td><td><span class='badge'>ABS</span> 165-170-175-180-185-190-200</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133436</td><td>2026-08-21</td><td>KRONOX<br><small>KRONOX</small></td><td>LONG</td><td>216-217</td><td>190</td><td><span class='badge'>ABS</span> 225-230-235-240-245</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133444</td><td>2026-08-21</td><td>PERSISTENT<br><small>PERSISTENT</small></td><td>LONG</td><td>5710</td><td>5650</td><td><span class='badge'>OFFSET</span> 25-50-75-100-125-150-200</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133519</td><td>2026-08-24</td><td>SHANTHI GEARS<br><small>SHANTHIGEARS</small></td><td>LONG</td><td>518</td><td>480</td><td><span class='badge'>ABS</span> 540-569-580-600-625</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133523</td><td>2026-08-24</td><td>PFC<br><small>PFC</small></td><td>LONG</td><td>365.5</td><td>360</td><td><span class='badge'>OFFSET</span> 2-4-6-8-10-12</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133533</td><td>2026-08-24</td><td>VMM<br><small>VMM</small></td><td>LONG</td><td>114</td><td>109</td><td><span class='badge'>OFFSET</span> 2-4-6-8-10-12</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133542</td><td>2026-08-24</td><td>MOLBIO DIAGNOSTIC<br><small>MOLBIODIAGNOSTIC</small></td><td>LONG</td><td>1175</td><td>1050</td><td><span class='badge'>ABS</span> 1225-1250-1275-1300-1350-1400</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133545</td><td>2026-08-24</td><td>GVT&amp;D<br><small>GVTD</small></td><td>LONG</td><td>4245</td><td>4160</td><td><span class='badge'>OFFSET</span> 25-50-75-100-125-150-175-200</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133547</td><td>2026-08-24</td><td>SAIL<br><small>SAIL</small></td><td>LONG</td><td>180</td><td>170</td><td><span class='badge'>ABS</span> 185-190-195-200</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133577</td><td>2026-08-24</td><td>PCJ<br><small>PCJ</small></td><td>LONG</td><td>11</td><td>9.5</td><td><span class='badge'>ABS</span> 11.5 -12 -12.5 -13 -13.5 -14</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133612</td><td>2026-08-25</td><td>IDEA<br><small>IDEA</small></td><td>LONG</td><td>14.35</td><td>13</td><td><span class='badge'>ABS</span> 15-15.5-16-16.5</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133613</td><td>2026-08-25</td><td>BALAJI AMINES<br><small>BALAJIAMINES</small></td><td>LONG</td><td>2270-2275</td><td>2100</td><td><span class='badge'>ABS</span> 2350-2400-2450-2500-2600</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133619</td><td>2026-08-25</td><td>EDELWEISS<br><small>EDELWEISS</small></td><td>LONG</td><td>134-135</td><td>120</td><td><span class='badge'>ABS</span> 145-155-165-175</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133626</td><td>2026-08-25</td><td>MCX<br><small>MCX</small></td><td>LONG</td><td>3320</td><td>3260</td><td><span class='badge'>OFFSET</span> 20-40-60-80-100-120</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133627</td><td>2026-08-25</td><td>MCX<br><small>MCX</small></td><td>LONG</td><td>3320</td><td>3260</td><td><span class='badge'>OFFSET</span> 20-40-60-80-100-120</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133630</td><td>2026-08-25</td><td>LAURAS LAB<br><small>LAURASLAB</small></td><td>LONG</td><td>1823</td><td>1800</td><td><span class='badge'>OFFSET</span> 10-15-20-25-30-35-40</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133632</td><td>2026-08-25</td><td>CHALET HOTEL<br><small>CHALETHOTEL</small></td><td>LONG</td><td>883-885</td><td>820</td><td><span class='badge'>ABS</span> 1000-1025-1050-1075-1100</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133639</td><td>2026-08-25</td><td>FACT<br><small>FACT</small></td><td>LONG</td><td>895</td><td>800</td><td><span class='badge'>ABS</span> 925-940-975-1000</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133688</td><td>2026-08-26</td><td>GODREJ PROPERTIES<br><small>GODREJPROPERTIES</small></td><td>LONG</td><td>2089-291</td><td>2000</td><td><span class='badge'>ABS</span> 2125-2175-2225-2300-2350-2400</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133689</td><td>2026-08-26</td><td>CYIENT<br><small>CYIENT</small></td><td>LONG</td><td>1039-1040</td><td>950</td><td><span class='badge'>ABS</span> 1075-1100+1125-1150-1175-1200</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133690</td><td>2026-08-26</td><td>GENESYS INT CORP<br><small>GENESYSINTCORP</small></td><td>LONG</td><td>243-245</td><td>210</td><td><span class='badge'>ABS</span> 257-270-280-290-300</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133704</td><td>2026-08-26</td><td>BSE<br><small>BSE</small></td><td>LONG</td><td>3395-3400</td><td>3200</td><td><span class='badge'>ABS</span> 3500-3600-3700-3800</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133713</td><td>2026-08-26</td><td>FEDERAL MOGUL<br><small>FMGOETZE</small></td><td>LONG</td><td>578-580</td><td>520</td><td><span class='badge'>ABS</span> 600-625-650-675-700</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133716</td><td>2026-08-26</td><td>WABAG<br><small>WABAG</small></td><td>LONG</td><td>2100</td><td>1900</td><td><span class='badge'>ABS</span> 2200-2300-2400-2500</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133720</td><td>2026-08-26</td><td>MILKY MIST<br><small>MILKYMIST</small></td><td>LONG</td><td>212-213</td><td>190</td><td><span class='badge'>ABS</span> 220-230-240-250</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133723</td><td>2026-08-26</td><td>IDBI Bank<br><small>IDBIBANK</small></td><td>LONG</td><td>91</td><td>82</td><td><span class='badge'>ABS</span> 93-95-97-100-102-105</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133781</td><td>2026-08-27</td><td>ADANI ENERGY SOLUTIONS<br><small>ADANIENSOL</small></td><td>LONG</td><td>1610</td><td>1590</td><td><span class='badge'>OFFSET</span> 10-15-20-25-30-35-40</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133783</td><td>2026-08-27</td><td>ADANI ENTERPRISES<br><small>ADANIENT</small></td><td>LONG</td><td>3170</td><td>3130</td><td><span class='badge'>OFFSET</span> 20-25-30-35-40-45-50-60-75</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133791</td><td>2026-08-27</td><td>COFORGE<br><small>COFORGE</small></td><td>LONG</td><td>1910</td><td>1880</td><td><span class='badge'>OFFSET</span> 15-20-25-30-35-40</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133794</td><td>2026-08-27</td><td>ADVIT JEWEL<br><small>RAMBHAJO</small></td><td>LONG</td><td>260</td><td>230</td><td><span class='badge'>ABS</span> 270-280-290-300</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133809</td><td>2026-08-27</td><td>WONDER ELECTRICAL<br><small>WONDERELECTRICAL</small></td><td>LONG</td><td>171</td><td>165</td><td><span class='badge'>ABS</span> 175-180-185</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133839</td><td>2026-08-28</td><td>TORRENT PHARMA<br><small>TORRENTPHARMA</small></td><td>LONG</td><td>5015</td><td>4950</td><td><span class='badge'>ABS</span> 5050-5100-5150-5200</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133844</td><td>2026-08-28</td><td>MV ELECTROSYSTEM<br><small>MVELECTRO</small></td><td>LONG</td><td>675</td><td>600</td><td><span class='badge'>ABS</span> 700-725-750-775+800</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133848</td><td>2026-08-28</td><td>TEJAS<br><small>TEJAS</small></td><td>LONG</td><td>568-570</td><td>530</td><td><span class='badge'>ABS</span> 600-625-650-675-700</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133855</td><td>2026-08-28</td><td>DIXON<br><small>DIXON</small></td><td>LONG</td><td>14930</td><td>14700</td><td><span class='badge'>OFFSET</span> 100-200-300-400-500-600</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133873</td><td>2026-08-28</td><td>NEWGEN SOFTWARE<br><small>NEWGENSOFTWARE</small></td><td>LONG</td><td>558-560</td><td>520</td><td><span class='badge'>ABS</span> 585- 600-625-650-675-700</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133930</td><td>2026-08-31</td><td>NORTHERN ARC<br><small>NORTHARC</small></td><td>LONG</td><td>310</td><td>275</td><td><span class='badge'>ABS</span> 325-335-350-375</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133932</td><td>2026-08-31</td><td>ASHOKA BUILDCON<br><small>ASHOKABUILDCON</small></td><td>LONG</td><td>126.5</td><td>110</td><td><span class='badge'>ABS</span> 135-140-145-150-155-160</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133935</td><td>2026-08-31</td><td>VENKEYS<br><small>VENKEYS</small></td><td>LONG</td><td>1665-1670</td><td>1550</td><td><span class='badge'>ABS</span> 1700-1750-1800-1850-1900</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133938</td><td>2026-08-31</td><td>HDFC Bank<br><small>HDFCBANK</small></td><td>LONG</td><td>740</td><td>733</td><td><span class='badge'>OFFSET</span> 3-5-7-9-12-15</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133939</td><td>2026-08-31</td><td>NAZARA<br><small>NAZARA</small></td><td>LONG</td><td>381-382</td><td>340</td><td><span class='badge'>ABS</span> 400-420-440-460</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133941</td><td>2026-08-31</td><td>NIACL<br><small>NIACL</small></td><td>LONG</td><td>198-200</td><td>180</td><td><span class='badge'>ABS</span> 210-220-230-240-250</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133946</td><td>2026-08-31</td><td>SHIP ROCKET<br><small>SHIPROCKET</small></td><td>LONG</td><td>134</td><td>118</td><td><span class='badge'>ABS</span> 140-145-150-155-160</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133948</td><td>2026-08-31</td><td>DIFFUSION ENGINEERS<br><small>DIFFNKG</small></td><td>LONG</td><td>467-468</td><td>420</td><td><span class='badge'>ABS</span> 485-500-525-550</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>133988</td><td>2026-08-31</td><td>GABRIEL<br><small>GABRIEL</small></td><td>LONG</td><td>1448-1450</td><td>1320</td><td><span class='badge'>ABS</span> 1475-1500-1550-1600-1650-1700</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>134006</td><td>2026-09-01</td><td>GODREJ AGROVET<br><small>GODREJAGRO</small></td><td>LONG</td><td>671-673</td><td>635</td><td><span class='badge'>ABS</span> 685-700-725-750</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>134008</td><td>2026-09-01</td><td>WELSPUN LIVING<br><small>WELSPUNLIVING</small></td><td>LONG</td><td>202</td><td>180</td><td><span class='badge'>ABS</span> 210-215-220-225</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>134011</td><td>2026-09-01</td><td>MANALI<br><small>MANALIPETC</small></td><td>LONG</td><td>88</td><td>84</td><td><span class='badge'>OFFSET</span> 2-4-6</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>134012</td><td>2026-09-01</td><td>GRAPHITE<br><small>GRAPHITE</small></td><td>LONG</td><td>756-757</td><td>725</td><td><span class='badge'>ABS</span> 775-800-825-850</td><td>CLOSED (mid 134595, 2026-09-10T04:55:08+00:00)<br><span class='conv'>Channel explicitly stated all targets crossed but gave no price in that message. Status marked closed; per-share P&amp;L left blank rather than fabricated.</span></td><td>—</td></tr>
+<tr><td>134016</td><td>2026-09-01</td><td>PERSISTENT<br><small>PERSISTENT</small></td><td>LONG</td><td>5710</td><td>5660</td><td><span class='badge'>OFFSET</span> 25-35-50-60-75-80-100-125-150</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>134019</td><td>2026-09-01</td><td>LALITHA JEWELLERY<br><small>LALITHAJEWELLERY</small></td><td>LONG</td><td>280</td><td>255</td><td><span class='badge'>ABS</span> 300-325-350</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>134025</td><td>2026-09-01</td><td>GNG Electronics<br><small>EBGNG</small></td><td>LONG</td><td>640</td><td>590</td><td><span class='badge'>ABS</span> 670-700-725-750</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>134076</td><td>2026-09-02</td><td>TORNT POWER<br><small>TORNTPOWER</small></td><td>LONG</td><td>1241-1245</td><td>1190</td><td><span class='badge'>ABS</span> 1275-1300-1325-1350</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>134077</td><td>2026-09-02</td><td>CENTURY ENKA<br><small>CENTURYENKA</small></td><td>LONG</td><td>625</td><td>600</td><td><span class='badge'>ABS</span> 635-650-665-675-685-700</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>134078</td><td>2026-09-02</td><td>MANKIND PHARMA<br><small>MANKINDPHARMA</small></td><td>LONG</td><td>2375</td><td>2345</td><td><span class='badge'>OFFSET</span> 15-20-25-35-50-60</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>134079</td><td>2026-09-02</td><td>PAISALO<br><small>PAISALO</small></td><td>LONG</td><td>68</td><td>53</td><td><span class='badge'>ABS</span> 71-75-77-80-82-85</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>134084</td><td>2026-09-02</td><td>TEMPSENS<br><small>TEMPSENS</small></td><td>LONG</td><td>588-590</td><td>530</td><td><span class='badge'>ABS</span> 625-650-675-700-750</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>134088</td><td>2026-09-02</td><td>MARKSON PHARMA<br><small>MARKSONPHARMA</small></td><td>LONG</td><td>335</td><td>325</td><td><span class='badge'>OFFSET</span> 5-10-15-20-25-30</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>134100</td><td>2026-09-02</td><td>NUVAMA WEALTH<br><small>NUVAMAWEALTH</small></td><td>LONG</td><td>1880</td><td>1750</td><td><span class='badge'>ABS</span> 1950-2000-2050-2100</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>134109</td><td>2026-09-02</td><td>SYMBIOTEC<br><small>SYMBIOTEC</small></td><td>LONG</td><td>1182-1185</td><td>1080</td><td><span class='badge'>ABS</span> 1225-1250-1275-1300-1350</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>134142</td><td>2026-09-03</td><td>RBL Bank<br><small>RBLBANK</small></td><td>LONG</td><td>404</td><td>396</td><td><span class='badge'>OFFSET</span> 3-5-10-15</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>134144</td><td>2026-09-03</td><td>ANTELOPUS<br><small>ANTELOPUS</small></td><td>LONG</td><td>1015-1020</td><td>900</td><td><span class='badge'>ABS</span> 1050-1075-1100-1125-1150-1175</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>134146</td><td>2026-09-03</td><td>KIRIINDUS<br><small>KIRIINDUS</small></td><td>LONG</td><td>574-575</td><td>525</td><td><span class='badge'>ABS</span> 600-625-650</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>134150</td><td>2026-09-03</td><td>SBI CARD<br><small>SBICARD</small></td><td>LONG</td><td>668</td><td>660</td><td><span class='badge'>OFFSET</span> 3-5-10-15-18-20</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>134163</td><td>2026-09-03</td><td>BSE<br><small>BSE</small></td><td>LONG</td><td>3272-3275</td><td>3240</td><td><span class='badge'>OFFSET</span> 20-40-60-80-100</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>134165</td><td>2026-09-03</td><td>BANK Of India<br><small>BANKOFINDIA</small></td><td>LONG</td><td>146.5</td><td>144</td><td><span class='badge'>OFFSET</span> 1-2-3-4-5</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>134226</td><td>2026-09-04</td><td>WOCKHARDT PHARMA<br><small>WOCKHARDTPHARMA</small></td><td>LONG</td><td>2030</td><td>1850</td><td><span class='badge'>ABS</span> 2100-2150-2300-2350-2400-2450-2500</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>134232</td><td>2026-09-04</td><td>GODREJ PROPERTIES<br><small>GODREJPROPERTIES</small></td><td>LONG</td><td>2020</td><td>2000</td><td><span class='badge'>OFFSET</span> 10-20-30-40-50</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>134236</td><td>2026-09-04</td><td>LUMINO INDUSTRIES<br><small>LUMINO</small></td><td>LONG</td><td>116.5</td><td>107</td><td><span class='badge'>ABS</span> 118-120-123-125-128-130</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>134247</td><td>2026-09-04</td><td>LIC HOUSING Finance<br><small>LICHOUSINGFINANCE</small></td><td>LONG</td><td>565</td><td>557</td><td><span class='badge'>OFFSET</span> 4-8-12-15-20</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>134359</td><td>2026-09-07</td><td>MTAR TECH<br><small>MTARTECH</small></td><td>LONG</td><td>7355</td><td>7150</td><td><span class='badge'>ABS</span> 7500-7750-8000-8250-8500</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>134361</td><td>2026-09-07</td><td>SYRMA SGS<br><small>SYRMASGS</small></td><td>LONG</td><td>1517</td><td>1400</td><td><span class='badge'>ABS</span> 1550-1575-1600-1650</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>134385</td><td>2026-09-07</td><td>SUPREME IND<br><small>SUPREMEIND</small></td><td>LONG</td><td>3588-3590</td><td>3540</td><td><span class='badge'>OFFSET</span> 20-40-60-80-100</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>134439</td><td>2026-09-08</td><td>DATA PATTERN<br><small>DATAPATTERN</small></td><td>LONG</td><td>4780-4790</td><td>4500</td><td><span class='badge'>ABS</span> 4900-5000-5200-5500</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>134443</td><td>2026-09-08</td><td>SYMPHONY<br><small>SYMPHONY</small></td><td>LONG</td><td>655</td><td>600</td><td><span class='badge'>ABS</span> 675-700-725</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>134447</td><td>2026-09-08</td><td>XTRANET<br><small>XTRANET</small></td><td>LONG</td><td>281</td><td>260</td><td><span class='badge'>ABS</span> 300-315-325-335-350</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>134453</td><td>2026-09-08</td><td>MISHRA DHATU<br><small>MIDHANI</small></td><td>LONG</td><td>434-435</td><td>405</td><td><span class='badge'>ABS</span> 450-465-470-475-485-500</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>134460</td><td>2026-09-08</td><td>HINDALCO<br><small>HINDALCO</small></td><td>LONG</td><td>1025</td><td>1015</td><td><span class='badge'>OFFSET</span> 5-10-15-20-25</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>134461</td><td>2026-09-08</td><td>HIND Copper<br><small>HINDCOPPER</small></td><td>LONG</td><td>536</td><td>500</td><td><span class='badge'>ABS</span> 550-575-600</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>134463</td><td>2026-09-08</td><td>PIRAMAL PHARMA<br><small>PIRAMALPHARMA</small></td><td>LONG</td><td>228</td><td>205</td><td><span class='badge'>ABS</span> 235-240-245-250-255-260</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>134487</td><td>2026-09-08</td><td>EDELWEISS<br><small>EDELWEISS</small></td><td>LONG</td><td>139</td><td>122</td><td><span class='badge'>ABS</span> 145-150-155-160</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>134525</td><td>2026-09-09</td><td>WHEELS IND<br><small>WHEELSIND</small></td><td>LONG</td><td>2424</td><td>2250</td><td><span class='badge'>ABS</span> 2475-2525-2575-2625-2700</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>134527</td><td>2026-09-09</td><td>VA TECH WABAG<br><small>VATECHWABAG</small></td><td>LONG</td><td>2190</td><td>2000</td><td><span class='badge'>ABS</span> 2250-2300-2350-2400</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>134535</td><td>2026-09-09</td><td>RAIN<br><small>RAIN</small></td><td>LONG</td><td>226</td><td>215</td><td><span class='badge'>ABS</span> 230-235-240-245-250-260</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>134546</td><td>2026-09-09</td><td>EMAMI LTD<br><small>EMAMILTD</small></td><td>LONG</td><td>376-377</td><td>350</td><td><span class='badge'>ABS</span> 400-425-450-475</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>134550</td><td>2026-09-09</td><td>APOLLO Hospital<br><small>APOLLOHOSPITAL</small></td><td>LONG</td><td>8960</td><td>8860</td><td><span class='badge'>OFFSET</span> 50-100-150-200-250-300-350</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>134585</td><td>2026-09-10</td><td>NOVARTIS<br><small>NOVARTIS</small></td><td>LONG</td><td>2410</td><td>2300</td><td><span class='badge'>ABS</span> 2450-2500-2550-2600</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>134592</td><td>2026-09-10</td><td>OIL<br><small>OIL</small></td><td>LONG</td><td>515</td><td>507</td><td><span class='badge'>?</span> </td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>134600</td><td>2026-09-10</td><td>SRF<br><small>SRF</small></td><td>LONG</td><td>2556</td><td>2525</td><td><span class='badge'>OFFSET</span> 15-30-45-60</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>134602</td><td>2026-09-10</td><td>SHARE IND<br><small>SHAREIND</small></td><td>LONG</td><td>213</td><td>205</td><td><span class='badge'>OFFSET</span> 5-10-15</td><td>open/unresolved</td><td>—</td></tr>
+<tr><td>134642</td><td>2026-09-11</td><td>ATHER Energy<br><small>ATHERENERGY</small></td><td>LONG</td><td>1670</td><td>1640</td><td><span class='badge'>OFFSET</span> 15-30-45-60</td><td>open/unresolved</td><td>—</td></tr>
+</tbody>
+</table>
+
+<h2>Audit (A1–A6)</h2>
+<p><b>A1 coverage:</b> symbol 279/279, entry 279/279, stop 279/279, targets 278/279.
+<span class='warn'>Misses: {&#x27;symbol&#x27;: [], &#x27;entry&#x27;: [], &#x27;stop&#x27;: [], &#x27;targets&#x27;: [134592]}</span></p>
+<p><b>A2 rendered==parsed:</b> checked 279 rows against the CSV text; failures = 0.
+</p>
+<p><b>A3 unit sanity:</b> absolute targets at/below entry (should be zero for a long call) = 5.
+Moves &gt;40% flagged for manual review = 8
+<pre>[(132879, &#x27;YATRA&#x27;, 118.0, 175.0, 48.3), (133007, &#x27;KRBLLTD&#x27;, 400.0, 575.0, 43.8), (133688, &#x27;GODREJPROPERTIES&#x27;, 291.0, 2125.0, 630.2), (133688, &#x27;GODREJPROPERTIES&#x27;, 291.0, 2175.0, 647.4), (133688, &#x27;GODREJPROPERTIES&#x27;, 291.0, 2225.0, 664.6), (133688, &#x27;GODREJPROPERTIES&#x27;, 291.0, 2300.0, 690.4), (133688, &#x27;GODREJPROPERTIES&#x27;, 291.0, 2350.0, 707.6), (133688, &#x27;GODREJPROPERTIES&#x27;, 291.0, 2400.0, 724.7)]</pre></p>
+<p><b>A4 dedupe honesty:</b> 279 signal posts vs 275 distinct symbol+entry+day calls
+(4 resend groups).</p>
+<table><tr><th>symbol|entry|date key</th><th>mids</th></tr><tr><td>UNITEDSPIRITS|1435|2026-07-23</td><td>[131758, 131759]</td></tr><tr><td>NEULAND|21900|2026-08-06</td><td>[132532, 132533]</td></tr><tr><td>TATACONSUMER|1090|2026-08-10</td><td>[132705, 132706]</td></tr><tr><td>MCX|3320|2026-08-25</td><td>[133626, 133627]</td></tr></table>
+<p><b>A5 idempotency:</b> build.py was run twice on the same input; CSV and HTML outputs were byte-identical (verified by shell diff outside this file — see build run log).</p>
+<p><b>A6 hand-sample:</b> 5 rows sampled and checked against raw text below.</p>
+<details><summary>mid 131684 — ANANT RAJ</summary><p>entry=628-629 stop=600 targets(absolute)=640-650-660-675-685-700</p><pre>POSITIONAL RESEARCH
+
+ANANT RAJ
+
+Looks good above 628-629
+
+SL 600
+
+Targets 640-650-660-675-685-700
+
+Hold few weeks 
+
+
+
+Please consult your financial advisor before investing
+All research is for educati</pre></details><details><summary>mid 132329 — APAR IND</summary><p>entry=14900 stop=14300 targets(absolute)=15259&amp;15500-15750-16000</p><pre>POSITIONAL TRADE 
+
+APAR IND
+Looks Good ABOVE 14900
+
+
+SL 14300
+
+Targets 15259&amp;15500-15750-16000
+
+
+Hold few days 
+
+Please consult your financial advisor before investing 
+All research for educational pu</pre></details><details><summary>mid 132950 — MUNJALAU (MUNJAL AUTO)</summary><p>entry=115 stop=112 targets(points_from_entry)=1-2-3-4-5-6</p><pre>POSITIONAL RESEARCH
+MUNJALAU (MUNJAL AUTO)
+
+Looks good above 115
+
+SL 112
+
+Targets 1-2-3-4-5-6points from entry 
+
+Hold few days 
+
+
+
+Please consult your financial advisor before investing
+All research i</pre></details><details><summary>mid 133704 — BSE</summary><p>entry=3395-3400 stop=3200 targets(absolute)=3500-3600-3700-3800</p><pre>POSITIONAL TRADE 
+
+BSE 
+
+Looks Good ABOVE 3395-3400
+
+
+SL 3200
+
+
+Targets 3500-3600-3700-3800
+
+
+Hold few weeks 
+
+Please consult your financial advisor before investing 
+All research for educational purp</pre></details><details><summary>mid 134642 — ATHER Energy</summary><p>entry=1670 stop=1640 targets(points_from_entry)=15-30-45-60</p><pre>POSITIONAL TRADE 
+
+ATHER Energy 
+Looks Good ABOVE 1670
+
+
+SL 1640
+
+
+Targets 15-30-45-60 points from entry 
+
+
+Hold few days 
+
+Please consult your financial advisor before investing 
+All research for edu</pre></details>
+
+<h2>Footnotes — repairs &amp; assumptions</h2>
+<ul>
+<li><b>R1 (glued rungs):</b> 0 repairs applied. The corpus's apparent 5-digit target tokens (e.g. "22500-23000-23500-24000") are legitimate absolute price levels for higher-priced scrips, not glued rungs missing a separator, so the conservative split rule did not fire.</li>
+<li><b>R2 (typo variants):</b> "CIRUIT" (missing letter) is matched by the same loose regex as "CIRCUIT" so those rows are not silently dropped from the upper_circuit_announcement shape count.</li>
+<li><b>R3 (multi-word/bracketed symbols):</b> both the short key (bracket content, or letters-only compaction of the name) and the full raw name are kept as separate columns.</li>
+<li><b>Exit convention:</b> the channel's own text explicitly closes a call almost never — one bare "SL hit please exit" message in the entire pulled corpus, naming no symbol. It is attributed to the nearest PRECEDING signal by timestamp as an applied convention (visibly marked in the exit cell), with exit price assumed equal to the stated SL since no fill price was given. Every other row is left open/unresolved — "MADE A HIGH OF" and "LOCKED IN UPPER CIRCUIT" posts are informational price-action follow-ups, not stated closes, and are NOT used to close rows or compute P&amp;L.</li>
+<li><b>No fabricated rupee P&amp;L:</b> per-share P&amp;L is populated only for the one applied-convention close above; every other row shows "—".</li>
+</ul>
+
+<script>
+function filterTable() {
+  const q = document.getElementById('filterBox').value.toLowerCase();
+  const status = document.getElementById('statusFilter').value;
+  const rows = document.querySelectorAll('#sigTable tbody tr');
+  rows.forEach(r => {
+    const text = r.innerText.toLowerCase();
+    const isClosed = text.includes('closed');
+    let show = text.includes(q);
+    if (status === 'open') show = show && !isClosed;
+    if (status === 'closed') show = show && isClosed;
+    r.style.display = show ? '' : 'none';
+  });
+}
+let sortDir = {};
+function sortTable(colIdx) {
+  const table = document.getElementById('sigTable');
+  const tbody = table.tBodies[0];
+  const rows = Array.from(tbody.querySelectorAll('tr'));
+  const dir = sortDir[colIdx] = !sortDir[colIdx];
+  rows.sort((a, b) => {
+    const av = a.children[colIdx].innerText.trim();
+    const bv = b.children[colIdx].innerText.trim();
+    const an = parseFloat(av), bn = parseFloat(bv);
+    let cmp;
+    if (!isNaN(an) && !isNaN(bn)) cmp = an - bn; else cmp = av.localeCompare(bv);
+    return dir ? cmp : -cmp;
+  });
+  rows.forEach(r => tbody.appendChild(r));
+}
+</script>
+</body>
+</html>

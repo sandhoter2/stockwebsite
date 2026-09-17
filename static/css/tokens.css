@@ -1,12 +1,14 @@
-/* Shared design tokens — Telegram Trade Tracker.
+/* Shared design tokens — TradeGuru.
    Single source of truth for login.html and dashboard.html so the two
    pages read as one product instead of two separately-styled ones.
-   See scratch_design_proposal.html §02 for the palette rationale. */
+   Brand: light blue (navigation/primary) + light yellow (CTA/accent);
+   green/red stay reserved for P/L only (see scratch_design_proposal.html §02). */
 :root {
   --tt-ink:#14162b; --tt-paper:#f5f4fb; --tt-line:#e4e2f0;
-  --tt-indigo:#4338ca; --tt-blue:#2563eb; --tt-green:#0f7a4e;
+  --tt-indigo:#0ea5e9; --tt-blue:#38bdf8; --tt-green:#0f7a4e;
   --tt-red:#c22a2a; --tt-amber:#a2620b; --tt-purple:#7c3aed;
   --tt-teal:#0d9488; --tt-slate:#5b5e76;
+  --tt-yellow:#eab308; --tt-yellow-soft:#fef9c3; --tt-yellow-ink:#713f12;
   --tt-font-display:"Manrope",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
   --tt-font-body:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
   --tt-font-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
@@ -15,3 +17,7 @@
   --tt-shadow-hover:0 4px 10px rgba(15,23,42,.08), 0 8px 24px rgba(15,23,42,.1);
   --tt-ease:cubic-bezier(.2,.8,.2,1);
 }
+/* Primary CTA -> light-yellow brand accent, everywhere Bootstrap's .btn-primary is used */
+.btn-primary { background:var(--tt-yellow); border-color:var(--tt-yellow); color:var(--tt-yellow-ink); }
+.btn-primary:hover, .btn-primary:active, .btn-primary:focus {
+  background:#facc15; border-color:#facc15; color:var(--tt-yellow-ink); }

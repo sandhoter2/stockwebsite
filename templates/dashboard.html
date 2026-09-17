@@ -10,20 +10,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="{% static 'css/tokens.css' %}" rel="stylesheet">
   <style>
-    :root {
-      --tt-ink:#14162b; --tt-paper:#f5f4fb; --tt-line:#e4e2f0;
-      --tt-indigo:#4338ca; --tt-blue:#2563eb; --tt-green:#0f7a4e;
-      --tt-red:#c22a2a; --tt-amber:#a2620b; --tt-purple:#7c3aed;
-      --tt-teal:#0d9488; --tt-slate:#5b5e76;
-      --tt-font-display:"Manrope",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-      --tt-font-body:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-      --tt-font-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
-      --tt-radius:.85rem; --tt-radius-sm:.55rem;
-      --tt-shadow:0 1px 2px rgba(15,23,42,.06), 0 2px 8px rgba(15,23,42,.06);
-      --tt-shadow-hover:0 4px 10px rgba(15,23,42,.08), 0 8px 24px rgba(15,23,42,.1);
-      --tt-ease:cubic-bezier(.2,.8,.2,1);
-    }
     * { box-sizing:border-box; }
     body {
       background:linear-gradient(180deg,var(--tt-paper) 0%,#f6f7fb 240px);

@@ -9,17 +9,18 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@700;800&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="{% static 'css/tokens.css' %}" rel="stylesheet">
   <style>
     body {
-      background: linear-gradient(135deg,#14162b,#312e81 55%,#1d4ed8);
-      min-height:100vh; font-family:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      background: linear-gradient(135deg,var(--tt-ink),#312e81 55%,var(--tt-blue));
+      min-height:100vh; font-family:var(--tt-font-body);
     }
-    .card-login { max-width: 400px; border:0; border-radius:.85rem;
+    .card-login { max-width: 400px; border:0; border-radius:var(--tt-radius);
                   box-shadow:0 10px 30px rgba(15,16,40,.35); }
-    .card-login h1 { font-family:"Manrope",-apple-system,sans-serif; font-weight:800; }
+    .card-login h1 { font-family:var(--tt-font-display); font-weight:800; }
     .brand-mark { width:44px; height:44px; border-radius:.6rem; display:inline-flex;
                   align-items:center; justify-content:center; font-size:1.4rem; font-weight:700;
-                  background:linear-gradient(135deg,#4338ca,#2563eb); color:#fff; }
+                  background:linear-gradient(135deg,var(--tt-indigo),var(--tt-blue)); color:#fff; }
   </style>
 </head>
 <body class="d-flex align-items-center">

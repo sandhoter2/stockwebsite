@@ -28,8 +28,14 @@ cd /Users/mamathap/Downloads/django || exit 1
 EXIT2=$?
 ./.venv/bin/python manage.py parse_signals >> live_market_sync.log 2>&1
 EXIT3=$?
-./.venv/bin/python manage.py poll_market >> live_market_sync.log 2>&1
+# Opens a PaperTrade for each user's auto_consumers' new Open signals --
+# was written months ago but never scheduled anywhere, so selecting
+# channels in the Paper Trading picker and saving never actually did
+# anything. Runs right after parse_signals, per its own docstring.
+./.venv/bin/python manage.py paper_autotrade >> live_market_sync.log 2>&1
 EXIT4=$?
-[ $EXIT1 -ne 0 -o $EXIT2 -ne 0 -o $EXIT3 -ne 0 -o $EXIT4 -ne 0 ] && EXIT=1 || EXIT=0
+./.venv/bin/python manage.py poll_market >> live_market_sync.log 2>&1
+EXIT5=$?
+[ $EXIT1 -ne 0 -o $EXIT2 -ne 0 -o $EXIT3 -ne 0 -o $EXIT4 -ne 0 -o $EXIT5 -ne 0 ] && EXIT=1 || EXIT=0
 ./.venv/bin/python manage.py ktl_record live_market_sync "$START" "$EXIT" \
-  "extract=$EXIT1 import=$EXIT2 parse=$EXIT3 poll=$EXIT4" >> live_market_sync.log 2>&1
+  "extract=$EXIT1 import=$EXIT2 parse=$EXIT3 autotrade=$EXIT4 poll=$EXIT5" >> live_market_sync.log 2>&1

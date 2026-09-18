@@ -837,9 +837,20 @@
         try { const u = await apiMutate('PUT', '/api/tracker/prefs/', { ...prefs, ...patch }); setPrefs(u); }
         catch (e2) { setErr(e2.message); }
       }
+      const [autotradeMsg, setAutotradeMsg] = useState('');
       async function saveConsumers() {
         setSavingConsumers(true);
-        try { await savePref({ auto_consumers: pendingConsumers }); }
+        setAutotradeMsg('');
+        try {
+          await savePref({ auto_consumers: pendingConsumers });
+          // Saving the selection alone does nothing until the next 2-min
+          // live-sync cron tick -- run it now, scoped to this user, so
+          // "Generate report" actually changes the table immediately
+          // instead of leaving it looking like the button did nothing.
+          const r = await apiMutate('POST', '/api/tracker/paper/autotrade/');
+          setAutotradeMsg(r.detail || 'Done.');
+          load(); setPaperRefresh(t => t + 1);
+        } catch (e2) { setErr(e2.message); }
         finally { setSavingConsumers(false); }
       }
       const consumersDirty = prefs && pendingConsumers &&
@@ -899,6 +910,12 @@
                     Discard changes
                   </button>}
               </div>
+              {autotradeMsg &&
+                <div className="small text-muted mt-2">{autotradeMsg}</div>}
+              {prefs && !prefs.auto_paper &&
+                <div className="small text-warning mt-2">
+                  ⚠ "Auto paper-trade top consumers" is off above — turn it on for these channels' calls to actually open paper trades.
+                </div>}
             </div></div>}
 
           <form onSubmit={addManual} className="row g-2 align-items-end mb-3">
@@ -1489,11 +1506,15 @@
     ];
 
     const PAPER_COLUMNS = [
+      { data: 'opened_at', title: 'Opened (IST)', orderKey: 'opened_at',
+        render: v => `<span class="text-muted small">${esc(IST(v) || '—')}</span>` },
+      { data: 'closed_at', title: 'Closed (IST)', orderKey: 'closed_at',
+        render: v => `<span class="text-muted small">${esc(IST(v) || '—')}</span>` },
       { data: 'symbol', title: 'Symbol', orderKey: 'symbol', render: v => `<strong>${esc(v)}</strong>` },
       { data: 'asset_class', title: 'Sector', render: v => sectorTagHtml(v) },
       { data: 'side', title: 'Side',
         render: v => `<span class="badge ${v==='BUY'?'text-bg-success':'text-bg-danger'}">${esc(v)}</span>` },
-      { data: 'entry_price', title: 'Entry', orderKey: 'opened_at', render: v => `<div class="text-end">${v ?? '—'}</div>` },
+      { data: 'entry_price', title: 'Entry', render: v => `<div class="text-end">${v ?? '—'}</div>` },
       { data: 'current_price', title: 'Current',
         render: (v, t, row) => `<div class="text-end">${row.status==='Open' ? (v ?? '—') : (row.exit_price ?? '—')}</div>` },
       { data: 'unrealized_inr', title: 'Unreal ₹',

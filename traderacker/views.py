@@ -347,6 +347,25 @@ class PrefsView(APIView):
         return Response(ser.data)
 
 
+class PaperAutotradeNowView(APIView):
+    """POST /api/tracker/paper/autotrade/
+
+    Runs paper_autotrade for just the signed-in user, synchronously, scoped
+    to their own auto_consumers -- so saving a channel selection in the
+    Paper Trading picker has an immediate, visible effect instead of only
+    taking effect whenever the live-sync cron next ticks (up to 2 min).
+    Cheap: one user, filtered to their configured channels only.
+    """
+
+    def post(self, request):
+        from io import StringIO
+
+        from django.core.management import call_command
+        out = StringIO()
+        call_command('paper_autotrade', user=request.user.username, stdout=out)
+        return Response({'detail': out.getvalue().strip()})
+
+
 class TrackerRouter(routers.DefaultRouter):
     """DRF router with the tracker registrations."""
 

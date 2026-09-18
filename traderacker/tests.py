@@ -2243,6 +2243,58 @@ class TradeCloseEventTests(TestCase):
         self.assertNotEqual(newer_only[0]['id'], first_id)
 
 
+class PaperAutotradeNowApiTests(TestCase):
+    """POST /api/tracker/paper/autotrade/ -- runs paper_autotrade for just
+    the signed-in user synchronously, so saving a channel selection in the
+    Paper Trading picker has an immediate effect instead of waiting for the
+    next live-sync cron tick (which is what "Generate report" is for)."""
+
+    def setUp(self):
+        self.user = User.objects.create_user('autotrader', password='pw12345!')
+        self.client.force_login(self.user)
+        self.ch = Channel.objects.create(peer='-9201', name='Ch', short='Ch')
+
+    def test_opens_paper_trades_for_configured_channel_when_auto_paper_on(self):
+        pref = UserPreference.for_user(self.user)
+        pref.auto_paper = True
+        pref.save()
+        pref.auto_consumers.set([self.ch])
+        Trade.objects.create(channel=self.ch, trade='TATAMOTORS', direction='BUY',
+                             entry=500.0, status='Open', asset_class='stock', source_mid=1,
+                             posted_at=timezone.now())
+
+        r = self.client.post('/api/tracker/paper/autotrade/')
+        self.assertEqual(r.status_code, 200)
+        self.assertIn('opened', r.json()['detail'].lower())
+        self.assertEqual(PaperTrade.objects.filter(user=self.user).count(), 1)
+
+    def test_no_trades_opened_when_auto_paper_is_off(self):
+        pref = UserPreference.for_user(self.user)
+        pref.auto_paper = False
+        pref.save()
+        pref.auto_consumers.set([self.ch])
+        Trade.objects.create(channel=self.ch, trade='TATAMOTORS', direction='BUY',
+                             entry=500.0, status='Open', asset_class='stock', source_mid=1,
+                             posted_at=timezone.now())
+
+        r = self.client.post('/api/tracker/paper/autotrade/')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(PaperTrade.objects.filter(user=self.user).count(), 0)
+
+    def test_only_affects_the_requesting_user(self):
+        other = User.objects.create_user('otheruser', password='pw12345!')
+        other_pref = UserPreference.for_user(other)
+        other_pref.auto_paper = True
+        other_pref.save()
+        other_pref.auto_consumers.set([self.ch])
+        Trade.objects.create(channel=self.ch, trade='TATAMOTORS', direction='BUY',
+                             entry=500.0, status='Open', asset_class='stock', source_mid=1,
+                             posted_at=timezone.now())
+
+        self.client.post('/api/tracker/paper/autotrade/')
+        self.assertEqual(PaperTrade.objects.filter(user=other).count(), 0)
+
+
 class PicksApiTests(TestCase):
     """Sector filtering + consensus picks endpoints."""
 

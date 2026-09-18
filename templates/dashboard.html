@@ -474,7 +474,7 @@
     const istDate = d => iso(new Date(d.getTime() + 5.5*3600e3));
     function rangeDates(key, custom) {
       const now = Date.now();
-      if (key === '1d')  return { from: istDate(new Date(now - 1*864e5)), to: null };
+      if (key === '1d')  return { from: istDate(new Date(now)), to: istDate(new Date(now)) };
       if (key === '7d')  return { from: istDate(new Date(now - 7*864e5)), to: null };
       if (key === '30d') return { from: istDate(new Date(now - 30*864e5)), to: null };
       if (key === '90d') return { from: istDate(new Date(now - 90*864e5)), to: null };
@@ -1752,7 +1752,9 @@
       const activeChannel = channels.find(c=>c.id===active);
       const pulseName = active ? (activeChannel?.short||activeChannel?.name||'channel') : 'Telegram Channels';
       const sectorLabel = sectors.length ? sectors.map(s=>SECTOR_LABEL[s]).join(' + ') : 'All sectors';
-      const rangeLabel = range.from||range.to ? ((range.from||'…')+' → '+(range.to||'today')) : 'All time';
+      const rangeLabel = !(range.from||range.to) ? 'All time'
+        : range.from && range.from === range.to ? range.from
+        : (range.from||'…')+' → '+(range.to||'today');
 
       const tradesExtraParams = useMemo(() => ({
         channel: active || '',

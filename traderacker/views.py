@@ -275,6 +275,9 @@ class PaperViewSet(viewsets.ModelViewSet):
     """Per-user paper trades: list, manual create, delete (own only)."""
     serializer_class = PaperTradeSerializer
     http_method_names = ['get', 'post', 'delete']
+    filter_backends = [filters.OrderingFilter]
+    ordering_fields = ['opened_at', 'closed_at', 'symbol', 'status', 'realized_inr', 'realized_pct']
+    ordering = ['-opened_at']
 
     def get_queryset(self):
         qs = PaperTrade.objects.filter(user=self.request.user).select_related(
@@ -282,6 +285,9 @@ class PaperViewSet(viewsets.ModelViewSet):
         st = self.request.query_params.get('status')
         if st:
             qs = qs.filter(status=st)
+        q = self.request.query_params.get('q')
+        if q:
+            qs = qs.filter(symbol__icontains=q)
         return qs
 
     def perform_create(self, serializer):

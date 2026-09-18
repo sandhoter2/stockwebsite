@@ -16,7 +16,7 @@ from traderacker.models import Trade, TelegramMessage
 
 STALE_TELEGRAM_HOURS = 30
 STALE_JOB_HOURS = 30
-CRON_JOBS = ['telegram_sync', 'super_investors', 'poll_market']
+CRON_JOBS = ['telegram_sync', 'super_investors', 'poll_market', 'market_news']
 LIVE_SYNC_STALE_MINUTES = 10
 
 

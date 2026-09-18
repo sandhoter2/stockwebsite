@@ -8,6 +8,7 @@
   <meta name="csrf-token" content="{{ csrf_token }}">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.datatables.net/2.1.8/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.1.0-rc.0/css/select2.min.css" rel="stylesheet">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -63,6 +64,16 @@
     .pulse-card:hover { box-shadow:var(--tt-shadow-hover); transform:translateY(-1px); }
     .pulse-card .label { font-size:.7rem; text-transform:uppercase; letter-spacing:.04em; color:#64748b; font-weight:700; }
     .pulse-card .value { font-size:1.25rem; font-weight:700; color:#0f172a; }
+    .hero-value { font-size:1.9rem !important; font-weight:800; }
+    .hero-secondary .value { font-size:1rem; }
+    .hero-secondary .label { font-size:.62rem; }
+    .live-chip { display:inline-flex; align-items:center; gap:.35rem; font-size:.72rem; font-weight:600;
+                 padding:.2rem .55rem; border-radius:999px; }
+    .live-fresh { color:#059669; background:#ecfdf5; }
+    .live-stale { color:#92400e; background:#fffbeb; }
+    .live-dot { width:.45rem; height:.45rem; border-radius:50%; background:currentColor; }
+    .live-fresh .live-dot { animation: live-pulse 1.6s ease-in-out infinite; }
+    @keyframes live-pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
     .success-bar { height:10px; border-radius:5px; overflow:hidden; display:flex; background:#e2e8f0; }
     .avatar { width:32px; height:32px; border-radius:50%; background:linear-gradient(135deg,#818cf8,#38bdf8);
               color:#fff; display:inline-flex; align-items:center; justify-content:center; font-size:.8rem; font-weight:700; flex:none; }
@@ -128,6 +139,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
   <script src="https://cdn.datatables.net/2.1.8/js/dataTables.min.js"></script>
   <script src="https://cdn.datatables.net/2.1.8/js/dataTables.bootstrap5.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.1.0-rc.0/js/select2.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.24.7/babel.min.js"></script>
@@ -153,6 +165,10 @@
     function SectorTag({ ac }) {
       const [bg, fg] = SECTOR_TAG[ac] || SECTOR_TAG.other;
       return <span className="sector-badge" style={{background:bg, color:fg}}>{SECTOR_LABEL[ac]||ac}</span>;
+    }
+    function sectorTagHtml(ac) {
+      const [bg, fg] = SECTOR_TAG[ac] || SECTOR_TAG.other;
+      return `<span class="sector-badge" style="background:${bg};color:${fg}">${esc(SECTOR_LABEL[ac] || ac)}</span>`;
     }
 
     // Shared KPI/stat tile -- was reimplemented ~5x with tiny prop drift
@@ -182,7 +198,7 @@
     // limit/offset request at our existing DRF endpoints, which is what
     // keeps this fast regardless of table size (fine for 80+ channels,
     // fine for thousands of trades).
-    function ServerTable({ apiPath, columns, extraParams, pageLength, searchValue, onCellAction, ownSearchBox }) {
+    function ServerTable({ apiPath, columns, extraParams, pageLength, searchValue, onCellAction, ownSearchBox, refreshSignal }) {
       const tableRef = useRef(null);
       const dtRef = useRef(null);
       const extraKey = JSON.stringify(extraParams || {}) + '|' + (searchValue || '');
@@ -235,10 +251,66 @@
         // eslint-disable-next-line react-hooks/exhaustive-deps
       }, [apiPath, extraKey]);
 
+      // Live-sync tick: re-fetch the CURRENT page/sort/search in place
+      // (ajax.reload with resetPaging=false) instead of the full
+      // destroy/reinit above, so a background refresh doesn't kick the
+      // user back to page 1 mid-scroll.
+      useEffect(() => {
+        if (dtRef.current) dtRef.current.ajax.reload(null, false);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, [refreshSignal]);
+
       return (
         <table ref={tableRef} className="table table-sm table-hover w-100 dt-tt">
           <thead><tr>{columns.map(c => <th key={c.data}>{c.title}</th>)}</tr></thead>
         </table>);
+    }
+
+    // Select2-enhanced <select multiple> -- a searchable dropdown instead
+    // of a pill wall, which stops making sense once the list is 80+ items.
+    // jQuery owns the rendered widget once inited, so React only pushes
+    // `value` back in via .val(...).trigger('change.select2') rather than
+    // re-rendering the option list on every parent render.
+    function Select2Multi({ options, value, onChange, placeholder }) {
+      const selectRef = useRef(null);
+      const onChangeRef = useRef(onChange);
+      onChangeRef.current = onChange;
+
+      useEffect(() => {
+        if (!window.jQuery || !window.jQuery.fn.select2 || !selectRef.current) return;
+        const $el = window.jQuery(selectRef.current);
+        $el.select2({ width: '100%', placeholder: placeholder || 'Select…', closeOnSelect: false });
+        $el.on('change', () => onChangeRef.current((($el.val()) || []).map(Number)));
+        return () => { $el.select2('destroy'); };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, [options.length]);
+
+      useEffect(() => {
+        if (!window.jQuery || !selectRef.current) return;
+        const $el = window.jQuery(selectRef.current);
+        const current = ($el.val() || []).map(Number).sort().join(',');
+        const next = [...(value || [])].sort().join(',');
+        if (current !== next) $el.val((value || []).map(String)).trigger('change.select2');
+      }, [value]);
+
+      return (
+        <select ref={selectRef} multiple style={{ width: '100%' }} defaultValue={(value || []).map(String)}>
+          {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>);
+    }
+
+    function LiveHeartbeat({ lastUpdated }) {
+      const [, setTick] = useState(0);
+      useEffect(() => { const id = setInterval(() => setTick(t => t + 1), 1000); return () => clearInterval(id); }, []);
+      if (!lastUpdated) return null;
+      const secs = Math.max(0, Math.round((Date.now() - lastUpdated.getTime()) / 1000));
+      const label = secs < 60 ? secs + 's ago' : Math.round(secs / 60) + 'm ago';
+      const fresh = secs < 150;
+      return (
+        <span className={'live-chip ' + (fresh ? 'live-fresh' : 'live-stale')}
+              title={fresh ? 'Backed by a live sync every 2 min during market hours' : 'No live update in a while — market may be closed, or a sync issue'}>
+          <span className="live-dot" /> {fresh ? 'Live' : 'Stalled'} · updated {label}
+        </span>);
     }
 
     function Pagination({ page, setPage, total, pageSize }) {
@@ -368,22 +440,31 @@
             </button>
             <div className="collapse navbar-collapse" id="topbarNav">
               <ul className="nav nav-tabs mb-0 border-0 flex-wrap align-items-lg-center me-lg-auto mt-3 mt-lg-0" role="tablist">
-                <li className="nav-item"><button className={'nav-link '+(effTab==='overview' && active===null?'active':'')}
-                  role="tab" aria-selected={effTab==='overview' && active===null}
-                  onClick={()=>{setActive(null); setTab('overview');}}>Telegram Channels <span className="badge text-bg-light text-dark ms-1">{channelsCount}</span></button></li>
-                <li className="nav-item"><button className={'nav-link '+(effTab==='overview' && active!==null?'active':'')}
-                  role="tab" aria-selected={effTab==='overview' && active!==null} onClick={()=>setTab('overview')}>Overview</button></li>
-                {tabs.filter(([k])=>k!=='overview').map(([k,l]) => (
+                <li className="nav-item"><button className={'nav-link '+(active===null && effTab==='trades'?'active':'')}
+                  role="tab" aria-selected={active===null && effTab==='trades'}
+                  onClick={()=>{setActive(null); setTab('trades');}}>Telegram Channels <span className="badge text-bg-light text-dark ms-1">{channelsCount}</span></button></li>
+                {tabs.map(([k,l]) => (
                   <li className="nav-item" key={k}><button className={'nav-link '+(effTab===k?'active':'')}
                     role="tab" aria-selected={effTab===k} onClick={()=>setTab(k)}>{l}</button></li>))}
-                {MARKET_INTEL_TABS.map(([k,l]) => (
-                  <li className="nav-item" key={k}><button className={'nav-link '+(effTab===k?'active':'')}
-                    role="tab" aria-selected={effTab===k} onClick={()=>setTab(k)}>{l}</button></li>))}
+                <li className="nav-item dropdown">
+                  <button className={'nav-link dropdown-toggle '+(MARKET_INTEL_TABS.some(([k])=>k===effTab)?'active':'')}
+                          data-bs-toggle="dropdown" aria-expanded="false">Market Intel</button>
+                  <ul className="dropdown-menu">
+                    {MARKET_INTEL_TABS.map(([k,l]) => (
+                      <li key={k}><button className={'dropdown-item '+(effTab===k?'active':'')} onClick={()=>setTab(k)}>{l}</button></li>))}
+                  </ul>
+                </li>
               </ul>
               <div className="d-flex flex-column flex-lg-row align-items-lg-center gap-2 gap-lg-3 mt-3 mt-lg-0">
-                {user && user.is_staff && <a className="link-light small" href="/api/tracker/" target="_blank" rel="noreferrer">API docs</a>}
-                {user && user.is_staff && <a className="link-light small" href="/admin/" target="_blank" rel="noreferrer">Django admin</a>}
-                {user && user.is_staff && <a className="link-light small" href="/ktl/" target="_blank" rel="noreferrer">KTL</a>}
+                {user && user.is_staff &&
+                  <div className="dropdown">
+                    <button className="btn btn-sm btn-outline-light dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">Admin</button>
+                    <ul className="dropdown-menu dropdown-menu-end">
+                      <li><a className="dropdown-item" href="/ktl/" target="_blank" rel="noreferrer">KTL dashboard</a></li>
+                      <li><a className="dropdown-item" href="/admin/" target="_blank" rel="noreferrer">Django admin</a></li>
+                      <li><a className="dropdown-item" href="/api/tracker/" target="_blank" rel="noreferrer">API docs</a></li>
+                    </ul>
+                  </div>}
                 {user && <span className="d-flex align-items-center gap-2">
                   <span className="avatar" aria-hidden="true">{initials}</span>
                   <span className="text-white small lh-sm">{user.username}<br /><span className="opacity-50">{user.email}</span></span>
@@ -428,19 +509,23 @@
       );
     }
 
-    function SummaryCards({ s }) {
+    function SummaryCards({ s, rangeLabel }) {
       if (!s) return null;
+      // Realized/Unrealized lead -- that's the number a returning user
+      // actually wants first; the rest is secondary context, not
+      // competing at equal visual weight for the same first glance.
       const items = [
+        ['Realized ₹ ('+(rangeLabel||'this period')+')', s.realized_total, s.realized_total>=0?'#059669':'#dc2626', s.realized_total>=0?'#ecfdf5':'#fef2f2', 'Booked profit/loss on trades closed in this window'],
+        ['Unrealized ₹', s.unrealized_total, s.unrealized_total>=0?'#0d9488':'#dc2626', '#f0fdfa', 'Paper gain/loss on positions still open, at the last known price'],
         ['Channels', s.channels, '#2563eb', '#eff6ff'], ['Trades', s.trades, '#7c3aed', '#f5f3ff'],
         ['Open', s.open_trades, '#d97706', '#fffbeb'], ['Closed', s.closed_trades, '#059669', '#ecfdf5'],
-        ['Realized ₹ (7d)', s.realized_total, s.realized_total>=0?'#059669':'#dc2626', s.realized_total>=0?'#ecfdf5':'#fef2f2', 'Booked profit/loss on trades closed in the last 7 days'],
-        ['Unrealized ₹', s.unrealized_total, s.unrealized_total>=0?'#0d9488':'#dc2626', '#f0fdfa', 'Paper gain/loss on positions still open, at the last known price'],
       ];
       return (
         <div className="row g-2 mb-3 cards">
-          {items.map(([label,val,accent,tint,hint]) => (
-            <StatCard key={label} colClass="col-6 col-md-4 col-lg-2" label={label} accent={accent} tint={tint} hint={hint}
-              value={<span className={label.includes('₹')?cls(val):''}>
+          {items.map(([label,val,accent,tint,hint], i) => (
+            <StatCard key={label} colClass={i<2?'col-6 col-md-3':'col-6 col-md-3 col-lg-2 hero-secondary'}
+              label={label} accent={accent} tint={tint} hint={hint} center={i>=2}
+              value={<span className={(i<2?'hero-value ':'')+(label.includes('₹')?cls(val):'')}>
                 {typeof val==='number'&&label.includes('₹')?INR(val):(val ?? '—')}</span>} />
           ))}
         </div>
@@ -676,7 +761,6 @@
       const [err, setErr] = useState('');
       const [filter, setFilter] = useState('Open');
       const [form, setForm] = useState({ symbol: '', side: 'BUY', asset_class: 'stock', entry_price: '' });
-      const [chQuery, setChQuery] = useState('');
       const [pendingConsumers, setPendingConsumers] = useState(null);
       const [savingConsumers, setSavingConsumers] = useState(false);
 
@@ -693,7 +777,6 @@
 
       const open = trades.filter(t => t.status === 'Open');
       const closed = trades.filter(t => t.status === 'Closed');
-      const shown = filter === 'Open' ? open : filter === 'Closed' ? closed : trades;
       const realizedInr = closed.reduce((a, t) => a + (t.realized_inr || 0), 0);
       const unrealInr = open.reduce((a, t) => a + (t.unrealized_inr || 0), 0);
       const wins = closed.filter(t => (t.realized_inr || 0) > 0).length;
@@ -710,18 +793,22 @@
           load();
         } catch (e2) { setErr(e2.message); }
       }
-      const [confirmDelete, setConfirmDelete] = useState(null);
       async function del(id) {
-        try { await apiMutate('DELETE', '/api/tracker/paper/' + id + '/'); setConfirmDelete(null); load(); }
+        if (!window.confirm('Delete this paper trade?')) return;
+        try { await apiMutate('DELETE', '/api/tracker/paper/' + id + '/'); load(); setPaperRefresh(t => t + 1); }
         catch (e2) { setErr(e2.message); }
       }
+      const [paperRefresh, setPaperRefresh] = useState(0);
+      const equityCurve = useMemo(() => {
+        const pts = closed.filter(t => t.closed_at)
+          .sort((a, b) => new Date(a.closed_at) - new Date(b.closed_at));
+        let cum = 0;
+        return pts.map(t => ({ cum: (cum += (t.realized_inr || 0)) }));
+      }, [closed]);
       async function savePref(patch) {
         setPrefs({ ...prefs, ...patch });
         try { const u = await apiMutate('PUT', '/api/tracker/prefs/', { ...prefs, ...patch }); setPrefs(u); }
         catch (e2) { setErr(e2.message); }
-      }
-      function toggleConsumer(id) {
-        setPendingConsumers(cur => cur.includes(id) ? cur.filter(x => x !== id) : [...cur, id]);
       }
       async function saveConsumers() {
         setSavingConsumers(true);
@@ -730,9 +817,6 @@
       }
       const consumersDirty = prefs && pendingConsumers &&
         JSON.stringify([...(prefs.auto_consumers||[])].sort()) !== JSON.stringify([...pendingConsumers].sort());
-      const visibleChannelIds = (channels || [])
-        .filter(c=>(c.name+' '+(c.short||'')).toLowerCase().includes(chQuery.toLowerCase()))
-        .map(c=>c.id);
 
       const stat = (label, val, c) => (
         <StatCard colClass="col-6 col-md-3" label={label} accent="#4f46e5" tint="#fff"
@@ -774,43 +858,20 @@
 
           {prefs && channels && pendingConsumers &&
             <div className="card mb-3"><div className="card-body py-2 px-3">
-              <div className="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
-                <span className="small fw-semibold">Auto-paper-trade these channels ({pendingConsumers.length} selected)</span>
-                <input className="form-control form-control-sm" style={{maxWidth:220}} placeholder="🔍 Search channels…"
-                       aria-label="Search channels to auto paper-trade" value={chQuery}
-                       onChange={e=>setChQuery(e.target.value)} />
-              </div>
-              <div className="d-flex gap-2 mb-2">
-                <button type="button" className="btn btn-sm btn-outline-secondary"
-                        onClick={()=>setPendingConsumers(cur=>Array.from(new Set([...cur, ...visibleChannelIds])))}>
-                  Select all{chQuery ? ' (matching)' : ''}
+              <div className="small fw-semibold mb-2">Auto-paper-trade these channels ({pendingConsumers.length} selected)</div>
+              <Select2Multi
+                options={channels.map(c => ({ value: c.id, label: c.short || c.name }))}
+                value={pendingConsumers} onChange={setPendingConsumers}
+                placeholder="Search and select channels…" />
+              <div className="d-flex align-items-center gap-2 mt-2">
+                <button type="button" className="btn btn-sm btn-primary" disabled={!consumersDirty || savingConsumers} onClick={saveConsumers}>
+                  {savingConsumers ? 'Generating…' : 'Generate report'}
                 </button>
-                <button type="button" className="btn btn-sm btn-outline-secondary"
-                        onClick={()=>setPendingConsumers(cur=>cur.filter(id=>!visibleChannelIds.includes(id)))}>
-                  Select none{chQuery ? ' (matching)' : ''}
-                </button>
-              </div>
-              <div className="d-flex flex-wrap gap-1" style={{maxHeight:160, overflowY:'auto'}}>
-                {channels.filter(c=>visibleChannelIds.includes(c.id)).map(c => {
-                  const on = pendingConsumers.includes(c.id);
-                  return (
-                    <button key={c.id} type="button"
-                            className={'pill ' + (on ? 'active' : '')}
-                            style={on ? {background:'var(--tt-indigo)', borderColor:'var(--tt-indigo)'} : {}}
-                            onClick={()=>toggleConsumer(c.id)}>
-                      {on ? '✓ ' : ''}{c.short || c.name}
-                    </button>);
-                })}
-              </div>
-              {consumersDirty &&
-                <div className="d-flex align-items-center gap-2 mt-2">
-                  <button type="button" className="btn btn-sm btn-primary" disabled={savingConsumers} onClick={saveConsumers}>
-                    {savingConsumers ? 'Saving…' : 'Save selection'}
-                  </button>
+                {consumersDirty &&
                   <button type="button" className="btn btn-sm btn-link" onClick={()=>setPendingConsumers(prefs.auto_consumers||[])}>
                     Discard changes
-                  </button>
-                </div>}
+                  </button>}
+              </div>
             </div></div>}
 
           <form onSubmit={addManual} className="row g-2 align-items-end mb-3">
@@ -831,49 +892,28 @@
             <div className="col-6 col-md-2"><button className="btn btn-sm btn-primary w-100" type="submit">+ Add trade</button></div>
           </form>
 
+          {closed.length >= 2 &&
+            <div className="card mb-3"><div className="card-body py-2 px-3">
+              <div className="d-flex justify-content-between align-items-center mb-1">
+                <span className="label">Cumulative realized ₹</span>
+                <span className={'value ' + cls(realizedInr)}>{INR(realizedInr)}</span>
+              </div>
+              <Sparkline points={equityCurve} />
+            </div></div>}
+
           <div className="d-flex align-items-center gap-2 mb-2">
             <div className="btn-group btn-group-sm">
               {['Open', 'Closed', 'All'].map(f => (
                 <button key={f} className={'btn ' + (filter === f ? 'btn-dark' : 'btn-outline-dark')} onClick={() => setFilter(f)}>{f}</button>))}
             </div>
-            <button className="btn btn-sm btn-outline-secondary" onClick={load}>⟳ Refresh</button>
+            <button className="btn btn-sm btn-outline-secondary" onClick={() => { load(); setPaperRefresh(t => t + 1); }}>⟳ Refresh</button>
           </div>
 
           <div className="table-responsive shadow-sm rounded bg-white">
-            <table className="table table-hover table-sm mb-0 align-middle">
-              <thead className="table-light"><tr>
-                <th>Symbol</th><th>Sector</th><th>Side</th><th className="text-end">Entry</th>
-                <th className="text-end">Current</th><th className="text-end">Unreal ₹</th>
-                <th className="text-end">Realized ₹</th><th className="text-end">SL/Trail</th>
-                <th>Src</th><th>Status</th><th></th></tr></thead>
-              <tbody>
-                {loading && <tr><td colSpan="11" className="text-center py-4">Loading…</td></tr>}
-                {!loading && shown.map(t => (
-                  <tr key={t.id}>
-                    <td><strong>{t.symbol}</strong></td>
-                    <td><SectorTag ac={t.asset_class} /></td>
-                    <td><span className={'badge ' + (t.side === 'BUY' ? 'text-bg-success' : 'text-bg-danger')}>{t.side}</span></td>
-                    <td className="text-end">{t.entry_price}</td>
-                    <td className="text-end">{t.status === 'Open' ? (t.current_price ?? '—') : (t.exit_price ?? '—')}</td>
-                    <td className={'text-end ' + cls(t.unrealized_inr)}>{t.status === 'Open' ? INR(t.unrealized_inr) : '—'}</td>
-                    <td className={'text-end ' + cls(t.realized_inr)}>{t.status === 'Closed' ? INR(t.realized_inr) : '—'}</td>
-                    <td className="text-end text-muted small">{t.stop_loss_pct}/{t.trailing_pct}</td>
-                    <td><span className="badge text-bg-light border">{t.price_source}</span></td>
-                    <td><span className={'badge ' + (t.status === 'Open' ? 'badge-open' : 'badge-closed')}>{t.status}</span></td>
-                    <td>{confirmDelete === t.id ? (
-                      <span className="d-flex gap-1">
-                        <button className="btn btn-sm btn-danger py-0" onClick={() => del(t.id)}>Delete</button>
-                        <button className="btn btn-sm btn-outline-secondary py-0" onClick={() => setConfirmDelete(null)}>Cancel</button>
-                      </span>
-                    ) : (
-                      <button className="btn btn-sm btn-outline-danger py-0" aria-label={'Delete ' + t.symbol}
-                              onClick={() => setConfirmDelete(t.id)}>✕</button>
-                    )}</td>
-                  </tr>))}
-                {!loading && shown.length === 0 &&
-                  <tr><td colSpan="11" className="text-center text-muted py-4">No {filter.toLowerCase()} paper trades. Run paper_autotrade or add one manually.</td></tr>}
-              </tbody>
-            </table>
+            <ServerTable apiPath="/api/tracker/paper/" columns={PAPER_COLUMNS}
+                         extraParams={{ status: filter !== 'All' ? filter : '' }}
+                         refreshSignal={paperRefresh} pageLength={25}
+                         onCellAction={(action, id) => { if (action === 'delete-paper') del(id); }} />
           </div>
         </div>);
     }
@@ -1421,11 +1461,29 @@
         render: v => v ? `<a class="small text-muted" href="${esc(v)}" target="_blank" rel="noreferrer">filing ↗</a>` : '—' },
     ];
 
+    const PAPER_COLUMNS = [
+      { data: 'symbol', title: 'Symbol', orderKey: 'symbol', render: v => `<strong>${esc(v)}</strong>` },
+      { data: 'asset_class', title: 'Sector', render: v => sectorTagHtml(v) },
+      { data: 'side', title: 'Side',
+        render: v => `<span class="badge ${v==='BUY'?'text-bg-success':'text-bg-danger'}">${esc(v)}</span>` },
+      { data: 'entry_price', title: 'Entry', orderKey: 'opened_at', render: v => `<div class="text-end">${v ?? '—'}</div>` },
+      { data: 'current_price', title: 'Current',
+        render: (v, t, row) => `<div class="text-end">${row.status==='Open' ? (v ?? '—') : (row.exit_price ?? '—')}</div>` },
+      { data: 'unrealized_inr', title: 'Unreal ₹',
+        render: (v, t, row) => `<div class="text-end ${cls(v)}">${row.status==='Open' ? INR(v) : '—'}</div>` },
+      { data: 'realized_inr', title: 'Realized ₹', orderKey: 'realized_inr',
+        render: (v, t, row) => `<div class="text-end ${cls(v)}">${row.status==='Closed' ? INR(v) : '—'}</div>` },
+      { data: 'status', title: 'Status', orderKey: 'status',
+        render: v => `<span class="badge ${v==='Open'?'badge-open':'badge-closed'}">${esc(v)}</span>` },
+      { data: 'id', title: '', orderable: false,
+        render: (v) => `<button type="button" class="btn btn-sm btn-outline-danger py-0" data-action="delete-paper" data-value="${v}">✕</button>` },
+    ];
+
     const TRADES_COLUMNS = [
       { data: 'date', title: 'Date', orderKey: 'date' },
       { data: 'channel_name', title: 'Channel', orderKey: 'channel__name',
         render: (v, t, row) => `<span title="${esc(v)}">${esc(v)}</span>` },
-      { data: 'asset_class', title: 'Sector', orderKey: 'asset_class' },
+      { data: 'asset_class', title: 'Sector', orderKey: 'asset_class', render: v => sectorTagHtml(v) },
       { data: 'trade', title: 'Trade', orderKey: 'trade',
         render: v => `<strong>${esc(v)}</strong>` },
       { data: 'direction', title: 'Dir' },
@@ -1453,7 +1511,7 @@
       const [board, setBoard] = useState([]);
       const [picks, setPicks] = useState([]);
       const [active, setActive] = useState(null);
-      const [tab, setTab] = useState('overview');
+      const [tab, setTab] = useState('trades');
       const [rangeKey, setRangeKey] = useState('1d');
       const [custom, setCustom] = useState({from:'',to:''});
       const [sectors, setSectors] = useState([]);
@@ -1463,6 +1521,8 @@
       const [q, setQ] = useState('');
       const [loading, setLoading] = useState(true);
       const [analyticsLoading, setAnalyticsLoading] = useState(true);
+      const [lastUpdated, setLastUpdated] = useState(null);
+      const [refreshTick, setRefreshTick] = useState(0);
       const [err, setErr] = useState('');
       const [openPulse, setOpenPulse] = useState(true);
       const [openPicks, setOpenPicks] = useState(true);
@@ -1520,12 +1580,35 @@
             api('/api/tracker/summary/' + sumBase),
           ]);
           setStats(st); setBoard(bd.results); setPicks(pk.results); setSummary(sm);
+          setLastUpdated(new Date());
         } catch (e) { if (e.message !== 'auth') setErr(e.message); }
         finally { setAnalyticsLoading(false); }
       }
 
       useEffect(()=>{ load(); }, []);
       useEffect(()=>{ loadAnalytics(); }, [active, range, sectors]);
+
+      // The backend now closes trades and ingests new Telegram calls every
+      // 2 min during market hours (scripts/live_market_sync.sh) -- without
+      // this, that's invisible until the user manually hits Refresh or
+      // reloads. Poll in step with it, but skip ticks while the tab is
+      // backgrounded so an idle background tab doesn't hammer the API.
+      useEffect(() => {
+        const id = setInterval(() => {
+          if (document.visibilityState !== 'visible') return;
+          loadAnalytics();
+          setRefreshTick(t => t + 1);
+        }, 90000);
+        const onVisible = () => {
+          if (document.visibilityState === 'visible' && lastUpdated && (Date.now() - lastUpdated.getTime()) > 90000) {
+            loadAnalytics();
+            setRefreshTick(t => t + 1);
+          }
+        };
+        document.addEventListener('visibilitychange', onVisible);
+        return () => { clearInterval(id); document.removeEventListener('visibilitychange', onVisible); };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, [active, range, sectors]);
 
       async function onLogout(){ await fetch('/api/auth/logout/',{method:'POST',credentials:'same-origin'}); window.location.href='/login/'; }
 
@@ -1570,13 +1653,13 @@
         return list.slice().sort(CH_SORTS[chSort].fn);
       }, [channels, chQuery, chSort, boardByChannel, followedOnly, followedIds]);
 
-      // Leaderboard & Today's calls only on the summary (all-channels) view;
-      // Trades only once a single channel is selected (it's that channel's
-      // own trade list/performance, not a global one).
-      const tabs = active===null ? [['overview','Overview'],['calls',"Today's calls"],['board','Leaderboard'],['picks','Favorite picks'],['paper','Paper trading']]
-                                 : [['overview','Overview'],['picks','Favorite picks'],['paper','Paper trading'],['trades','Trades']];
-      const effTab = ((tab==='board' || tab==='calls') && active!==null) ? 'overview'
-                    : (tab==='trades' && active===null) ? 'overview' : tab;
+      // 'trades' is the one always-present tab -- it carries the track
+      // record + graphs + the trade list itself, scoped to all channels or
+      // one depending on `active` (no separate "Overview" destination).
+      // Leaderboard & Today's calls only make sense on the all-channels view.
+      const tabs = active===null ? [['trades','Trades'],['calls',"Today's calls"],['board','Leaderboard'],['picks','Favorite picks'],['paper','Paper trading']]
+                                 : [['trades','Trades'],['picks','Favorite picks'],['paper','Paper trading']];
+      const effTab = ((tab==='board' || tab==='calls') && active!==null) ? 'trades' : tab;
       const MARKET_INTEL_TITLE = {
         congress: 'Congress Trades · largest disclosed House trades',
         institutional: 'Institutional Reports · BlackRock & JPMorgan outlook',
@@ -1589,9 +1672,12 @@
           <Topbar user={user} onLogout={onLogout} tabs={tabs} effTab={effTab} setTab={setTab}
                   active={active} setActive={setActive} channelsCount={channels.length} />
           {err && <div className="alert alert-danger">{err}</div>}
-          <SummaryCards s={summary} />
-          <RangeBar rangeKey={rangeKey} setRangeKey={setRangeKey} custom={custom} setCustom={setCustom}
-                    sectors={sectors} toggleSector={toggleSector} />
+          <SummaryCards s={summary} rangeLabel={rangeLabel} />
+          <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-1">
+            <RangeBar rangeKey={rangeKey} setRangeKey={setRangeKey} custom={custom} setCustom={setCustom}
+                      sectors={sectors} toggleSector={toggleSector} />
+            <LiveHeartbeat lastUpdated={lastUpdated} />
+          </div>
           <div className="row g-3">
             <aside className="col-md-4 col-lg-3">
               <input className="form-control form-control-sm mb-2" placeholder="🔍 Search consumers…"
@@ -1628,20 +1714,16 @@
                 <span className="badge bg-light text-dark border">{rangeLabel}</span>
                 <span className="badge" style={{background:sectors.length?'#4f46e5':'#e2e8f0',color:sectors.length?'#fff':'#334155'}}>{sectorLabel}</span>
               </div>
-              {effTab==="overview" && active===null &&
-                <TrustSummary rows={board} onSelect={id=>{setActive(id); setTab('overview');}} />}
-
-              {effTab==="overview" &&
-                <Section title={'Track record · '+pulseName} open={openPulse} onToggle={()=>setOpenPulse(!openPulse)}>
-                  <ChannelPulse stats={stats} /></Section>}
+              {effTab==='trades' && active===null &&
+                <TrustSummary rows={board} onSelect={id=>{setActive(id); setTab('trades');}} />}
 
               {effTab==='calls' &&
                 <Section title={"Today's calls · live feed"} open={true}>
-                  <TodaysCalls sectors={sectors} onSelectChannel={id=>{setActive(id); setTab('overview');}} /></Section>}
+                  <TodaysCalls sectors={sectors} onSelectChannel={id=>{setActive(id); setTab('trades');}} /></Section>}
 
               {effTab==='board' &&
                 <Section title={'Channel leaderboard · '+sectorLabel+' · '+rangeLabel} open={true}>
-                  <LeaderboardTab rows={board} onSelect={id=>{setActive(id); setTab('overview');}} /></Section>}
+                  <LeaderboardTab rows={board} onSelect={id=>{setActive(id); setTab('trades');}} /></Section>}
 
               {effTab==='picks' &&
                 <Section title={'Favorite picks · who is buying / selling ('+sectorLabel+')'} open={openPicks} onToggle={()=>setOpenPicks(!openPicks)}>
@@ -1668,7 +1750,7 @@
                   <SuperInvestorsTab /></Section>}
 
               {effTab==='trades' &&
-                <Section title={'Performance · '+pulseName} open={openPulse} onToggle={()=>setOpenPulse(!openPulse)}>
+                <Section title={(active?'Performance':'Track record')+' · '+pulseName} open={openPulse} onToggle={()=>setOpenPulse(!openPulse)}>
                   <ChannelPulse stats={stats} /></Section>}
 
               {effTab==='trades' &&
@@ -1687,7 +1769,7 @@
                   </div>
                   <div className="table-responsive shadow-sm rounded bg-white">
                     <ServerTable apiPath="/api/tracker/trades/" columns={TRADES_COLUMNS}
-                                 extraParams={tradesExtraParams} searchValue={q} pageLength={25} />
+                                 extraParams={tradesExtraParams} searchValue={q} pageLength={25} refreshSignal={refreshTick} />
                   </div>
                 </Section>}
             </main>

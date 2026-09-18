@@ -139,9 +139,7 @@ class TradeQuerySet(models.QuerySet):
             if r['sell']:
                 m['sell'] += r['sell']; m['sellers'] += 1
                 m['weighted_sell'] += r['sell'] * w
-        result = sorted(merged.values(),
-                        key=lambda x: (x['buy'] + x['sell']), reverse=True)
-        for x in result:
+        for x in merged.values():
             x['net'] = x['buy'] - x['sell']
             x['weighted_buy'] = round(x['weighted_buy'], 2)
             x['weighted_sell'] = round(x['weighted_sell'], 2)
@@ -152,6 +150,11 @@ class TradeQuerySet(models.QuerySet):
             # flags when raw consensus and accuracy-weighted consensus disagree,
             # e.g. many low-accuracy channels outvoting a few high-accuracy ones
             x['diverges'] = bool(raw_side and weighted_side and raw_side != weighted_side)
+        # Sorted by accuracy-weighted conviction (|weighted_net|), not raw
+        # chatter volume: a symbol only a couple of high-win-rate channels
+        # agree on should outrank one twenty low-accuracy channels are
+        # yelling about.
+        result = sorted(merged.values(), key=lambda x: abs(x['weighted_net']), reverse=True)
         return result[:limit]
 
     def todays_calls(self, hours=24):

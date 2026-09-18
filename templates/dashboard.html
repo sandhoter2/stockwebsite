@@ -126,11 +126,13 @@
     .dropdown-menu { box-shadow:var(--tt-shadow-hover); border:0; border-radius:.6rem; padding:.35rem; }
     .dropdown-item { border-radius:.4rem; font-size:.85rem; padding:.4rem .7rem; }
     .dropdown-item.active, .dropdown-item:active { background:var(--tt-indigo); }
-    .nav-tabs .dropdown-toggle.active { color:#fff; background:linear-gradient(90deg,var(--tt-indigo),var(--tt-blue)); }
     .navbar-tt .nav-tabs { border-bottom:0; }
-    .navbar-tt .nav-tabs .nav-link { color:rgba(255,255,255,.85); }
+    .navbar-tt .nav-tabs .nav-link { color:rgba(255,255,255,.85); padding:.55rem 1.1rem; }
     .navbar-tt .nav-tabs .nav-link:not(.active):hover { color:#fff; background:rgba(255,255,255,.12); }
     .navbar-tt .nav-tabs .nav-link .badge { font-weight:600; }
+    .navbar-tt .nav-tabs .nav-link.intel-tab:not(.active) { background:rgba(255,255,255,.06); }
+    .navbar-tt .nav-divider { width:1px; align-self:stretch; margin:.4rem .35rem; background:rgba(255,255,255,.25); }
+    @media (max-width: 991.98px) { .navbar-tt .nav-divider { display:none; } }
   </style>
 </head>
 <body>
@@ -313,6 +315,35 @@
         </span>);
     }
 
+    const EVENT_ICON = { target_hit: '🎯', stop_loss_hit: '🛑', eod_close: '🔔' };
+    function NotificationBell({ events, unreadCount, onOpen, notifEnabled, onEnableNotif }) {
+      const [open, setOpen] = useState(false);
+      const canAskPermission = typeof Notification !== 'undefined' && Notification.permission === 'default';
+      return (
+        <div className="dropdown">
+          <button className="btn btn-sm btn-outline-light position-relative" data-bs-toggle="dropdown"
+                  aria-expanded="false" onClick={()=>{ setOpen(true); onOpen(); }}>
+            🔔
+            {unreadCount > 0 &&
+              <span className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
+                    style={{fontSize:'.6rem'}}>{unreadCount > 9 ? '9+' : unreadCount}</span>}
+          </button>
+          <div className="dropdown-menu dropdown-menu-end p-0" style={{minWidth:320, maxHeight:360, overflowY:'auto'}}>
+            {canAskPermission &&
+              <button className="dropdown-item small py-2 text-primary" onClick={onEnableNotif}>
+                🔔 Enable desktop alerts for trade closes
+              </button>}
+            {!canAskPermission && !notifEnabled &&
+              <div className="px-3 py-2 small text-muted border-bottom">Desktop alerts blocked in browser settings.</div>}
+            {events.length === 0 && <div className="px-3 py-3 small text-muted">No alerts yet — trades that hit target/SL or get squared off at close will show up here.</div>}
+            {events.map(e => (
+              <div key={e.id} className="px-3 py-2 small border-bottom">
+                <span className="me-1">{EVENT_ICON[e.kind] || '•'}</span>{e.message}
+              </div>))}
+          </div>
+        </div>);
+    }
+
     function Pagination({ page, setPage, total, pageSize }) {
       const pages = Math.max(1, Math.ceil(total / pageSize));
       if (pages <= 1) return null;
@@ -398,9 +429,9 @@
     function rangeDates(key, custom) {
       const now = Date.now();
       if (key === '1d')  return { from: istDate(new Date(now - 1*864e5)), to: null };
-      if (key === '7d')  return { from: iso(new Date(now - 7*864e5)), to: null };
-      if (key === '30d') return { from: iso(new Date(now - 30*864e5)), to: null };
-      if (key === '90d') return { from: iso(new Date(now - 90*864e5)), to: null };
+      if (key === '7d')  return { from: istDate(new Date(now - 7*864e5)), to: null };
+      if (key === '30d') return { from: istDate(new Date(now - 30*864e5)), to: null };
+      if (key === '90d') return { from: istDate(new Date(now - 90*864e5)), to: null };
       if (key === 'custom') return { from: custom.from || null, to: custom.to || null };
       return { from: null, to: null };
     }
@@ -427,7 +458,7 @@
       );
     }
 
-    function Topbar({ user, onLogout, tabs, effTab, setTab }) {
+    function Topbar({ user, onLogout, tabs, effTab, setTab, events, unreadCount, onOpenEvents, notifEnabled, onEnableNotif }) {
       const initials = user ? user.username.slice(0,2).toUpperCase() : '';
       return (
         <nav className="navbar navbar-expand-lg navbar-dark navbar-tt mb-3">
@@ -443,11 +474,15 @@
                 {tabs.map(([k,l]) => (
                   <li className="nav-item" key={k}><button className={'nav-link '+(effTab===k?'active':'')}
                     role="tab" aria-selected={effTab===k} onClick={()=>setTab(k)}>{l}</button></li>))}
+                <li className="nav-divider" aria-hidden="true" />
                 {MARKET_INTEL_TABS.map(([k,l]) => (
-                  <li className="nav-item" key={k}><button className={'nav-link '+(effTab===k?'active':'')}
+                  <li className="nav-item" key={k}><button className={'nav-link intel-tab '+(effTab===k?'active':'')}
                     role="tab" aria-selected={effTab===k} onClick={()=>setTab(k)}>{l}</button></li>))}
               </ul>
               <div className="d-flex flex-column flex-lg-row align-items-lg-center gap-2 gap-lg-3 mt-3 mt-lg-0">
+                {user &&
+                  <NotificationBell events={events} unreadCount={unreadCount} onOpen={onOpenEvents}
+                                    notifEnabled={notifEnabled} onEnableNotif={onEnableNotif} />}
                 {user && user.is_staff &&
                   <div className="dropdown">
                     <button className="btn btn-sm btn-outline-light dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">Admin</button>
@@ -1473,6 +1508,8 @@
 
     const TRADES_COLUMNS = [
       { data: 'date', title: 'Date', orderKey: 'date' },
+      { data: 'posted_at', title: 'Posted (IST)', orderKey: 'posted_at',
+        render: v => `<span class="text-muted small">${esc(IST(v) || '—')}</span>` },
       { data: 'channel_name', title: 'Channel', orderKey: 'channel__name',
         render: (v, t, row) => `<span title="${esc(v)}">${esc(v)}</span>` },
       { data: 'asset_class', title: 'Sector', orderKey: 'asset_class', render: v => sectorTagHtml(v) },
@@ -1515,6 +1552,11 @@
       const [analyticsLoading, setAnalyticsLoading] = useState(true);
       const [lastUpdated, setLastUpdated] = useState(null);
       const [refreshTick, setRefreshTick] = useState(0);
+      const [events, setEvents] = useState([]);
+      const [unreadCount, setUnreadCount] = useState(0);
+      const [notifEnabled, setNotifEnabled] = useState(
+        typeof Notification !== 'undefined' && Notification.permission === 'granted');
+      const lastEventIdRef = useRef(null);
       const [err, setErr] = useState('');
       const [openPulse, setOpenPulse] = useState(true);
       const [openPicks, setOpenPicks] = useState(true);
@@ -1577,8 +1619,35 @@
         finally { setAnalyticsLoading(false); }
       }
 
+      // Polled alongside loadAnalytics (same cadence) -- turns the live
+      // heartbeat from "numbers are fresh" into an actual notification
+      // when a trade auto-closes. First call just seeds lastEventIdRef
+      // from the current backlog without notifying (nobody wants a
+      // desktop notification storm for every trade closed before they
+      // opened the tab); only genuinely new events after that fire one.
+      async function loadEvents() {
+        try {
+          const url = lastEventIdRef.current == null
+            ? '/api/tracker/events/?limit=20'
+            : '/api/tracker/events/?since=' + lastEventIdRef.current;
+          const d = await api(url);
+          const rows = d.results;
+          if (rows.length === 0) return;
+          const isFirstLoad = lastEventIdRef.current == null;
+          lastEventIdRef.current = Math.max(rows[0].id, lastEventIdRef.current || 0);
+          setEvents(prev => [...rows, ...prev].slice(0, 30));
+          if (!isFirstLoad) {
+            setUnreadCount(c => c + rows.length);
+            if (notifEnabled && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+              rows.slice(0, 3).forEach(r => new Notification('TradeGuru', { body: r.message }));
+            }
+          }
+        } catch (e) { /* non-critical, skip this tick */ }
+      }
+
       useEffect(()=>{ load(); }, []);
       useEffect(()=>{ loadAnalytics(); }, [active, range, sectors]);
+      useEffect(()=>{ loadEvents(); }, []);
 
       // The backend now closes trades and ingests new Telegram calls every
       // 2 min during market hours (scripts/live_market_sync.sh) -- without
@@ -1589,11 +1658,13 @@
         const id = setInterval(() => {
           if (document.visibilityState !== 'visible') return;
           loadAnalytics();
+          loadEvents();
           setRefreshTick(t => t + 1);
         }, 90000);
         const onVisible = () => {
           if (document.visibilityState === 'visible' && lastUpdated && (Date.now() - lastUpdated.getTime()) > 90000) {
             loadAnalytics();
+            loadEvents();
             setRefreshTick(t => t + 1);
           }
         };
@@ -1603,6 +1674,12 @@
       }, [active, range, sectors]);
 
       async function onLogout(){ await fetch('/api/auth/logout/',{method:'POST',credentials:'same-origin'}); window.location.href='/login/'; }
+
+      async function enableNotifications() {
+        if (typeof Notification === 'undefined') return;
+        const perm = await Notification.requestPermission();
+        setNotifEnabled(perm === 'granted');
+      }
 
       const activeChannel = channels.find(c=>c.id===active);
       const pulseName = active ? (activeChannel?.short||activeChannel?.name||'channel') : 'Telegram Channels';
@@ -1663,7 +1740,9 @@
 
       return (
         <div className="container-fluid px-3">
-          <Topbar user={user} onLogout={onLogout} tabs={tabs} effTab={effTab} setTab={setTab} />
+          <Topbar user={user} onLogout={onLogout} tabs={tabs} effTab={effTab} setTab={setTab}
+                  events={events} unreadCount={unreadCount} onOpenEvents={()=>setUnreadCount(0)}
+                  notifEnabled={notifEnabled} onEnableNotif={enableNotifications} />
           {err && <div className="alert alert-danger">{err}</div>}
           <SummaryCards s={summary} rangeLabel={rangeLabel} />
           <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-1">

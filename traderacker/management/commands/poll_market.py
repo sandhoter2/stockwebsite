@@ -24,6 +24,7 @@ from django.core.management.base import BaseCommand
 from django.db.models import Q
 
 from traderacker import market
+from traderacker.market_hours import ist_today, is_eod_window
 from traderacker.models import PaperTrade, Trade
 
 
@@ -65,6 +66,33 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(
             f'Channel-call trades marked: {t_priced} priced · '
             f'{t_closed} closed (SL/target) · {t_no_quote} no-quote'))
+
+        if is_eod_window():
+            eod_closed = self._eod_square_off()
+            self.stdout.write(self.style.SUCCESS(
+                f'End-of-day square-off: {eod_closed} same-day trade(s) closed'))
+
+    def _eod_square_off(self):
+        """Force-close every still-Open channel-call trade posted TODAY --
+        these are day calls, not swing positions, so nothing should roll
+        into tomorrow just because the channel never posted a follow-up
+        and price never reached the posted SL/target. Runs once per day,
+        gated by is_eod_window() (the last few minutes before close) so
+        the every-2-minute cron doesn't need its own separate schedule."""
+        qs = Trade.objects.filter(status='Open', date=ist_today())
+        price_cache = {}
+        closed = 0
+        for t in qs:
+            cache_key = (t.root_symbol, t.asset_class)
+            if cache_key not in price_cache:
+                price_cache[cache_key], _src = market.get_price(t.root_symbol, t.asset_class)
+            price = price_cache[cache_key]
+            try:
+                if t.close_eod(price):
+                    closed += 1
+            except Exception as exc:
+                self.stderr.write(self.style.WARNING(f'trade {t.id} close_eod failed: {exc}'))
+        return closed
 
     def _mark_channel_trades(self):
         qs = Trade.objects.filter(status='Open').exclude(asset_class='option').filter(

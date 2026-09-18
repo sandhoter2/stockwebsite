@@ -410,13 +410,104 @@ class Trade(models.Model):
                 dup.ltp_exit = price
                 dup.save(update_fields=['realized', 'ltp_exit'])
             self.delete()
+            self._emit_close_event(dup, reason, price)
             return True
         self.ltp_exit = price
         self.realized = realized
         self.status = 'Closed'
         self.note = (self.note + f' [auto-closed:{reason}@live {price}]').strip()
         self.save(update_fields=['status', 'ltp_exit', 'realized', 'note'])
+        self._emit_close_event(self, reason, price)
         return True
+
+    def _emit_close_event(self, surviving_row, reason, price):
+        """Record a user-facing Event for this auto-close -- the frontend
+        polls these to turn the live-sync heartbeat into an actual
+        notification instead of just a "data is fresh" pulse."""
+        name = surviving_row.channel.short or surviving_row.channel.name
+        Event.objects.create(
+            kind='target_hit' if reason == 'target' else 'stop_loss_hit',
+            trade=surviving_row, channel=surviving_row.channel,
+            message=f'{name}: {surviving_row.trade} hit {reason} @ {price}')
+
+    def close_eod(self, price):
+        """Force-close an intraday call that never hit its posted SL/target
+        by end of the same trading day -- these are day calls, not swing
+        positions, so an Open row that outlives its own posting day is a
+        stale position, not a real one. `price` may be None (no live quote
+        available at close): still closes the row, just marked as
+        unpriced (realized left null) rather than silently rolling it to
+        the next day, since a channel-call tracker with no EOD square-off
+        is exactly how "91 open" backlogs accumulate."""
+        if self.status != 'Open':
+            return False
+        # Options: the "live price" a caller fetches is the underlying's
+        # spot, not the option's own premium -- comparing them is
+        # meaningless, same reasoning as mark_live's options guard. Close
+        # unpriced rather than pretend a spot move is the option's P&L.
+        if self.asset_class == 'option':
+            price = None
+        # Same sanity ratio mark_live uses: catches unit mismatches
+        # (e.g. an MCX gold call posted in INR/10g vs a fetched USD/troy-oz
+        # quote) and asset_class misclassification (an option mistagged as
+        # 'other', so the options guard above didn't already null it out)
+        # before they turn into a nonsense five- or six-figure "realized".
+        if price is not None and self.entry:
+            ratio = price / self.entry
+            if ratio > self.LIVE_PRICE_SANITY_RATIO or ratio < (1.0 / self.LIVE_PRICE_SANITY_RATIO):
+                price = None
+        is_buy = (self.direction or '').upper() in self.BUY_DIRECTIONS
+        realized = None
+        if price is not None and price > 0 and self.entry is not None and self.entry > 0:
+            realized = round((price - self.entry) if is_buy else (self.entry - price), 2)
+        dup = Trade.objects.filter(channel=self.channel, date=self.date, trade=self.trade,
+                                   entry=self.entry, status='Closed').exclude(pk=self.pk).first()
+        if dup:
+            if realized is not None and (dup.realized is None or realized > dup.realized):
+                dup.realized = realized
+                dup.ltp_exit = price
+                dup.save(update_fields=['realized', 'ltp_exit'])
+            self.delete()
+            surviving = dup
+        else:
+            self.ltp_exit = price
+            self.realized = realized
+            self.status = 'Closed'
+            self.note = (self.note + f' [eod-closed@{price if price is not None else "no quote"}]').strip()
+            self.save(update_fields=['status', 'ltp_exit', 'realized', 'note'])
+            surviving = self
+        name = surviving.channel.short or surviving.channel.name
+        Event.objects.create(
+            kind='eod_close', trade=surviving, channel=surviving.channel,
+            message=f'{name}: {surviving.trade} squared off at close'
+                    + (f' @ {price}' if price is not None else ' (no live quote)'))
+        return True
+
+
+class Event(models.Model):
+    """A user-facing, notifiable occurrence (trade auto-closed against its
+    own posted target/stop-loss) -- distinct from core.JobRun/HealthIssue,
+    which are admin-only ops signals. The frontend polls
+    GET /api/tracker/events/?since=<id> on the same cadence as the
+    live-sync heartbeat, so "live" actually surfaces something instead of
+    only updating numbers silently in the background.
+    """
+    KIND_CHOICES = [
+        ('target_hit', 'Target hit'),
+        ('stop_loss_hit', 'Stop-loss hit'),
+        ('eod_close', 'Squared off at close'),
+    ]
+    kind = models.CharField(max_length=20, choices=KIND_CHOICES)
+    trade = models.ForeignKey(Trade, null=True, blank=True, on_delete=models.SET_NULL, related_name='events')
+    channel = models.ForeignKey(Channel, null=True, blank=True, on_delete=models.SET_NULL)
+    message = models.CharField(max_length=255)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-id']
+
+    def __str__(self):
+        return self.message
 
 
 class ProcessedProfitEvent(models.Model):

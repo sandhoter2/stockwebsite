@@ -10,8 +10,8 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import (Channel, PaperTrade, QuantityRule, Quote, TelegramMessage,
-                     Trade, UserPreference, Watchlist)
+from .models import (Channel, Event, PaperTrade, QuantityRule, Quote,
+                     TelegramMessage, Trade, UserPreference, Watchlist)
 from .serializers import (ChannelSerializer, PaperTradeSerializer,
                           QuantityRuleSerializer, QuoteSerializer,
                           TelegramMessageSerializer, TradeSerializer,
@@ -183,6 +183,29 @@ class BreakdownView(APIView):
 
     def get(self, request):
         return Response({'results': _scoped_trades(request).breakdown()})
+
+
+class EventsView(APIView):
+    """GET /api/tracker/events/?since=<id>[&limit=50]
+
+    Cheap polling read for the frontend's live heartbeat to turn into an
+    actual notification: "what happened since the last id I saw" instead
+    of a full resync. Most-recent first; pass the highest `id` you've
+    already seen as `since` to get only what's new.
+    """
+
+    def get(self, request):
+        since = request.query_params.get('since')
+        limit = min(int(request.query_params.get('limit', 50) or 50), 200)
+        qs = Event.objects.select_related('channel', 'trade')
+        if since:
+            qs = qs.filter(id__gt=since)
+        rows = qs[:limit]
+        return Response({'results': [
+            {'id': e.id, 'kind': e.kind, 'message': e.message,
+             'channel': e.channel_id, 'trade': e.trade_id,
+             'created_at': e.created_at}
+            for e in rows]})
 
 
 class PicksView(APIView):

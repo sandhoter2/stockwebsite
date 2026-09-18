@@ -5,7 +5,7 @@ from django.core.management import call_command
 from django.test import TestCase
 from django.utils import timezone
 
-from traderacker.models import (Channel, PaperTrade, Trade, UserPreference,
+from traderacker.models import (Channel, Event, PaperTrade, Trade, UserPreference,
                                 Watchlist, trust_tier, wilson_lower_bound)
 
 
@@ -2129,6 +2129,120 @@ class TradeMarkLiveTests(TestCase):
         self.assertIn('stop-loss', t.note)
 
 
+class TradeCloseEventTests(TestCase):
+    """mark_live() emits a notifiable Event on every auto-close, and the
+    events/ polling endpoint returns only what's new since `since`."""
+
+    def setUp(self):
+        self.user = User.objects.create_user('eventtester', password='pw12345!')
+        self.client.force_login(self.user)
+        self.ch = Channel.objects.create(peer='-9101', name='Ch', short='Ch')
+
+    def _open(self, **kw):
+        defaults = dict(channel=self.ch, trade='LTM', direction='BUY', entry=100.0,
+                        target=110.0, stop_loss=90.0, status='Open',
+                        asset_class='stock', source_mid=1)
+        defaults.update(kw)
+        return Trade.objects.create(**defaults)
+
+    def test_target_hit_emits_event(self):
+        t = self._open()
+        t.mark_live(112.0)
+        e = Event.objects.get()
+        self.assertEqual(e.kind, 'target_hit')
+        self.assertEqual(e.channel_id, self.ch.id)
+        self.assertIn('target', e.message)
+
+    def test_stop_loss_hit_emits_event(self):
+        t = self._open()
+        t.mark_live(85.0)
+        e = Event.objects.get()
+        self.assertEqual(e.kind, 'stop_loss_hit')
+
+    def test_no_event_when_trade_stays_open(self):
+        t = self._open()
+        t.mark_live(105.0)
+        self.assertEqual(Event.objects.count(), 0)
+
+    def test_dup_merge_close_still_emits_event_against_surviving_row(self):
+        # Same (channel, date, trade, entry) pair, one already Closed --
+        # closing the second should merge into the first (see mark_live's
+        # uniq_trade_row dup-merge path) and still emit one event.
+        d = dt.date(2026, 1, 5)
+        existing_closed = self._open(date=d, status='Closed', realized=5.0)
+        t = self._open(date=d, status='Open')
+        t.mark_live(112.0)
+        e = Event.objects.get()
+        self.assertEqual(e.trade_id, existing_closed.id)
+
+    def test_close_eod_closes_with_price(self):
+        t = self._open()
+        self.assertTrue(t.close_eod(103.0))
+        t.refresh_from_db()
+        self.assertEqual(t.status, 'Closed')
+        self.assertAlmostEqual(t.realized, 3.0)
+        self.assertIn('eod-closed', t.note)
+        e = Event.objects.get()
+        self.assertEqual(e.kind, 'eod_close')
+
+    def test_close_eod_closes_without_a_quote(self):
+        t = self._open()
+        self.assertTrue(t.close_eod(None))
+        t.refresh_from_db()
+        self.assertEqual(t.status, 'Closed')
+        self.assertIsNone(t.realized)
+        e = Event.objects.get()
+        self.assertIn('no live quote', e.message)
+
+    def test_close_eod_never_prices_options_against_underlying_spot(self):
+        t = self._open(asset_class='option', entry=215.0, target=250.0, stop_loss=180.0)
+        # A live "price" here would really be the underlying index's spot
+        # (e.g. 23118.6), nothing to do with this option's premium.
+        self.assertTrue(t.close_eod(23118.6))
+        t.refresh_from_db()
+        self.assertEqual(t.status, 'Closed')
+        self.assertIsNone(t.realized)
+
+    def test_close_eod_rejects_unit_mismatch_via_sanity_ratio(self):
+        # MCX gold posted in INR/10g vs a fetched USD/troy-oz quote --
+        # real bug seen live: closed with realized=-147521.9 before this
+        # guard existed.
+        t = self._open(asset_class='metal', entry=151900.0, target=None, stop_loss=None)
+        self.assertTrue(t.close_eod(4378.1))
+        t.refresh_from_db()
+        self.assertEqual(t.status, 'Closed')
+        self.assertIsNone(t.realized)
+        self.assertIsNone(t.ltp_exit)
+
+    def test_close_eod_noop_if_already_closed(self):
+        t = self._open(status='Closed', realized=5.0)
+        self.assertFalse(t.close_eod(103.0))
+        self.assertEqual(Event.objects.count(), 0)
+
+    def test_close_eod_merges_into_existing_dup(self):
+        d = dt.date(2026, 1, 5)
+        existing_closed = self._open(date=d, status='Closed', realized=1.0)
+        t = self._open(date=d, status='Open')
+        self.assertTrue(t.close_eod(120.0))
+        self.assertFalse(Trade.objects.filter(pk=t.pk).exists())
+        existing_closed.refresh_from_db()
+        self.assertAlmostEqual(existing_closed.realized, 20.0)
+
+    def test_events_endpoint_filters_by_since(self):
+        t = self._open()
+        t.mark_live(112.0)
+        first_id = Event.objects.get().id
+        t2 = self._open(entry=50.0, target=60.0, stop_loss=40.0)
+        t2.mark_live(62.0)
+
+        all_rows = self.client.get('/api/tracker/events/').json()['results']
+        self.assertEqual(len(all_rows), 2)
+
+        newer_only = self.client.get(f'/api/tracker/events/?since={first_id}').json()['results']
+        self.assertEqual(len(newer_only), 1)
+        self.assertNotEqual(newer_only[0]['id'], first_id)
+
+
 class PicksApiTests(TestCase):
     """Sector filtering + consensus picks endpoints."""
 
@@ -2347,3 +2461,29 @@ class MarketHoursTests(TestCase):
         else:
             with self.assertRaises(SystemExit):
                 cc('market_status', stdout=out)
+
+    def test_eod_window_true_just_before_close(self):
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        from traderacker.market_hours import is_eod_window
+        just_before = datetime(2026, 9, 16, 15, 28, tzinfo=ZoneInfo('Asia/Kolkata'))
+        self.assertTrue(is_eod_window(just_before))
+
+    def test_eod_window_false_outside_the_window(self):
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        from traderacker.market_hours import is_eod_window
+        midday = datetime(2026, 9, 16, 11, 0, tzinfo=ZoneInfo('Asia/Kolkata'))
+        after_close = datetime(2026, 9, 16, 15, 35, tzinfo=ZoneInfo('Asia/Kolkata'))
+        self.assertFalse(is_eod_window(midday))
+        self.assertFalse(is_eod_window(after_close))
+
+    def test_eod_window_false_on_weekend(self):
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        from traderacker.market_hours import is_eod_window
+        saturday = datetime(2026, 9, 19, 15, 28, tzinfo=ZoneInfo('Asia/Kolkata'))
+        self.assertFalse(is_eod_window(saturday))

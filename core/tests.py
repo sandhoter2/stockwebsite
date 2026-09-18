@@ -1,4 +1,5 @@
 import datetime as dt
+from unittest.mock import patch
 
 from django.contrib.auth.models import User
 from django.core.management import call_command
@@ -78,6 +79,29 @@ class KtlHealthCheckTests(TestCase):
         call_command('ktl_health_check')
         self.assertTrue(HealthIssue.objects.filter(
             kind='implausible_trade_levels', resolved_at__isnull=True).exists())
+
+
+class LiveSyncHealthCheckTests(TestCase):
+    @patch('core.management.commands.ktl_health_check.is_market_open', return_value=True)
+    def test_flags_stale_live_sync_while_market_open(self, _mock):
+        call_command('ktl_health_check')
+        self.assertTrue(HealthIssue.objects.filter(
+            kind='live_sync_stale_during_market_hours', resolved_at__isnull=True).exists())
+
+    @patch('core.management.commands.ktl_health_check.is_market_open', return_value=True)
+    def test_clears_once_a_fresh_run_is_recorded(self, _mock):
+        call_command('ktl_health_check')
+        JobRun.objects.create(name='live_market_sync', status='ok', detail='',
+                              started_at=timezone.now(), finished_at=timezone.now())
+        call_command('ktl_health_check')
+        self.assertFalse(HealthIssue.objects.filter(
+            kind='live_sync_stale_during_market_hours', resolved_at__isnull=True).exists())
+
+    @patch('core.management.commands.ktl_health_check.is_market_open', return_value=False)
+    def test_no_alert_when_market_is_closed(self, _mock):
+        call_command('ktl_health_check')
+        self.assertFalse(HealthIssue.objects.filter(
+            kind='live_sync_stale_during_market_hours', resolved_at__isnull=True).exists())
 
 
 class KtlDashboardAccessTests(TestCase):

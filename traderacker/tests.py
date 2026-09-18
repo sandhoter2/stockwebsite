@@ -2299,3 +2299,51 @@ class TradesExportApiTests(TestCase):
         body = r.content.decode()
         self.assertIn('X', body)
         self.assertNotIn('Y', body)
+
+
+class MarketHoursTests(TestCase):
+    def test_open_during_session_on_a_weekday(self):
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        from traderacker.market_hours import is_market_open
+        # Wed 2026-09-16, 11:00 IST
+        now = datetime(2026, 9, 16, 11, 0, tzinfo=ZoneInfo('Asia/Kolkata'))
+        self.assertTrue(is_market_open(now))
+
+    def test_closed_before_open_and_after_close(self):
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        from traderacker.market_hours import is_market_open
+        early = datetime(2026, 9, 16, 9, 0, tzinfo=ZoneInfo('Asia/Kolkata'))
+        late = datetime(2026, 9, 16, 15, 31, tzinfo=ZoneInfo('Asia/Kolkata'))
+        self.assertFalse(is_market_open(early))
+        self.assertFalse(is_market_open(late))
+
+    def test_closed_on_weekend(self):
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        from traderacker.market_hours import is_market_open
+        saturday = datetime(2026, 9, 19, 11, 0, tzinfo=ZoneInfo('Asia/Kolkata'))
+        self.assertFalse(is_market_open(saturday))
+
+    def test_market_status_command_exit_code(self):
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        from io import StringIO
+
+        from django.core.management import call_command as cc
+        # Just exercise the real "now" path -- can't control the clock from
+        # here, but a raised SystemExit(1) vs a clean return is what the
+        # cron script's `|| exit 0` branches on, so confirm it's one or the
+        # other without crashing.
+        from traderacker.market_hours import is_market_open
+        out = StringIO()
+        if is_market_open():
+            cc('market_status', stdout=out)
+            self.assertIn('open', out.getvalue())
+        else:
+            with self.assertRaises(SystemExit):
+                cc('market_status', stdout=out)

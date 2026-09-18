@@ -11,11 +11,13 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 
 from core.models import HealthIssue, JobRun
+from traderacker.market_hours import is_market_open
 from traderacker.models import Trade, TelegramMessage
 
 STALE_TELEGRAM_HOURS = 30
 STALE_JOB_HOURS = 30
 CRON_JOBS = ['telegram_sync', 'super_investors', 'poll_market']
+LIVE_SYNC_STALE_MINUTES = 10
 
 
 class Command(BaseCommand):
@@ -66,7 +68,21 @@ class Command(BaseCommand):
             upsert(f'cron_failed_{job}', failed, 'critical',
                    f"Last '{job}' run failed at {last.finished_at}: {last.detail}" if failed else '')
 
-        # 3. Implausible open-trade data (entry/SL/target structurally wrong for direction)
+        # 3. Live intraday sync (scripts/live_market_sync.sh, every 2 min
+        # during NSE hours) -- only meaningful to check *while the market is
+        # open*; outside hours the cron script no-ops on purpose and records
+        # nothing, so this must not fire a false "stale" alert overnight.
+        if is_market_open():
+            last_live = JobRun.objects.filter(name='live_market_sync').order_by('-finished_at').first()
+            stale_live = (last_live is None or
+                          (now - last_live.finished_at).total_seconds() > LIVE_SYNC_STALE_MINUTES * 60)
+            upsert('live_sync_stale_during_market_hours', stale_live, 'critical',
+                   (f"No live_market_sync run in the last {LIVE_SYNC_STALE_MINUTES} min while NSE is open "
+                    f"-- last run was {last_live.finished_at if last_live else 'never'}.") if stale_live else '')
+        else:
+            upsert('live_sync_stale_during_market_hours', False, 'critical', '')
+
+        # 4. Implausible open-trade data (entry/SL/target structurally wrong for direction)
         bad = 0
         for t in Trade.objects.filter(status='Open').exclude(asset_class='option').filter(entry__isnull=False):
             is_buy = (t.direction or '').upper() in Trade.BUY_DIRECTIONS

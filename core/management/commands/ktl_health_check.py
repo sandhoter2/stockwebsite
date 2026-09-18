@@ -16,7 +16,11 @@ from traderacker.models import Trade, TelegramMessage
 
 STALE_TELEGRAM_HOURS = 30
 STALE_JOB_HOURS = 30
-CRON_JOBS = ['telegram_sync', 'super_investors', 'poll_market', 'market_news']
+# telegram_sync/poll_market retired as separate cron jobs (folded into
+# live_market_sync, which has its own market-hours-aware freshness check
+# below) -- leaving their names here would flag them permanently stale
+# now that nothing ever records a JobRun under those names again.
+CRON_JOBS = ['super_investors', 'market_news']
 LIVE_SYNC_STALE_MINUTES = 10
 
 

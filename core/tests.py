@@ -30,21 +30,21 @@ class KtlHealthCheckTests(TestCase):
     def test_opens_issue_for_stale_job(self):
         call_command('ktl_health_check')
         self.assertTrue(HealthIssue.objects.filter(
-            kind='cron_stale_telegram_sync', resolved_at__isnull=True).exists())
+            kind='cron_stale_super_investors', resolved_at__isnull=True).exists())
 
     def test_resolves_issue_once_job_recorded_fresh(self):
         call_command('ktl_health_check')
         self.assertTrue(HealthIssue.objects.filter(
-            kind='cron_stale_telegram_sync', resolved_at__isnull=True).exists())
-        JobRun.objects.create(name='telegram_sync', status='ok', detail='',
+            kind='cron_stale_super_investors', resolved_at__isnull=True).exists())
+        JobRun.objects.create(name='super_investors', status='ok', detail='',
                               started_at=timezone.now(), finished_at=timezone.now())
         call_command('ktl_health_check')
         self.assertFalse(HealthIssue.objects.filter(
-            kind='cron_stale_telegram_sync', resolved_at__isnull=True).exists())
+            kind='cron_stale_super_investors', resolved_at__isnull=True).exists())
 
     def test_reopens_stale_cron_issue_after_resolve_if_still_stale(self):
         call_command('ktl_health_check')
-        issue = HealthIssue.objects.get(kind='cron_stale_super_investors')
+        issue = HealthIssue.objects.get(kind='cron_stale_market_news')
         issue.resolved_at = timezone.now()
         issue.save(update_fields=['resolved_at'])
         call_command('ktl_health_check')
@@ -52,13 +52,13 @@ class KtlHealthCheckTests(TestCase):
         self.assertIsNone(issue.resolved_at)
 
     def test_flags_failed_job_separately_from_staleness(self):
-        JobRun.objects.create(name='poll_market', status='failed', detail='boom',
+        JobRun.objects.create(name='market_news', status='failed', detail='boom',
                               started_at=timezone.now(), finished_at=timezone.now())
         call_command('ktl_health_check')
         self.assertTrue(HealthIssue.objects.filter(
-            kind='cron_failed_poll_market', resolved_at__isnull=True).exists())
+            kind='cron_failed_market_news', resolved_at__isnull=True).exists())
         self.assertFalse(HealthIssue.objects.filter(
-            kind='cron_stale_poll_market', resolved_at__isnull=True).exists())
+            kind='cron_stale_market_news', resolved_at__isnull=True).exists())
 
     def test_no_data_quality_issue_when_trades_are_well_formed(self):
         from traderacker.models import Channel, Trade

@@ -2203,6 +2203,51 @@ class TradeCloseEventTests(TestCase):
         self.assertEqual(t.status, 'Closed')
         self.assertIsNone(t.realized)
 
+    def test_close_eod_estimates_call_intrinsic_value_when_strike_parses(self):
+        # AXISBANK 1300 CE bought at 3.4; underlying closes at 1320 ->
+        # intrinsic = 1320-1300 = 20, estimated P&L = 20-3.4 = 16.6.
+        t = self._open(asset_class='option', trade='AXISBANK 1300 CE',
+                       entry=3.4, target=None, stop_loss=None)
+        self.assertTrue(t.close_eod(1320.0))
+        t.refresh_from_db()
+        self.assertEqual(t.status, 'Closed')
+        self.assertAlmostEqual(t.realized, 16.6)
+        self.assertAlmostEqual(t.ltp_exit, 20.0)
+        self.assertIn('estimated intrinsic value', t.note)
+
+    def test_close_eod_estimates_put_intrinsic_value_when_strike_parses(self):
+        t = self._open(asset_class='option', trade='NIFTY 23950 PE',
+                       entry=160.0, target=None, stop_loss=None)
+        self.assertTrue(t.close_eod(23800.0))
+        t.refresh_from_db()
+        self.assertAlmostEqual(t.realized, (23950 - 23800) - 160.0)
+
+    def test_close_eod_option_intrinsic_zero_means_lost_full_premium(self):
+        # Deep OTM call at close -- intrinsic 0, lost the entire premium.
+        t = self._open(asset_class='option', trade='AXISBANK 1300 CE',
+                       entry=3.4, target=None, stop_loss=None)
+        self.assertTrue(t.close_eod(1200.0))
+        t.refresh_from_db()
+        self.assertAlmostEqual(t.realized, -3.4)
+        self.assertAlmostEqual(t.ltp_exit, 0.0)
+
+    def test_close_eod_option_stays_unpriced_when_trade_string_unparseable(self):
+        t = self._open(asset_class='option', trade='SOME WEIRD CALL NAME',
+                       entry=3.4, target=None, stop_loss=None)
+        self.assertTrue(t.close_eod(1320.0))
+        t.refresh_from_db()
+        self.assertIsNone(t.realized)
+
+    def test_option_strike_parses_ce_and_pe(self):
+        t = self._open(asset_class='option', trade='SENSEX 75000 CE')
+        self.assertEqual(t.option_strike(), (75000.0, 'CE'))
+        t2 = self._open(asset_class='option', trade='NIFTY 23950 PE')
+        self.assertEqual(t2.option_strike(), (23950.0, 'PE'))
+
+    def test_option_strike_none_for_non_option_shape(self):
+        t = self._open(trade='LTM')
+        self.assertIsNone(t.option_strike())
+
     def test_close_eod_rejects_unit_mismatch_via_sanity_ratio(self):
         # MCX gold posted in INR/10g vs a fetched USD/troy-oz quote --
         # real bug seen live: closed with realized=-147521.9 before this
@@ -2241,6 +2286,77 @@ class TradeCloseEventTests(TestCase):
         newer_only = self.client.get(f'/api/tracker/events/?since={first_id}').json()['results']
         self.assertEqual(len(newer_only), 1)
         self.assertNotEqual(newer_only[0]['id'], first_id)
+
+    def test_mark_live_skips_manually_edited_row(self):
+        t = self._open(manually_edited=True)
+        self.assertFalse(t.mark_live(112.0))
+        t.refresh_from_db()
+        self.assertEqual(t.status, 'Open')
+        self.assertEqual(Event.objects.count(), 0)
+
+    def test_close_eod_skips_manually_edited_row(self):
+        t = self._open(manually_edited=True)
+        self.assertFalse(t.close_eod(112.0))
+        t.refresh_from_db()
+        self.assertEqual(t.status, 'Open')
+
+
+class TradeInlineEditApiTests(TestCase):
+    """Admin-only inline editing of Trade rows (TradeViewSet PATCH) --
+    was a fully open ModelViewSet before this, any signed-in user could
+    edit or delete any trade. A staff edit must also stamp
+    manually_edited=True so automation leaves the row alone afterward."""
+
+    def setUp(self):
+        self.staff = User.objects.create_user('staffer', password='pw12345!', is_staff=True)
+        self.regular = User.objects.create_user('regular', password='pw12345!')
+        self.ch = Channel.objects.create(peer='-9301', name='Ch', short='Ch')
+        self.trade = Trade.objects.create(channel=self.ch, trade='X', direction='BUY',
+                                          entry=100.0, status='Open', asset_class='stock',
+                                          source_mid=1)
+
+    def test_staff_can_patch_a_trade(self):
+        self.client.force_login(self.staff)
+        r = self.client.patch(f'/api/tracker/trades/{self.trade.id}/',
+                              {'entry': 105.0}, content_type='application/json')
+        self.assertEqual(r.status_code, 200)
+        self.trade.refresh_from_db()
+        self.assertEqual(self.trade.entry, 105.0)
+
+    def test_patch_stamps_manually_edited(self):
+        self.client.force_login(self.staff)
+        self.client.patch(f'/api/tracker/trades/{self.trade.id}/',
+                          {'note': 'corrected'}, content_type='application/json')
+        self.trade.refresh_from_db()
+        self.assertTrue(self.trade.manually_edited)
+
+    def test_client_cannot_unset_manually_edited_via_payload(self):
+        self.trade.manually_edited = True
+        self.trade.save(update_fields=['manually_edited'])
+        self.client.force_login(self.staff)
+        self.client.patch(f'/api/tracker/trades/{self.trade.id}/',
+                          {'manually_edited': False}, content_type='application/json')
+        self.trade.refresh_from_db()
+        self.assertTrue(self.trade.manually_edited)
+
+    def test_regular_user_cannot_patch(self):
+        self.client.force_login(self.regular)
+        r = self.client.patch(f'/api/tracker/trades/{self.trade.id}/',
+                              {'entry': 999.0}, content_type='application/json')
+        self.assertEqual(r.status_code, 403)
+        self.trade.refresh_from_db()
+        self.assertEqual(self.trade.entry, 100.0)
+
+    def test_regular_user_can_still_read(self):
+        self.client.force_login(self.regular)
+        r = self.client.get('/api/tracker/trades/')
+        self.assertEqual(r.status_code, 200)
+
+    def test_regular_user_cannot_delete(self):
+        self.client.force_login(self.regular)
+        r = self.client.delete(f'/api/tracker/trades/{self.trade.id}/')
+        self.assertEqual(r.status_code, 403)
+        self.assertTrue(Trade.objects.filter(pk=self.trade.pk).exists())
 
 
 class PaperAutotradeNowApiTests(TestCase):
@@ -2539,3 +2655,41 @@ class MarketHoursTests(TestCase):
         from traderacker.market_hours import is_eod_window
         saturday = datetime(2026, 9, 19, 15, 28, tzinfo=ZoneInfo('Asia/Kolkata'))
         self.assertFalse(is_eod_window(saturday))
+
+    def test_premarket_window_true_around_7am_ist(self):
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        from traderacker.market_hours import is_premarket_window
+        just_after = datetime(2026, 9, 16, 7, 1, tzinfo=ZoneInfo('Asia/Kolkata'))
+        self.assertTrue(is_premarket_window(just_after))
+
+    def test_premarket_window_false_outside_the_window(self):
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        from traderacker.market_hours import is_premarket_window
+        midday = datetime(2026, 9, 16, 11, 0, tzinfo=ZoneInfo('Asia/Kolkata'))
+        self.assertFalse(is_premarket_window(midday))
+
+    def test_premarket_window_false_on_weekend(self):
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        from traderacker.market_hours import is_premarket_window
+        saturday = datetime(2026, 9, 19, 7, 1, tzinfo=ZoneInfo('Asia/Kolkata'))
+        self.assertFalse(is_premarket_window(saturday))
+
+    def test_premarket_status_command_exit_code(self):
+        from io import StringIO
+
+        from django.core.management import call_command as cc
+
+        from traderacker.market_hours import is_premarket_window
+        out = StringIO()
+        if is_premarket_window():
+            cc('premarket_status', stdout=out)
+            self.assertIn('yes', out.getvalue())
+        else:
+            with self.assertRaises(SystemExit):
+                cc('premarket_status', stdout=out)

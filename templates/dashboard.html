@@ -72,6 +72,8 @@
     .live-fresh { color:#059669; background:#ecfdf5; }
     .live-stale { color:#92400e; background:#fffbeb; }
     .live-dot { width:.45rem; height:.45rem; border-radius:50%; background:currentColor; }
+    .editable-cell { cursor:pointer; border-radius:.25rem; }
+    .editable-cell:hover { outline:1px dashed #94a3b8; outline-offset:2px; }
     .live-fresh .live-dot { animation: live-pulse 1.6s ease-in-out infinite; }
     @keyframes live-pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
     .success-bar { height:10px; border-radius:5px; overflow:hidden; display:flex; background:#e2e8f0; }
@@ -200,7 +202,43 @@
     // limit/offset request at our existing DRF endpoints, which is what
     // keeps this fast regardless of table size (fine for 80+ channels,
     // fine for thousands of trades).
-    function ServerTable({ apiPath, columns, extraParams, pageLength, searchValue, onCellAction, ownSearchBox, refreshSignal }) {
+    // Admin inline-edit: click an `editable` column's cell, an <input>
+    // replaces it, Enter/blur PATCHes apiPath+id/ with {field: value} and
+    // reloads the row in place. The PATCH handler (TradeViewSet) stamps
+    // manually_edited=True server-side, which mark_live/close_eod both
+    // check and refuse to touch -- so the correction sticks instead of
+    // getting silently overwritten by the next automated pass.
+    function wireInlineEdit($table, apiPath, dtRef) {
+      $table.on('click', '.editable-cell', function () {
+        const $cell = $(this);
+        if ($cell.find('input').length) return;
+        const field = $cell.data('editField');
+        const id = $cell.data('editId');
+        const raw = $cell.data('editRaw');
+        const original = $cell.html();
+        const $input = window.jQuery('<input type="text" class="form-control form-control-sm">').val(raw);
+        $cell.empty().append($input);
+        $input.trigger('focus');
+        $input[0].select();
+        let done = false;
+        const save = async () => {
+          if (done) return; done = true;
+          const newVal = $input.val();
+          if (newVal === String(raw ?? '')) { $cell.html(original); return; }
+          try {
+            await apiMutate('PATCH', apiPath + id + '/', { [field]: newVal });
+          } catch (e) { alert('Save failed: ' + e.message); }
+          if (dtRef.current) dtRef.current.ajax.reload(null, false);
+        };
+        $input.on('blur', save);
+        $input.on('keydown', e => {
+          if (e.key === 'Enter') { e.preventDefault(); $input.trigger('blur'); }
+          if (e.key === 'Escape') { done = true; $cell.html(original); }
+        });
+      });
+    }
+
+    function ServerTable({ apiPath, columns, extraParams, pageLength, searchValue, onCellAction, ownSearchBox, refreshSignal, isAdmin }) {
       const tableRef = useRef(null);
       const dtRef = useRef(null);
       const extraKey = JSON.stringify(extraParams || {}) + '|' + (searchValue || '');
@@ -214,6 +252,7 @@
             onCellAction($(this).data('action'), $(this).data('value'));
           });
         }
+        if (isAdmin) wireInlineEdit($table, apiPath, dtRef);
         const dt = $table.DataTable({
           serverSide: true,
           processing: true,
@@ -224,7 +263,14 @@
           search: { search: searchValue || '' },
           columns: columns.map(c => ({
             data: c.data, title: c.title, orderable: !!c.orderKey,
-            render: c.render,
+            render: (v, type, row) => {
+              const inner = c.render ? c.render(v, type, row) : esc(v ?? '—');
+              if (isAdmin && c.editable && type === 'display') {
+                return `<span class="editable-cell" title="Click to edit" data-edit-field="${c.data}" `
+                     + `data-edit-id="${row.id}" data-edit-raw="${esc(v ?? '')}">${inner}</span>`;
+              }
+              return inner;
+            },
           })),
           language: { processing: 'Loading…', emptyTable: 'No rows for this filter.' },
           ajax: (data, callback) => {
@@ -249,7 +295,7 @@
           },
         });
         dtRef.current = dt;
-        return () => { $table.off('click', '[data-action]'); dt.destroy(); };
+        return () => { $table.off('click', '[data-action]'); $table.off('click', '.editable-cell'); dt.destroy(); };
         // eslint-disable-next-line react-hooks/exhaustive-deps
       }, [apiPath, extraKey]);
 
@@ -1537,20 +1583,21 @@
       { data: 'trade', title: 'Trade', orderKey: 'trade',
         render: v => `<strong>${esc(v)}</strong>` },
       { data: 'direction', title: 'Dir' },
-      { data: 'entry', title: 'Entry', orderKey: 'entry',
+      { data: 'entry', title: 'Entry', orderKey: 'entry', editable: true,
         render: v => `<div class="text-end">${v ?? '—'}</div>` },
-      { data: 'target', title: 'Target',
+      { data: 'target', title: 'Target', editable: true,
         render: v => `<div class="text-end">${v ?? '—'}</div>` },
-      { data: 'stop_loss', title: 'SL',
+      { data: 'stop_loss', title: 'SL', editable: true,
         render: v => `<div class="text-end">${v ?? '—'}</div>` },
-      { data: 'ltp_exit', title: 'LTP/Exit',
+      { data: 'ltp_exit', title: 'LTP/Exit', editable: true,
         render: v => `<div class="text-end">${v ?? '—'}</div>` },
-      { data: 'realized', title: 'P/L ₹', orderKey: 'realized',
+      { data: 'realized', title: 'P/L ₹', orderKey: 'realized', editable: true,
         render: v => `<div class="text-end ${cls(v)}">${v!=null?INR(v):'—'}</div>` },
       { data: 'status', title: 'Status', orderKey: 'status',
         render: v => `<span class="badge ${v==='Open'?'badge-open':'badge-closed'}">${esc(v)}</span>` },
-      { data: 'note', title: 'Note',
-        render: v => `<span class="text-truncate d-inline-block" style="max-width:12rem" title="${esc(v)}">${esc(v||'')}</span>` },
+      { data: 'note', title: 'Note', editable: true,
+        render: (v, t, row) => (row.manually_edited ? '✎ ' : '')
+          + `<span class="text-truncate d-inline-block" style="max-width:12rem" title="${esc(v)}">${esc(v||'')}</span>` },
     ];
 
     function App() {
@@ -1862,7 +1909,8 @@
                   </div>
                   <div className="table-responsive shadow-sm rounded bg-white">
                     <ServerTable apiPath="/api/tracker/trades/" columns={TRADES_COLUMNS}
-                                 extraParams={tradesExtraParams} searchValue={q} pageLength={25} refreshSignal={refreshTick} />
+                                 extraParams={tradesExtraParams} searchValue={q} pageLength={25} refreshSignal={refreshTick}
+                                 isAdmin={!!(user && user.is_staff)} />
                   </div>
                 </Section>}
             </main>

@@ -14,7 +14,9 @@ from zoneinfo import ZoneInfo
 IST = ZoneInfo("Asia/Kolkata")
 MARKET_OPEN = time(9, 15)
 MARKET_CLOSE = time(15, 30)
+PREMARKET_CATCHUP = time(7, 0)
 EOD_WINDOW_MINUTES = 3
+PREMARKET_WINDOW_MINUTES = 3
 
 
 def is_market_open(now=None):
@@ -34,6 +36,22 @@ def is_eod_window(now=None):
         return False
     close_dt = now.replace(hour=MARKET_CLOSE.hour, minute=MARKET_CLOSE.minute, second=0, microsecond=0)
     return timedelta(0) <= (close_dt - now) <= timedelta(minutes=EOD_WINDOW_MINUTES)
+
+
+def is_premarket_window(now=None):
+    """True for a few minutes around 7:00 IST -- once-daily overnight
+    Telegram catch-up (bigger --limit than the every-2-min intraday tick),
+    gated the same way as is_eod_window so it rides the existing cron
+    instead of its own fixed-clock-time schedule. (The bug this replaces:
+    a `0 7 * * *` crontab line is 7am in the HOST's timezone, not IST --
+    on a US-hosted box that lands at 17:30 IST, after market close, not
+    before open.)"""
+    now = (now or datetime.now(IST)).astimezone(IST)
+    if now.weekday() >= 5:
+        return False
+    target = now.replace(hour=PREMARKET_CATCHUP.hour, minute=PREMARKET_CATCHUP.minute,
+                         second=0, microsecond=0)
+    return abs((now - target).total_seconds()) <= PREMARKET_WINDOW_MINUTES * 60
 
 
 def ist_today(now=None):

@@ -34,7 +34,8 @@ class TradeSerializer(serializers.ModelSerializer):
         fields = ['id', 'channel', 'channel_name', 'date', 'posted_at',
                   'asset_class', 'trade', 'direction', 'entry', 'target',
                   'stop_loss', 'ltp_exit', 'unrealized', 'realized',
-                  'cumulative', 'status', 'note']
+                  'cumulative', 'status', 'note', 'manually_edited']
+        read_only_fields = ['manually_edited']
 
 
 class QuoteSerializer(serializers.ModelSerializer):

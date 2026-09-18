@@ -4,11 +4,21 @@ from datetime import timedelta
 from django.db.models import Count, Q, Sum
 from django.http import HttpResponse
 from django.utils import timezone
-from rest_framework import filters, routers, serializers, viewsets
+from rest_framework import filters, permissions, routers, serializers, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
+
+
+class IsStaffOrReadOnly(permissions.BasePermission):
+    """Anyone authenticated can read; only staff can write. TradeViewSet was
+    a full ModelViewSet with no write restriction at all before this --
+    any signed-in customer could PATCH/DELETE any trade."""
+
+    def has_permission(self, request, view):
+        return bool(request.user and request.user.is_authenticated and
+                    (request.method in permissions.SAFE_METHODS or request.user.is_staff))
 
 from .models import (Channel, Event, PaperTrade, QuantityRule, Quote,
                      TelegramMessage, Trade, UserPreference, Watchlist)
@@ -45,6 +55,14 @@ class TradeViewSet(viewsets.ModelViewSet):
     ordering_fields = ['date', 'posted_at', 'channel__name', 'trade', 'entry',
                        'realized', 'unrealized', 'status', 'asset_class']
     ordering = ['-date']
+    permission_classes = [IsStaffOrReadOnly]
+
+    def perform_update(self, serializer):
+        # Any inline admin edit (via the Trades table's edit-in-place UI)
+        # sticks from here on: mark_live/close_eod both refuse to touch a
+        # manually_edited row, so the next automated pass can't quietly
+        # overwrite a correction a human just made.
+        serializer.save(manually_edited=True)
 
     def get_queryset(self):
         qs = super().get_queryset()

@@ -1,4 +1,5 @@
 import math
+import re
 from datetime import date as _date
 from datetime import timedelta
 
@@ -312,6 +313,11 @@ class Trade(models.Model):
                                      help_text="Timestamp of the Telegram message that announced this trade")
     source_mid = models.BigIntegerField(null=True, blank=True,
                                         help_text="Telegram message id this trade was parsed from")
+    manually_edited = models.BooleanField(default=False,
+        help_text="Set automatically when an admin edits this row inline -- "
+                  "mark_live/close_eod refuse to touch it after that, so a "
+                  "manual correction sticks instead of getting overwritten "
+                  "by the next automated pass.")
 
     objects = TradeQuerySet.as_manager()
 
@@ -358,6 +364,8 @@ class Trade(models.Model):
         Options are skipped outright: there's no cheap live options-chain
         price source here, and the underlying's spot price is not the
         option's premium -- comparing them is meaningless, not just noisy."""
+        if self.manually_edited:
+            return False
         if self.status != 'Open' or price is None or self.entry is None:
             return False
         if self.asset_class == 'option':
@@ -430,6 +438,17 @@ class Trade(models.Model):
             trade=surviving_row, channel=surviving_row.channel,
             message=f'{name}: {surviving_row.trade} hit {reason} @ {price}')
 
+    _OPTION_RE = re.compile(r'^\S+\s+(\d+(?:\.\d+)?)\s*(CE|PE)\b', re.IGNORECASE)
+
+    def option_strike(self):
+        """Parse ('AXISBANK 1300 CE' -> (1300.0, 'CE')) or None if the
+        trade string doesn't match the usual '<symbol> <strike> <CE|PE>'
+        shape."""
+        m = self._OPTION_RE.match((self.trade or '').strip())
+        if not m:
+            return None
+        return float(m.group(1)), m.group(2).upper()
+
     def close_eod(self, price):
         """Force-close an intraday call that never hit its posted SL/target
         by end of the same trading day -- these are day calls, not swing
@@ -439,26 +458,44 @@ class Trade(models.Model):
         unpriced (realized left null) rather than silently rolling it to
         the next day, since a channel-call tracker with no EOD square-off
         is exactly how "91 open" backlogs accumulate."""
+        if self.manually_edited:
+            return False
         if self.status != 'Open':
             return False
-        # Options: the "live price" a caller fetches is the underlying's
-        # spot, not the option's own premium -- comparing them is
-        # meaningless, same reasoning as mark_live's options guard. Close
-        # unpriced rather than pretend a spot move is the option's P&L.
+        # Options: `price` from the caller is the underlying's spot, not
+        # the option's own premium -- comparing them directly is
+        # meaningless (mark_live's reasoning too). There's no live
+        # options-chain source here, so the best available EOD estimate is
+        # intrinsic value (max(spot-strike,0) for a call, the mirror for a
+        # put) against the strike parsed out of the trade string -- a real,
+        # standard approximation, but NOT the option's actual closing
+        # premium (it ignores time value entirely). Always flagged as an
+        # estimate in the note/event so it's never mistaken for an
+        # observed price.
+        is_estimate = False
         if self.asset_class == 'option':
-            price = None
-        # Same sanity ratio mark_live uses: catches unit mismatches
-        # (e.g. an MCX gold call posted in INR/10g vs a fetched USD/troy-oz
-        # quote) and asset_class misclassification (an option mistagged as
-        # 'other', so the options guard above didn't already null it out)
-        # before they turn into a nonsense five- or six-figure "realized".
-        if price is not None and self.entry:
+            parsed = self.option_strike()
+            if parsed and price is not None and price > 0:
+                strike, opt_type = parsed
+                price = round(max(price - strike, 0) if opt_type == 'CE' else max(strike - price, 0), 2)
+                is_estimate = True
+            else:
+                price = None
+        # Same sanity ratio mark_live uses: catches unit mismatches (e.g.
+        # an MCX gold call posted in INR/10g vs a fetched USD/troy-oz
+        # quote). Skipped for the option-intrinsic estimate above -- a
+        # deep-ITM move can legitimately be many multiples of the original
+        # premium, that's not a unit-mismatch signal there.
+        if price is not None and self.entry and not is_estimate:
             ratio = price / self.entry
             if ratio > self.LIVE_PRICE_SANITY_RATIO or ratio < (1.0 / self.LIVE_PRICE_SANITY_RATIO):
                 price = None
         is_buy = (self.direction or '').upper() in self.BUY_DIRECTIONS
+        # >= 0, not > 0: an option's estimated intrinsic value can be a
+        # real, legitimate zero (worthless at close) -- that's a real
+        # data point (lost the full premium), not a "missing price".
         realized = None
-        if price is not None and price > 0 and self.entry is not None and self.entry > 0:
+        if price is not None and price >= 0 and self.entry is not None and self.entry > 0:
             realized = round((price - self.entry) if is_buy else (self.entry - price), 2)
         dup = Trade.objects.filter(channel=self.channel, date=self.date, trade=self.trade,
                                    entry=self.entry, status='Closed').exclude(pk=self.pk).first()
@@ -473,14 +510,21 @@ class Trade(models.Model):
             self.ltp_exit = price
             self.realized = realized
             self.status = 'Closed'
-            self.note = (self.note + f' [eod-closed@{price if price is not None else "no quote"}]').strip()
+            tag = f'[eod-closed:estimated intrinsic value @ {price}]' if is_estimate \
+                else f' [eod-closed@{price if price is not None else "no quote"}]'
+            self.note = (self.note + ' ' + tag).strip()
             self.save(update_fields=['status', 'ltp_exit', 'realized', 'note'])
             surviving = self
         name = surviving.channel.short or surviving.channel.name
+        if is_estimate:
+            detail = f' (est. intrinsic value @ {price}, not a real quoted premium)'
+        elif price is not None:
+            detail = f' @ {price}'
+        else:
+            detail = ' (no live quote)'
         Event.objects.create(
             kind='eod_close', trade=surviving, channel=surviving.channel,
-            message=f'{name}: {surviving.trade} squared off at close'
-                    + (f' @ {price}' if price is not None else ' (no live quote)'))
+            message=f'{name}: {surviving.trade} squared off at close' + detail)
         return True
 
 

@@ -427,7 +427,7 @@
       );
     }
 
-    function Topbar({ user, onLogout, tabs, effTab, setTab, active, setActive, channelsCount }) {
+    function Topbar({ user, onLogout, tabs, effTab, setTab }) {
       const initials = user ? user.username.slice(0,2).toUpperCase() : '';
       return (
         <nav className="navbar navbar-expand-lg navbar-dark navbar-tt mb-3">
@@ -440,20 +440,12 @@
             </button>
             <div className="collapse navbar-collapse" id="topbarNav">
               <ul className="nav nav-tabs mb-0 border-0 flex-wrap align-items-lg-center me-lg-auto mt-3 mt-lg-0" role="tablist">
-                <li className="nav-item"><button className={'nav-link '+(active===null && effTab==='trades'?'active':'')}
-                  role="tab" aria-selected={active===null && effTab==='trades'}
-                  onClick={()=>{setActive(null); setTab('trades');}}>Telegram Channels <span className="badge text-bg-light text-dark ms-1">{channelsCount}</span></button></li>
                 {tabs.map(([k,l]) => (
                   <li className="nav-item" key={k}><button className={'nav-link '+(effTab===k?'active':'')}
                     role="tab" aria-selected={effTab===k} onClick={()=>setTab(k)}>{l}</button></li>))}
-                <li className="nav-item dropdown">
-                  <button className={'nav-link dropdown-toggle '+(MARKET_INTEL_TABS.some(([k])=>k===effTab)?'active':'')}
-                          data-bs-toggle="dropdown" aria-expanded="false">Market Intel</button>
-                  <ul className="dropdown-menu">
-                    {MARKET_INTEL_TABS.map(([k,l]) => (
-                      <li key={k}><button className={'dropdown-item '+(effTab===k?'active':'')} onClick={()=>setTab(k)}>{l}</button></li>))}
-                  </ul>
-                </li>
+                {MARKET_INTEL_TABS.map(([k,l]) => (
+                  <li className="nav-item" key={k}><button className={'nav-link '+(effTab===k?'active':'')}
+                    role="tab" aria-selected={effTab===k} onClick={()=>setTab(k)}>{l}</button></li>))}
               </ul>
               <div className="d-flex flex-column flex-lg-row align-items-lg-center gap-2 gap-lg-3 mt-3 mt-lg-0">
                 {user && user.is_staff &&
@@ -1653,12 +1645,14 @@
         return list.slice().sort(CH_SORTS[chSort].fn);
       }, [channels, chQuery, chSort, boardByChannel, followedOnly, followedIds]);
 
-      // 'trades' is the one always-present tab -- it carries the track
-      // record + graphs + the trade list itself, scoped to all channels or
-      // one depending on `active` (no separate "Overview" destination).
+      // 'trades' is the one always-present tab, labeled "Overview" -- it
+      // carries the track record + graphs + the trade list itself, scoped
+      // to all channels or one depending on `active`. The old separate
+      // "Telegram Channels" nav button is gone too: the sidebar's own
+      // "Telegram Channels" list item (below) already does that job.
       // Leaderboard & Today's calls only make sense on the all-channels view.
-      const tabs = active===null ? [['trades','Trades'],['calls',"Today's calls"],['board','Leaderboard'],['picks','Favorite picks'],['paper','Paper trading']]
-                                 : [['trades','Trades'],['picks','Favorite picks'],['paper','Paper trading']];
+      const tabs = active===null ? [['trades','Overview'],['calls',"Today's calls"],['board','Leaderboard'],['picks','Favorite picks'],['paper','Paper trading']]
+                                 : [['trades','Overview'],['picks','Favorite picks'],['paper','Paper trading']];
       const effTab = ((tab==='board' || tab==='calls') && active!==null) ? 'trades' : tab;
       const MARKET_INTEL_TITLE = {
         congress: 'Congress Trades · largest disclosed House trades',
@@ -1669,8 +1663,7 @@
 
       return (
         <div className="container-fluid px-3">
-          <Topbar user={user} onLogout={onLogout} tabs={tabs} effTab={effTab} setTab={setTab}
-                  active={active} setActive={setActive} channelsCount={channels.length} />
+          <Topbar user={user} onLogout={onLogout} tabs={tabs} effTab={effTab} setTab={setTab} />
           {err && <div className="alert alert-danger">{err}</div>}
           <SummaryCards s={summary} rangeLabel={rangeLabel} />
           <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-1">

@@ -4,7 +4,7 @@ from datetime import timedelta
 from django.db.models import Count, Q, Sum
 from django.http import HttpResponse
 from django.utils import timezone
-from rest_framework import routers, serializers, viewsets
+from rest_framework import filters, routers, serializers, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
@@ -41,6 +41,10 @@ class TradeViewSet(viewsets.ModelViewSet):
     queryset = Trade.objects.select_related('channel')
     serializer_class = TradeSerializer
     filterset_fields = None
+    filter_backends = [filters.OrderingFilter]
+    ordering_fields = ['date', 'posted_at', 'channel__name', 'trade', 'entry',
+                       'realized', 'unrealized', 'status', 'asset_class']
+    ordering = ['-date']
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -51,6 +55,10 @@ class TradeViewSet(viewsets.ModelViewSet):
             qs = qs.filter(status=p['status'])
         if p.get('sector'):
             qs = qs.filter(asset_class=p['sector'])
+        if p.get('sectors'):
+            qs = qs.sectors(p['sectors'].split(','))
+        if p.get('date_from') or p.get('date_to'):
+            qs = qs.in_range(p.get('date_from'), p.get('date_to'))
         if p.get('q'):
             qs = qs.filter(Q(trade__icontains=p['q']) |
                            Q(note__icontains=p['q']) |

@@ -1,4 +1,5 @@
-from rest_framework import routers, viewsets
+from django.db import models
+from rest_framework import filters, routers, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
@@ -17,6 +18,10 @@ class CongressTradeViewSet(viewsets.ReadOnlyModelViewSet):
     """
     queryset = CongressTrade.objects.all()
     serializer_class = CongressTradeSerializer
+    filter_backends = [filters.OrderingFilter]
+    ordering_fields = ['transaction_date', 'disclosure_date', 'politician_name',
+                       'ticker', 'amount_max', 'chamber', 'party']
+    ordering = ['-disclosure_date', '-transaction_date']
 
     def _days(self):
         raw = self.request.query_params.get('days', 45)
@@ -24,7 +29,7 @@ class CongressTradeViewSet(viewsets.ReadOnlyModelViewSet):
             days = int(raw)
         except (TypeError, ValueError):
             raise ValidationError({'days': 'Must be an integer.'})
-        return min(max(days, 1), 365)
+        return min(max(days, 1), 3650)
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -39,6 +44,10 @@ class CongressTradeViewSet(viewsets.ReadOnlyModelViewSet):
             qs = qs.filter(chamber__iexact=p['chamber'])
         if p.get('transaction_type'):
             qs = qs.filter(transaction_type=p['transaction_type'])
+        if p.get('q'):
+            qs = qs.filter(models.Q(politician_name__icontains=p['q']) |
+                           models.Q(ticker__icontains=p['q']) |
+                           models.Q(asset_description__icontains=p['q']))
         return qs.recent(days=self._days())
 
     @action(detail=False, methods=['get'], url_path='notable')

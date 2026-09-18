@@ -7,6 +7,7 @@
   <title>TradeGuru</title>
   <meta name="csrf-token" content="{{ csrf_token }}">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.datatables.net/2.1.8/css/dataTables.bootstrap5.min.css" rel="stylesheet">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -124,12 +125,15 @@
 <body>
   <div id="root"></div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+  <script src="https://cdn.datatables.net/2.1.8/js/dataTables.min.js"></script>
+  <script src="https://cdn.datatables.net/2.1.8/js/dataTables.bootstrap5.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.24.7/babel.min.js"></script>
   <script type="text/babel">
   {% verbatim %}
-    const { useState, useEffect, useMemo, useCallback } = React;
+    const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
     const SECTORS = [
       ['stock','Stocks','#2563eb'], ['option','Options','#7c3aed'],
@@ -164,6 +168,77 @@
             </div>
           </div>
         </div>);
+    }
+
+    // Any interpolated field can contain text pulled from a Telegram
+    // channel or a public filing -- never trust it as HTML.
+    function esc(s) {
+      return String(s ?? '').replace(/[&<>"']/g, c => (
+        {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    // Thin wrapper around DataTables' server-side processing mode: rows are
+    // never fetched all at once -- each page/sort/search redraw fires one
+    // limit/offset request at our existing DRF endpoints, which is what
+    // keeps this fast regardless of table size (fine for 80+ channels,
+    // fine for thousands of trades).
+    function ServerTable({ apiPath, columns, extraParams, pageLength, searchValue, onCellAction, ownSearchBox }) {
+      const tableRef = useRef(null);
+      const dtRef = useRef(null);
+      const extraKey = JSON.stringify(extraParams || {}) + '|' + (searchValue || '');
+
+      useEffect(() => {
+        if (!window.jQuery || !tableRef.current) return;
+        const $ = window.jQuery;
+        const $table = $(tableRef.current);
+        if (onCellAction) {
+          $table.on('click', '[data-action]', function () {
+            onCellAction($(this).data('action'), $(this).data('value'));
+          });
+        }
+        const dt = $table.DataTable({
+          serverSide: true,
+          processing: true,
+          pageLength: pageLength || 25,
+          lengthMenu: [10, 25, 50, 100],
+          order: [],
+          dom: ownSearchBox ? 'lrtip' : 'lfrtip',
+          search: { search: searchValue || '' },
+          columns: columns.map(c => ({
+            data: c.data, title: c.title, orderable: !!c.orderKey,
+            render: c.render,
+          })),
+          language: { processing: 'Loading…', emptyTable: 'No rows for this filter.' },
+          ajax: (data, callback) => {
+            const params = new URLSearchParams();
+            params.set('limit', data.length);
+            params.set('offset', data.start);
+            if (data.search && data.search.value) params.set('q', data.search.value);
+            if (data.order && data.order.length) {
+              const col = columns[data.order[0].column];
+              if (col && col.orderKey) {
+                params.set('ordering', (data.order[0].dir === 'desc' ? '-' : '') + col.orderKey);
+              }
+            }
+            Object.entries(extraParams || {}).forEach(([k, v]) => {
+              if (v !== undefined && v !== null && v !== '') params.set(k, v);
+            });
+            api(apiPath + '?' + params.toString())
+              .then(json => callback({
+                recordsTotal: json.count, recordsFiltered: json.count, data: json.results,
+              }))
+              .catch(() => callback({ recordsTotal: 0, recordsFiltered: 0, data: [] }));
+          },
+        });
+        dtRef.current = dt;
+        return () => { $table.off('click', '[data-action]'); dt.destroy(); };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, [apiPath, extraKey]);
+
+      return (
+        <table ref={tableRef} className="table table-sm table-hover w-100 dt-tt">
+          <thead><tr>{columns.map(c => <th key={c.data}>{c.title}</th>)}</tr></thead>
+        </table>);
     }
 
     function Pagination({ page, setPage, total, pageSize }) {
@@ -1017,24 +1092,10 @@
     }
 
     function CongressTab() {
-      const [rows, setRows] = useState(null);
-      const [err, setErr] = useState('');
       const [days, setDays] = useState(60);
       const [party, setParty] = useState('');
       const [politician, setPolitician] = useState('');
       const [selected, setSelected] = useState(null);
-
-      const load = useCallback(async () => {
-        setErr('');
-        try {
-          const params = ['days=' + days, 'limit=150'];
-          if (party) params.push('party=' + party);
-          if (politician) params.push('politician=' + encodeURIComponent(politician));
-          const d = await api('/api/congress/trades/?' + params.join('&'));
-          setRows(d.results);
-        } catch (e) { setErr(e.message); setRows([]); }
-      }, [days, party, politician]);
-      useEffect(() => { load(); }, [load]);
 
       if (selected) return <CongressProfile politician={selected} onBack={()=>setSelected(null)} />;
 
@@ -1050,14 +1111,15 @@
               {[['','All'],['D','Dem'],['R','Rep']].map(([v,l]) => (
                 <button key={v} className={'btn '+(party===v?'btn-dark':'btn-outline-dark')} onClick={()=>setParty(v)}>{l}</button>))}
             </div>
-            <input className="form-control form-control-sm" style={{maxWidth:200}} placeholder="🔍 Search politician…"
-                   aria-label="Search politician" value={politician} onChange={e=>setPolitician(e.target.value)} />
-            <button className="btn btn-sm btn-outline-secondary" onClick={load}>⟳ Refresh</button>
+            <input className="form-control form-control-sm" style={{maxWidth:200}} placeholder="🔍 Search politician, ticker…"
+                   aria-label="Search politician or ticker" value={politician} onChange={e=>setPolitician(e.target.value)} />
             <span className="text-muted small">Senate data not yet available</span>
           </div>
-          {err && <div className="alert alert-danger py-2">{err}</div>}
-          {rows === null && <div className="text-muted p-3">Loading trades…</div>}
-          {rows !== null && <CongressTable rows={rows} onSelectPolitician={setSelected} />}
+          <div className="table-responsive shadow-sm rounded bg-white">
+            <ServerTable apiPath="/api/congress/trades/" columns={CONGRESS_COLUMNS} ownSearchBox
+                         extraParams={{ days, party }} searchValue={politician} pageLength={25}
+                         onCellAction={(action, value) => { if (action === 'select-politician') setSelected(value); }} />
+          </div>
         </div>);
     }
 
@@ -1332,11 +1394,61 @@
       ['news', 'Market News'], ['superinvestors', 'Super Investors'],
     ];
 
+    function buySellBadgeHtml(type) {
+      const cfg = { buy: ['text-bg-success','BUY'], sell: ['text-bg-danger','SELL'], exchange: ['text-bg-secondary','EXCHANGE'] };
+      const [bg, label] = cfg[type] || ['text-bg-secondary', (type||'?').toUpperCase()];
+      return `<span class="badge ${bg}">${label}</span>`;
+    }
+    function profitCellHtml(row) {
+      if (row.profit == null) return '<span class="text-muted">—</span>';
+      const est = row.profit_is_realized ? '' : '<sup class="ms-1" style="font-weight:700">est</sup>';
+      return `<span class="${cls(row.profit)}">${USD(row.profit)}${est}</span>`;
+    }
+    const CONGRESS_COLUMNS = [
+      { data: 'time', title: 'Time', orderKey: 'transaction_date' },
+      { data: 'politician_name', title: 'Resource', orderKey: 'politician_name',
+        render: (v, t, row) => `<span class="text-truncate d-inline-block align-middle" style="max-width:11rem;cursor:pointer;text-decoration:underline dotted"
+          data-action="select-politician" data-value="${esc(v)}" title="Open ${esc(v)}'s profile">${esc(v)}</span> ` +
+          (row.party !== '?' ? `<span class="badge ${row.party==='D'?'text-bg-primary':row.party==='R'?'text-bg-danger':'text-bg-secondary'}">${esc(row.party)}</span>` : '') },
+      { data: 'ticker', title: 'Stock', orderKey: 'ticker',
+        render: (v, t, row) => `<strong>${esc(v || row.asset_description)}</strong>` },
+      { data: 'buy_or_sell', title: 'Buy/Sell', render: v => buySellBadgeHtml(v) },
+      { data: 'amount_range_label', title: 'Amount (est.)',
+        render: v => `<div class="text-end text-muted">${esc(v)}</div>` },
+      { data: 'profit', title: 'Profit', render: (v, t, row) => `<div class="text-end">${profitCellHtml(row)}</div>` },
+      { data: 'chamber', title: 'Chamber', orderKey: 'chamber' },
+      { data: 'filing_url', title: 'Source',
+        render: v => v ? `<a class="small text-muted" href="${esc(v)}" target="_blank" rel="noreferrer">filing ↗</a>` : '—' },
+    ];
+
+    const TRADES_COLUMNS = [
+      { data: 'date', title: 'Date', orderKey: 'date' },
+      { data: 'channel_name', title: 'Channel', orderKey: 'channel__name',
+        render: (v, t, row) => `<span title="${esc(v)}">${esc(v)}</span>` },
+      { data: 'asset_class', title: 'Sector', orderKey: 'asset_class' },
+      { data: 'trade', title: 'Trade', orderKey: 'trade',
+        render: v => `<strong>${esc(v)}</strong>` },
+      { data: 'direction', title: 'Dir' },
+      { data: 'entry', title: 'Entry', orderKey: 'entry',
+        render: v => `<div class="text-end">${v ?? '—'}</div>` },
+      { data: 'target', title: 'Target',
+        render: v => `<div class="text-end">${v ?? '—'}</div>` },
+      { data: 'stop_loss', title: 'SL',
+        render: v => `<div class="text-end">${v ?? '—'}</div>` },
+      { data: 'ltp_exit', title: 'LTP/Exit',
+        render: v => `<div class="text-end">${v ?? '—'}</div>` },
+      { data: 'realized', title: 'P/L ₹', orderKey: 'realized',
+        render: v => `<div class="text-end ${cls(v)}">${v!=null?INR(v):'—'}</div>` },
+      { data: 'status', title: 'Status', orderKey: 'status',
+        render: v => `<span class="badge ${v==='Open'?'badge-open':'badge-closed'}">${esc(v)}</span>` },
+      { data: 'note', title: 'Note',
+        render: v => `<span class="text-truncate d-inline-block" style="max-width:12rem" title="${esc(v)}">${esc(v||'')}</span>` },
+    ];
+
     function App() {
       const [user, setUser] = useState(null);
       const [summary, setSummary] = useState(null);
       const [channels, setChannels] = useState([]);
-      const [trades, setTrades] = useState([]);
       const [stats, setStats] = useState(null);
       const [board, setBoard] = useState([]);
       const [picks, setPicks] = useState([]);
@@ -1355,9 +1467,6 @@
       const [openPulse, setOpenPulse] = useState(true);
       const [openPicks, setOpenPicks] = useState(true);
       const [openTrades, setOpenTrades] = useState(true);
-      const [tSortKey, setTSortKey] = useState('date');
-      const [tDesc, setTDesc] = useState(true);
-      const [tPage, setTPage] = useState(1);
       const [watchlist, setWatchlist] = useState([]);
       const [followedOnly, setFollowedOnly] = useState(false);
 
@@ -1395,24 +1504,22 @@
         finally { setLoading(false); }
       }, []);
 
-      // Trades is fetched here too (not just stats/board/picks/summary) so it
-      // stays scoped to the same range/channel/sector filter as everything
-      // else -- fetching every trade unconditionally on every load, then
-      // filtering client-side, meant a 26-request page-through of the whole
-      // table (12k+ rows) on every visit regardless of the date filter shown.
+      // The individual-trades list is no longer fetched here: it's a
+      // <ServerTable> now, paging/sorting/searching straight against
+      // /api/tracker/trades/ (limit+offset per redraw) instead of a full
+      // page-through of the whole table on every load.
       async function loadAnalytics() {
         setStats(null); setAnalyticsLoading(true);
         const base = active ? qs(range, sectors, ['channel='+active]) : qs(range, sectors);
         const sumBase = qs(range, sectors);
         try {
-          const [st, bd, pk, sm, trs] = await Promise.all([
+          const [st, bd, pk, sm] = await Promise.all([
             api('/api/tracker/stats/' + base),
             api('/api/tracker/stats/breakdown/' + qs(range, sectors)),
             api('/api/tracker/picks/' + base),
             api('/api/tracker/summary/' + sumBase),
-            fetchAllPages('/api/tracker/trades/' + base),
           ]);
-          setStats(st); setBoard(bd.results); setPicks(pk.results); setSummary(sm); setTrades(trs);
+          setStats(st); setBoard(bd.results); setPicks(pk.results); setSummary(sm);
         } catch (e) { if (e.message !== 'auth') setErr(e.message); }
         finally { setAnalyticsLoading(false); }
       }
@@ -1427,36 +1534,13 @@
       const sectorLabel = sectors.length ? sectors.map(s=>SECTOR_LABEL[s]).join(' + ') : 'All sectors';
       const rangeLabel = range.from||range.to ? ((range.from||'…')+' → '+(range.to||'today')) : 'All time';
 
-      const shown = useMemo(()=>trades.filter(t=>{
-        if (active && t.channel!==active) return false;
-        if (sectors.length && !sectors.includes(t.asset_class)) return false;
-        if (status!=='All' && t.status!==status) return false;
-        if (range.from && (!t.date || t.date<range.from)) return false;
-        if (range.to && (!t.date || t.date>range.to)) return false;
-        if (q){ const hay=(t.trade+' '+(t.note||'')+' '+t.status+' '+(t.channel_name||'')).toLowerCase(); if(!hay.includes(q.toLowerCase())) return false; }
-        return true;
-      }), [trades, active, sectors, status, q, range]);
-
-      const totals = useMemo(()=>({
-        realized: shown.reduce((a,t)=>a+(t.realized||0),0),
-        unreal: shown.reduce((a,t)=>a+(t.unrealized||0),0),
-      }), [shown]);
-
-      const sortedShown = useMemo(() => {
-        const list = shown.slice();
-        const val = t => t[tSortKey];
-        list.sort((a,b) => {
-          let av = val(a), bv = val(b);
-          if (av == null && bv == null) return 0;
-          if (av == null) return 1; if (bv == null) return -1;
-          if (typeof av === 'string') { av = av.toLowerCase(); bv = bv.toLowerCase(); }
-          if (av === bv) return 0;
-          return (av < bv ? -1 : 1) * (tDesc ? -1 : 1);
-        });
-        return list;
-      }, [shown, tSortKey, tDesc]);
-      useEffect(() => { setTPage(1); }, [shown.length, tSortKey, tDesc]);
-      const tradesPage = sortedShown.slice((tPage-1)*PAGE_SIZE, tPage*PAGE_SIZE);
+      const tradesExtraParams = useMemo(() => ({
+        channel: active || '',
+        date_from: range.from || '',
+        date_to: range.to || '',
+        sectors: sectors.join(','),
+        status: status !== 'All' ? status : '',
+      }), [active, range, sectors, status]);
 
       // per-channel numbers scoped to the selected Period/Sector (from the
       // same breakdown() call the Leaderboard uses) — a channel with no
@@ -1588,15 +1672,11 @@
                   <ChannelPulse stats={stats} /></Section>}
 
               {effTab==='trades' &&
-                <Section title={'Individual trades'} open={openTrades} onToggle={()=>setOpenTrades(!openTrades)}
-                         right={<span className="text-muted small">{shown.length} rows · realized {INR(totals.realized)} · unreal {INR(totals.unreal)}</span>}>
+                <Section title={'Individual trades'} open={openTrades} onToggle={()=>setOpenTrades(!openTrades)}>
                   <div className="d-flex flex-wrap gap-2 mb-2 align-items-center">
-                    <input className="form-control form-control-sm" style={{maxWidth:280}} placeholder="Search ticker, note, status…"
-                           aria-label="Search trades" value={q} onChange={e=>setQ(e.target.value)} />
                     <div className="btn-group btn-group-sm">
                       {['All','Open','Closed'].map(s=>(<button key={s} className={'btn '+(status===s?'btn-primary':'btn-outline-primary')} onClick={()=>setStatus(s)}>{s}</button>))}
                     </div>
-                    <button className="btn btn-sm btn-outline-secondary" onClick={()=>{load(); loadAnalytics();}}>⟳ Refresh</button>
                     <a className="btn btn-sm btn-outline-success ms-auto"
                        href={'/api/tracker/trades/export/' + qs(range, sectors, [
                          ...(active ? ['channel='+active] : []),
@@ -1606,51 +1686,8 @@
                       ⭳ Export CSV</a>
                   </div>
                   <div className="table-responsive shadow-sm rounded bg-white">
-                    <table className="table table-hover table-sm mb-0 align-middle">
-                      <thead className="table-light"><tr>
-                        {(() => {
-                          const tth = (label, key, align, extra) => { const on = tSortKey===key; return (
-                            <th className={'th-sort '+(align||'')+' '+(extra||'')} aria-label={'Sort by '+label}
-                                onClick={()=>{if(tSortKey===key)setTDesc(!tDesc);else{setTSortKey(key);setTDesc(true);}}}>
-                              {label} {on?(tDesc?'▾':'▴'):''}</th>); };
-                          return (<>
-                            {tth('Date','date',null,'d-none d-xxl-table-cell')}
-                            <th className="d-none d-xxl-table-cell">Posted (IST)</th>
-                            {tth('Channel','channel_name')}
-                            {tth('Sector','asset_class',null,'d-none d-xxl-table-cell')}
-                            {tth('Trade','trade')}<th>Dir</th>
-                            {tth('Entry','entry','text-end')}<th className="text-end">Target</th><th className="text-end">SL</th>
-                            <th className="text-end d-none d-xxl-table-cell">LTP/Exit</th>
-                            {tth('Unreal ₹','unrealized','text-end','d-none d-xxl-table-cell')}
-                            {tth('P/L ₹','realized','text-end')}
-                            {tth('Status','status')}
-                            <th className="d-none d-xxl-table-cell">Note</th>
-                          </>);
-                        })()}
-                      </tr></thead>
-                      <tbody>
-                        {analyticsLoading && <tr><td colSpan="10" className="text-center py-4">Loading…</td></tr>}
-                        {!analyticsLoading && tradesPage.map(t=>(
-                          <tr key={t.id}>
-                            <td className="d-none d-xxl-table-cell">{t.date||'—'}</td>
-                            <td className="text-muted d-none d-xxl-table-cell">{IST(t.posted_at)||'—'}</td>
-                            <td className="text-truncate" style={{maxWidth:'9rem'}} title={t.channel_name}>{t.channel_name}</td>
-                            <td className="d-none d-xxl-table-cell"><SectorTag ac={t.asset_class} /></td>
-                            <td><strong>{t.trade}</strong></td><td>{t.direction}</td>
-                            <td className="text-end">{t.entry ?? '—'}</td><td className="text-end">{t.target ?? '—'}</td>
-                            <td className="text-end">{t.stop_loss ?? '—'}</td>
-                            <td className="text-end d-none d-xxl-table-cell">{t.ltp_exit ?? '—'}</td>
-                            <td className={'text-end d-none d-xxl-table-cell '+cls(t.unrealized)}>{t.unrealized!=null?INR(t.unrealized):'—'}</td>
-                            <td className={'text-end '+cls(t.realized)}>{t.realized!=null?INR(t.realized):'—'}</td>
-                            <td><span className={'badge '+(t.status==='Open'?'badge-open':'badge-closed')}>{t.status}</span></td>
-                            <td className="text-truncate d-none d-xxl-table-cell" style={{maxWidth:'12rem'}} title={t.note}>{t.note}</td>
-                          </tr>))}
-                        {!analyticsLoading && shown.length===0 && <tr><td colSpan="10" className="text-center text-muted py-4">No trades match.</td></tr>}
-                      </tbody>
-                    </table>
-                  </div>
-                  <div className="d-flex justify-content-center pt-2">
-                    <Pagination page={tPage} setPage={setTPage} total={sortedShown.length} pageSize={PAGE_SIZE} />
+                    <ServerTable apiPath="/api/tracker/trades/" columns={TRADES_COLUMNS}
+                                 extraParams={tradesExtraParams} searchValue={q} pageLength={25} />
                   </div>
                 </Section>}
             </main>

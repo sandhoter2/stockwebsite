@@ -9,7 +9,7 @@ class ChannelSerializer(serializers.ModelSerializer):
     open_count = serializers.IntegerField(read_only=True)
     realized_total = serializers.FloatField(read_only=True, allow_null=True)
     unrealized_total = serializers.FloatField(read_only=True, allow_null=True)
-    invested_total = serializers.FloatField(read_only=True, allow_null=True)
+    # invested_total = serializers.FloatField(read_only=True, allow_null=True)  # Removed
     wins = serializers.IntegerField(read_only=True, default=0)
     losses = serializers.IntegerField(read_only=True, default=0)
     booked = serializers.IntegerField(read_only=True, default=0)
@@ -19,7 +19,7 @@ class ChannelSerializer(serializers.ModelSerializer):
         model = Channel
         fields = ['id', 'peer', 'name', 'short', 'is_active',
                   'trades_count', 'open_count', 'realized_total',
-                  'unrealized_total', 'invested_total',
+                  'unrealized_total',
                   'wins', 'losses', 'booked', 'success_rate']
 
     def get_success_rate(self, obj):
@@ -29,13 +29,16 @@ class ChannelSerializer(serializers.ModelSerializer):
 class TradeSerializer(serializers.ModelSerializer):
     channel_name = serializers.CharField(source='channel.short', read_only=True)
     pl_tag = serializers.ReadOnlyField()
+    lot_size = serializers.ReadOnlyField()
+    realized_total = serializers.ReadOnlyField()
 
     class Meta:
         model = Trade
-        fields = ['id', 'channel', 'channel_name', 'date', 'posted_at',
-                  'asset_class', 'trade', 'direction', 'entry', 'target',
+        fields = ['id', 'channel', 'channel_name', 'posted_at',
+                  'asset_class', 'strike', 'trade', 'direction', 'entry', 'target',
                   'stop_loss', 'ltp_exit', 'unrealized', 'realized',
-                  'cumulative', 'status', 'note', 'manually_edited', 'pl_tag']
+                  'cumulative', 'status', 'note', 'manually_edited', 'pl_tag',
+                  'lot_size', 'realized_total']
         read_only_fields = ['manually_edited']
 
 

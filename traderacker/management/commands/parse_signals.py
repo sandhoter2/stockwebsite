@@ -107,7 +107,22 @@ class Command(BaseCommand):
             trade.peak_profit = peak
             trail_hit = peak > 0 and profit < peak * TRAILING
             if (exiting or trail_hit) and trade.status != 'Closed':
-                realized = max(trade.realized or 0, peak)
+                is_opt = trade.asset_class == 'option' or bool(trade.option_strike())
+                if trade.entry is not None and trade.ltp_exit is not None:
+                    if is_opt:
+                        realized = round(trade.ltp_exit - trade.entry, 2)
+                    else:
+                        is_buy = (trade.direction or '').upper() in BUY_DIRECTIONS
+                        realized = round((trade.ltp_exit - trade.entry) if is_buy else (trade.entry - trade.ltp_exit), 2)
+                else:
+                    # Peak profit from message is total rupee figure. If instrument has a lot multiplier > 1,
+                    # convert to per-unit delta so Trade.realized_total equals the original booked profit.
+                    lot = trade.lot_size
+                    if lot > 1 and peak > lot:
+                        realized = round(peak / lot, 2)
+                    else:
+                        realized = round(peak, 2)
+
                 # Another row may already occupy this (channel, date, trade, entry,
                 # Closed) slot, e.g. two Open rows for the same re-posted signal both
                 # getting closed. Merge into the existing closed twin instead of
@@ -139,8 +154,12 @@ class Command(BaseCommand):
                                          trade__iexact=symbol).first()
             if trade is None or trade.entry is None:
                 return
-            is_buy = (trade.direction or '').upper() in BUY_DIRECTIONS
-            realized = round((price - trade.entry) if is_buy else (trade.entry - price), 2)
+            is_opt = trade.asset_class == 'option' or bool(trade.option_strike())
+            if is_opt:
+                realized = round(price - trade.entry, 2)
+            else:
+                is_buy = (trade.direction or '').upper() in BUY_DIRECTIONS
+                realized = round((price - trade.entry) if is_buy else (trade.entry - price), 2)
             # Another row may already occupy this (channel, date, trade, entry, Closed)
             # slot, e.g. two Open rows for the same re-posted signal both getting closed.
             # Flipping this one to Closed would collide with uniq_trade_row — merge into

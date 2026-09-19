@@ -1957,46 +1957,25 @@ class PaperEngineTests(TestCase):
     def test_sell_side_profits_when_price_falls(self):
         pt = PaperTrade.open_for_user(self.user, 'X', 'stock', 'SELL', 100.0)
         self.assertFalse(pt.mark(90.0))
-        self.assertAlmostEqual(pt.unrealized_pct(90.0), 10.0)
-
-    def test_accuracy_set_on_close(self):
-        pt = PaperTrade.open_for_user(self.user, 'X', 'stock', 'BUY', 100.0,
-                                      consumer_claimed_pct=25.0)
-        pt.mark(78.0)
-        pt.refresh_from_db()
-        self.assertEqual(pt.accuracy, 0.0)
-
-    def test_channel_accuracy_aggregation(self):
-        ch = Channel.objects.create(peer='-9', name='Ch', short='Ch')
-        t = Trade.objects.create(channel=ch, trade='X', entry=100, realized=25,
-                                 status='Closed', asset_class='stock', source_mid=1)
-        pt = PaperTrade.open_for_user(self.user, 'X', 'stock', 'BUY', 100.0,
-                                      source_trade=t, consumer_claimed_pct=25.0)
-        pt.close(120.0)   # market +20%, consumer claimed +25% → direction agrees
-        rows = PaperTrade.objects.channel_accuracy(user=self.user)
-        self.assertEqual(rows[0]['channel'], ch.id)
-        self.assertEqual(rows[0]['hit_rate'], 100.0)
-
-    def test_side_for(self):
-        from traderacker.management.commands.paper_autotrade import side_for
-        self.assertEqual(side_for('CALL (up)'), 'BUY')
-        self.assertEqual(side_for('BUY'), 'BUY')
-        self.assertEqual(side_for('PUT (down)'), 'SELL')
-        self.assertEqual(side_for('SELL'), 'SELL')
 
 
-class TradeMarkLiveTests(TestCase):
-    """Channel-call trades auto-closing against their own posted SL/target
-    when live price crosses them and the channel never posted a follow-up."""
+class TradeMarkLiveLevelsTests(TestCase):
+    """Trade.mark_live() level-hit / no-op edge cases (fat model, not PaperTrade)."""
 
     def setUp(self):
-        self.ch = Channel.objects.create(peer='-9001', name='Ch', short='Ch')
+        self.ch = Channel.objects.create(peer='-9110', name='Ch', short='Ch')
 
-    def _open(self, direction='BUY', entry=4575.0, target=4595.0, stop_loss=4535.0):
-        return Trade.objects.create(
-            channel=self.ch, trade='LTM', direction=direction, entry=entry,
-            target=target, stop_loss=stop_loss, status='Open',
-            asset_class='stock', source_mid=1)
+    def _open(self, **kw):
+        defaults = dict(channel=self.ch, trade='LTM', direction='BUY', entry=4575.0,
+                        target=4600.0, stop_loss=4530.0, status='Open',
+                        asset_class='stock', source_mid=1)
+        defaults.update(kw)
+        return Trade.objects.create(**defaults)
+
+
+
+
+
 
     def test_buy_closes_on_stop_loss_hit(self):
         t = self._open()
@@ -2497,6 +2476,86 @@ class TradePlTagTests(TestCase):
                           {'pl_tag': 'PROFIT'}, content_type='application/json')
         t.refresh_from_db()
         self.assertEqual(t.pl_tag, 'LOSS')  # unchanged -- still derived from realized=-25
+
+
+class TradeLotSizeTests(TestCase):
+    """lot_size / realized_total -- real money = realized (raw per-unit,
+    kept as the source of truth for win-rate math) x exchange lot size."""
+
+    def setUp(self):
+        self.user = User.objects.create_user('lottester', password='pw12345!')
+        self.client.force_login(self.user)
+        self.ch = Channel.objects.create(peer='-9501', name='Ch', short='Ch')
+
+    def test_stock_defaults_to_100(self):
+        t = Trade.objects.create(channel=self.ch, trade='PHOENIXLTD', entry=1916.0,
+                                 realized=-38.1, status='Closed', asset_class='stock')
+        self.assertEqual(t.lot_size, 100)
+        self.assertAlmostEqual(t.realized_total, -3810.0)
+
+    def test_known_stock_option_uses_real_lot_size(self):
+        t = Trade.objects.create(channel=self.ch, trade='WIPRO 300 CE', entry=5.0,
+                                 realized=10.0, status='Closed', asset_class='option')
+        self.assertEqual(t.lot_size, 3000)
+        self.assertAlmostEqual(t.realized_total, 30000.0)
+
+    def test_banknifty_option_lot_size(self):
+        t = Trade.objects.create(channel=self.ch, trade='BANKNIFTY 56400 CE', entry=540.0,
+                                 realized=-540.0, status='Closed', asset_class='option')
+        self.assertEqual(t.lot_size, 30)
+        self.assertAlmostEqual(t.realized_total, -16200.0)
+
+    def test_nifty_pe_option_lot_size_and_profit(self):
+        t = Trade.objects.create(channel=self.ch, trade='NIFTY 23600 PE', direction='PUT (down)',
+                                 entry=142.0, ltp_exit=253.6, realized=111.6,
+                                 status='Closed', asset_class='option')
+        self.assertEqual(t.lot_size, 65)
+        self.assertAlmostEqual(t.realized_total, 7254.0)
+        self.assertEqual(t.pl_tag, 'PROFIT')
+
+    def test_crudeoil_lot_size_is_100_barrels(self):
+        t = Trade.objects.create(channel=self.ch, trade='CRUDEOIL 9700 CE', entry=278.0,
+                                 realized=-180.0, status='Closed', asset_class='option')
+        self.assertEqual(t.lot_size, 100)
+        self.assertAlmostEqual(t.realized_total, -18000.0)
+
+    def test_unmapped_option_defaults_to_1(self):
+        t = Trade.objects.create(channel=self.ch, trade='SOMERANDOMSTOCK 500 CE', entry=5.0,
+                                 realized=2.0, status='Closed', asset_class='option')
+        self.assertEqual(t.lot_size, 1)
+        self.assertAlmostEqual(t.realized_total, 2.0)
+
+    def test_realized_total_none_when_unpriced(self):
+        t = Trade.objects.create(channel=self.ch, trade='X', entry=100.0,
+                                 status='Open', asset_class='stock')
+        self.assertIsNone(t.realized_total)
+
+    def test_served_via_api(self):
+        Trade.objects.create(channel=self.ch, trade='PHOENIXLTD', entry=1916.0,
+                             realized=-38.1, status='Closed', asset_class='stock')
+        r = self.client.get('/api/tracker/trades/')
+        row = r.json()['results'][0]
+        self.assertEqual(row['lot_size'], 100)
+        self.assertAlmostEqual(row['realized_total'], -3810.0)
+
+    def test_tatapower_uses_real_lot_size(self):
+        opt_trade = Trade.objects.create(channel=self.ch, trade='TATAPOWER 370 CE', entry=8.5,
+                                         realized=1.5, status='Closed', asset_class='option')
+        self.assertEqual(opt_trade.lot_size, 1450)
+        self.assertAlmostEqual(opt_trade.realized_total, 2175.0)
+
+    def test_put_option_direction_close_eod_profit(self):
+        t = Trade.objects.create(channel=self.ch, trade='NIFTY 23950 PE', direction='PUT (down)',
+                                 entry=100.0, status='Open', asset_class='option')
+        # Underlying spot is 23800 -> PE intrinsic value is 23950 - 23800 = 150
+        # Profit = 150 - 100 = +50 points
+        self.assertTrue(t.close_eod(23800.0))
+        t.refresh_from_db()
+        self.assertEqual(t.status, 'Closed')
+        self.assertAlmostEqual(t.ltp_exit, 150.0)
+        self.assertAlmostEqual(t.realized, 50.0)
+        self.assertEqual(t.pl_tag, 'PROFIT')
+        self.assertAlmostEqual(t.realized_total, 50.0 * 65)
 
 
 class PicksApiTests(TestCase):

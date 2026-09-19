@@ -35,7 +35,7 @@ class ChannelViewSet(viewsets.ModelViewSet):
         realized_total=Sum('trades__realized'),
         unrealized_total=Sum('trades__unrealized',
                              filter=Q(trades__status='Open')),
-        invested_total=Sum('trades__entry'),
+        # invested_total=Sum('trades__entry'),  # Removed due to FieldError
         wins=Count('trades', filter=Q(trades__status='Closed',
                                       trades__realized__gt=0)),
         losses=Count('trades', filter=Q(trades__status='Closed',
@@ -74,6 +74,17 @@ class TradeViewSet(viewsets.ModelViewSet):
                 extra['realized'] = None
             if 'ltp_exit' not in validated:
                 extra['ltp_exit'] = None
+        else:
+            instance = serializer.instance
+            entry = validated.get('entry', instance.entry)
+            exit_p = validated.get('ltp_exit', instance.ltp_exit)
+            if 'realized' not in validated and entry is not None and exit_p is not None:
+                is_opt = instance.asset_class == 'option' or bool(instance.option_strike())
+                if is_opt:
+                    extra['realized'] = round(exit_p - entry, 2)
+                else:
+                    is_short = (instance.direction or '').upper() in ('SELL', 'SHORT')
+                    extra['realized'] = round(entry - exit_p if is_short else exit_p - entry, 2)
         serializer.save(**extra)
 
     def get_queryset(self):

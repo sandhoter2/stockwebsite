@@ -284,6 +284,50 @@ class TradeQuerySet(models.QuerySet):
         return out
 
 
+# Exchange-set lot sizes / P&L multipliers, researched against current
+# (Sep 2026) NSE/MCX contract specs -- `realized` on a Trade row is always
+# the raw per-unit price difference (channel calls state a price, not a
+# contract), so real money = realized * this multiplier. Exchanges revise
+# these periodically (NSE's own Jan 2026 index-lot revision is a recent
+# example) -- ponytail: hardcoded snapshot, not a live feed; re-verify
+# against nseindia.com/mcxindia.com if a shown value looks stale.
+#
+# Index/commodity multiplier IS the lot size for most instruments (price is
+# quoted per share/barrel/point, lot = that many units) -- except MCX's
+# Mini bullion contracts, which quote price per a DIFFERENT unit than the
+# lot itself: GOLDM quotes ₹/10g but its lot is 100g (multiplier 10, not
+# 100); SILVERM quotes ₹/kg but its lot is 5kg (multiplier 5, not 5000).
+LOT_SIZE = {
+    # NSE index derivatives
+    'NIFTY': 65, 'BANKNIFTY': 30, 'FINNIFTY': 60, 'MIDCPNIFTY': 120,
+    'NIFTYNXT50': 25, 'SENSEX': 20, 'BANKEX': 15, 'SENSSX': 20,
+    'SENSEX75000': 20, 'BANK': 30, 'N': 65,
+    # MCX commodities (multiplier = lot size / price-quotation unit)
+    'CRUDEOIL': 100, 'CRUDE': 100, 'NATURALGAS': 1250, 'NATGAS': 1250,
+    'NAT': 1250, 'GOLDM': 10, 'GOLD': 100, 'GOLDPETAL': 1,
+    'SILVERM': 5, 'SILVER': 30, 'SILVERMIC': 1, 'COPPER': 1000, 'OIL': 1400,
+    'ZINC': 5000, 'ALUMINIUM': 5000, 'ALUMINUM': 5000, 'LEAD': 5000,
+    'NICKEL': 1500, 'COTTON': 25, 'GUARSEED': 5000,
+    # NSE stock F&O
+    'RELIANCE': 500, 'INFY': 400, 'ICICIBANK': 700, 'ICICI': 700, 'ONGC': 2250,
+    'NTPC': 1500, 'DIVISLAB': 100, 'CDSL': 475, 'DMART': 150, 'DLF': 950,
+    'APLAPOLLO': 350, 'GODREJCP': 500, 'DIXON': 50, 'ABB': 125,
+    'GLENMARK': 375, 'WIPRO': 3000, 'TCS': 225, 'HDFCBANK': 650,
+    'SBIN': 750, 'SBI': 750, 'AXISBANK': 625, 'MARUTI': 50, 'SUZLON': 12700,
+    'VEDL': 1150, 'CUMMINSIND': 200, 'TATAPOWER': 1450, 'BIOCON': 2500,
+    'HINDUNILVR': 300, 'EICHERMOT': 100, 'ADANIENT': 309, 'BAJFINANCE': 750,
+    'SOLARINDS': 50, 'SOLARIND': 50, 'PREMIERENE': 650, 'PAYTM': 100,
+    'KAYNES': 125, 'BHARATFORG': 500, 'TRENT': 200, 'SIEMENS': 125,
+    'CHOLAFIN': 500, 'CHOLA': 500, 'LODHA': 450, 'ICICIGI': 500, 'MCX': 200,
+    'BEL': 2850, 'BSE': 375, 'COLPAL': 175, 'HAL': 150, 'HCLTECH': 350,
+    'IDEA': 80000, 'INDUSTOWER': 1700, 'IOC': 4875, 'IREDA': 2500,
+    'LAURUSLABS': 850, 'M&M': 350, 'MOTHERSON': 6200, 'OFSS': 100,
+    'PERSISTANT': 100, 'PNB': 4000, 'PRESTIGE': 400, 'RADICO': 200,
+    'SHREECEM': 25, 'SONACOMS': 1000, 'TATASTEEL': 5500, 'TECH': 600,
+}
+DEFAULT_STOCK_LOT_SIZE = 100  # Stocks default lot size (100)
+
+
 class Trade(models.Model):
     """One row of a channel's trade balance sheet (from ledger.xlsx)."""
     BUY_DIRECTIONS = {'BUY', 'CALL (UP)', 'LONG'}
@@ -294,6 +338,7 @@ class Trade(models.Model):
         ('forex', 'Forex'), ('other', 'Other'),
     ]
     channel = models.ForeignKey(Channel, on_delete=models.CASCADE, related_name='trades')
+    strike = models.FloatField(null=True, blank=True, help_text='Numeric strike price for options; null for non-options')
     asset_class = models.CharField(max_length=12, choices=ASSET_CHOICES,
                                    default='other', db_index=True)
     date = models.DateField(null=True, blank=True)
@@ -352,6 +397,27 @@ class Trade(models.Model):
         if self.realized is None:
             return None
         return 'PROFIT' if self.realized >= 0 else 'LOSS'
+
+    @property
+    def lot_size(self):
+        """Exchange P&L multiplier for this instrument (see LOT_SIZE above).
+        For stocks, defaults to 100 (DEFAULT_STOCK_LOT_SIZE).
+        For known derivatives and stocks in LOT_SIZE, returns their specific lot size.
+        For unmapped options, returns 1."""
+        root = self.root_symbol
+        if root in LOT_SIZE:
+            return LOT_SIZE[root]
+        return 1 if self.asset_class == 'option' else DEFAULT_STOCK_LOT_SIZE
+
+    @property
+    def realized_total(self):
+        """realized (raw per-unit price diff, the source of truth kept for
+        win-rate/trust-tier math elsewhere) scaled to real money by
+        lot_size. None whenever realized itself is None -- never fabricates
+        a total off an unpriced trade."""
+        if self.realized is None:
+            return None
+        return round(self.realized * self.lot_size, 2)
 
     # Live-price close is skipped past this entry/price ratio (either
     # direction): guards against comparing the wrong instrument's price --
@@ -495,10 +561,17 @@ class Trade(models.Model):
         looks_like_option = self.asset_class == 'option' or bool(self.option_strike())
         if looks_like_option:
             parsed = self.option_strike()
-            if parsed and price is not None and price > 0:
+            is_commodity_or_metal = self.asset_class in ('commodity', 'metal') or any(
+                c in (self.trade or '').upper() for c in ['CRUDE', 'OIL', 'NATURALGAS', 'NATGAS', 'GOLD', 'SILVER', 'COPPER', 'ZINC', 'ALUMINUM', 'ALUMINIUM'])
+            if parsed and price is not None and price > 0 and not is_commodity_or_metal:
                 strike, opt_type = parsed
-                price = round(max(price - strike, 0) if opt_type == 'CE' else max(strike - price, 0), 2)
-                is_estimate = True
+                if 'SENSEX' in (self.trade or '').upper() and strike < 40000:
+                    price = None
+                elif 'NIFTY' in (self.trade or '').upper() and (strike < 10000 or strike > 40000):
+                    price = None
+                else:
+                    price = round(max(price - strike, 0) if opt_type == 'CE' else max(strike - price, 0), 2)
+                    is_estimate = True
             else:
                 price = None
         # Same sanity ratio mark_live uses: catches unit mismatches (e.g.
@@ -516,7 +589,10 @@ class Trade(models.Model):
         # data point (lost the full premium), not a "missing price".
         realized = None
         if price is not None and price >= 0 and self.entry is not None and self.entry > 0:
-            realized = round((price - self.entry) if is_buy else (self.entry - price), 2)
+            if looks_like_option:
+                realized = round(price - self.entry, 2)
+            else:
+                realized = round((price - self.entry) if is_buy else (self.entry - price), 2)
         dup = Trade.objects.filter(channel=self.channel, date=self.date, trade=self.trade,
                                    entry=self.entry, status='Closed').exclude(pk=self.pk).first()
         if dup:

@@ -1861,6 +1861,36 @@ class PaperEngineTests(TestCase):
         self.user = User.objects.create_user('pap', password='pw12345!')
         self.pref = UserPreference.for_user(self.user)
 
+    def _open(self, *, direction='BUY', entry=4575.0, target=None, stop_loss=None):
+        """Helper to create a PaperTrade for tests.
+
+        Parameters
+        ----------
+        direction: str
+            'BUY' or 'SELL' (default 'BUY')
+        entry: float
+            Entry price for the trade (default 4575.0, matches historic tests)
+        target: float | None
+            Target price – if provided it will be set on the trade.
+        stop_loss: float | None
+            Stop‑loss price – if provided it will be set on the trade.
+        """
+        pt = PaperTrade.open_for_user(
+            self.user,
+            'X',               # ticker used by the majority of tests
+            'stock',
+            direction,
+            entry,
+            source='test',
+        )
+        if target is not None:
+            pt.target_price = target
+            pt.save(update_fields=['target_price'])
+        if stop_loss is not None:
+            pt.stop_loss_price = stop_loss
+            pt.save(update_fields=['stop_loss_price'])
+        return pt
+
     def test_open_uses_pref_capital_and_stops(self):
         pt = PaperTrade.open_for_user(self.user, 'TATAMOTORS', 'stock', 'BUY', 100.0,
                                       source='yahoo')
@@ -2840,3 +2870,159 @@ class MarketHoursTests(TestCase):
         else:
             with self.assertRaises(SystemExit):
                 cc('premarket_status', stdout=out)
+
+
+class ReconcileEodSettlementTests(TestCase):
+    """reconcile_eod_settlement replaces close_eod()'s intrinsic-value
+    estimate with the real NSE closing premium -- mocks official_option_close
+    throughout so the suite never touches the network."""
+
+    def setUp(self):
+        self.ch = Channel.objects.create(peer='-9500', name='Ch', short='Ch')
+        self.d = dt.date(2026, 9, 17)
+
+    def _closed_estimate(self, trade='AXISBANK 1300 CE', entry=3.4, intrinsic=20.0, **kw):
+        defaults = dict(channel=self.ch, date=self.d, trade=trade, direction='BUY',
+                        entry=entry, status='Closed', asset_class='option',
+                        ltp_exit=intrinsic,
+                        note=f'[eod-closed:estimated intrinsic value @ {intrinsic}]',
+                        realized=round(intrinsic - entry, 2), source_mid=1)
+        defaults.update(kw)
+        return Trade.objects.create(**defaults)
+
+    def test_reconciles_when_nse_has_a_price(self):
+        from unittest.mock import patch
+        t = self._closed_estimate()
+        with patch('traderacker.management.commands.reconcile_eod_settlement.official_option_close',
+                   return_value=18.6):
+            call_command('reconcile_eod_settlement', date='2026-09-17')
+        t.refresh_from_db()
+        self.assertEqual(t.ltp_exit, 18.6)
+        self.assertAlmostEqual(t.realized, 18.6 - 3.4)
+        self.assertIn('reconciled to NSE settlement price', t.note)
+        self.assertNotIn('estimated intrinsic value', t.note)
+
+    def test_noop_when_nse_has_no_price(self):
+        from unittest.mock import patch
+        t = self._closed_estimate()
+        with patch('traderacker.management.commands.reconcile_eod_settlement.official_option_close',
+                   return_value=None):
+            call_command('reconcile_eod_settlement', date='2026-09-17')
+        t.refresh_from_db()
+        self.assertIn('estimated intrinsic value', t.note)
+        self.assertAlmostEqual(t.realized, 20.0 - 3.4)
+
+    def test_skips_sensex_not_an_nse_underlying(self):
+        from unittest.mock import patch
+        t = self._closed_estimate(trade='SENSEX 82000 CE', entry=150.0, intrinsic=300.0)
+        with patch('traderacker.management.commands.reconcile_eod_settlement.official_option_close',
+                   return_value=999.0) as mocked:
+            call_command('reconcile_eod_settlement', date='2026-09-17')
+        mocked.assert_not_called()
+        t.refresh_from_db()
+        self.assertIn('estimated intrinsic value', t.note)
+
+    def test_skips_commodity_asset_class(self):
+        from unittest.mock import patch
+        t = self._closed_estimate(trade='CRUDEOIL 6000 CE', entry=50.0, intrinsic=80.0,
+                                  asset_class='commodity')
+        with patch('traderacker.management.commands.reconcile_eod_settlement.official_option_close',
+                   return_value=999.0) as mocked:
+            call_command('reconcile_eod_settlement', date='2026-09-17')
+        mocked.assert_not_called()
+        t.refresh_from_db()
+        self.assertIn('estimated intrinsic value', t.note)
+
+    def test_skips_manually_edited_row(self):
+        from unittest.mock import patch
+        t = self._closed_estimate(manually_edited=True)
+        with patch('traderacker.management.commands.reconcile_eod_settlement.official_option_close',
+                   return_value=18.6) as mocked:
+            call_command('reconcile_eod_settlement', date='2026-09-17')
+        mocked.assert_not_called()
+        t.refresh_from_db()
+        self.assertEqual(t.ltp_exit, 20.0)
+
+    def test_leaves_already_reconciled_row_alone(self):
+        from unittest.mock import patch
+        t = self._closed_estimate(
+            note='[eod-closed:reconciled to NSE settlement price @ 18.6]', ltp_exit=18.6)
+        with patch('traderacker.management.commands.reconcile_eod_settlement.official_option_close',
+                   return_value=99.0) as mocked:
+            call_command('reconcile_eod_settlement', date='2026-09-17')
+        mocked.assert_not_called()
+        t.refresh_from_db()
+        self.assertEqual(t.ltp_exit, 18.6)
+
+    def test_defaults_date_to_ist_today(self):
+        from unittest.mock import patch
+        from traderacker.market_hours import ist_today
+        t = self._closed_estimate(date=ist_today())
+        with patch('traderacker.management.commands.reconcile_eod_settlement.official_option_close',
+                   return_value=18.6) as mocked:
+            call_command('reconcile_eod_settlement')
+        mocked.assert_called_once_with('AXISBANK', 1300.0, 'CE', ist_today())
+        t.refresh_from_db()
+        self.assertEqual(t.ltp_exit, 18.6)
+
+
+class NseBhavcopyLookupTests(TestCase):
+    """official_option_close's CSV-parsing/matching logic against a small
+    in-memory UDiFF fixture -- no network access."""
+
+    def _mock_download(self, csv_text):
+        import io
+        import zipfile
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, 'w') as zf:
+            zf.writestr('fixture.csv', csv_text)
+        return buf.getvalue()
+
+    def test_picks_nearest_non_expired_expiry_and_uses_close_price(self):
+        from unittest.mock import patch
+
+        import traderacker.nse_bhavcopy as nb
+        header = ('TradDt,BizDt,Sgmt,Src,FinInstrmTp,FinInstrmId,ISIN,TckrSymb,SctySrs,'
+                  'XpryDt,FininstrmActlXpryDt,StrkPric,OptnTp,FinInstrmNm,OpnPric,HghPric,'
+                  'LwPric,ClsPric,LastPric,PrvsClsgPric,UndrlygPric,SttlmPric,OpnIntrst,'
+                  'ChngInOpnIntrst,TtlTradgVol,TtlTrfVal,TtlNbOfTxsExctd,SsnId,NewBrdLotQty,'
+                  'Rmks,Rsvd1,Rsvd2,Rsvd3,Rsvd4')
+        rows = [
+            '2026-09-17,2026-09-17,FO,NSE,STO,1,,AXISBANK,,2026-09-25,2026-09-25,'
+            '1300.00,CE,AXISBANK25SEP1300CE,0,0,0,18.6,18.6,3.4,1320,20.5,0,0,0,0,0,F1,1200,,,,,',
+            '2026-09-17,2026-09-17,FO,NSE,STO,2,,AXISBANK,,2026-10-30,2026-10-30,'
+            '1300.00,CE,AXISBANK25OCT1300CE,0,0,0,25.0,25.0,3.4,1320,26.0,0,0,0,0,0,F1,1200,,,,,',
+        ]
+        csv_text = '\n'.join([header] + rows)
+        nb._cache.clear()
+        with patch.object(nb._reports, 'download_file', return_value=self._mock_download(csv_text)):
+            price = nb.official_option_close('AXISBANK', 1300.0, 'CE', dt.date(2026, 9, 17))
+        self.assertEqual(price, 18.6)
+
+    def test_falls_back_to_settlement_price_when_close_is_zero(self):
+        from unittest.mock import patch
+
+        import traderacker.nse_bhavcopy as nb
+        header = ('TradDt,BizDt,Sgmt,Src,FinInstrmTp,FinInstrmId,ISIN,TckrSymb,SctySrs,'
+                  'XpryDt,FininstrmActlXpryDt,StrkPric,OptnTp,FinInstrmNm,OpnPric,HghPric,'
+                  'LwPric,ClsPric,LastPric,PrvsClsgPric,UndrlygPric,SttlmPric,OpnIntrst,'
+                  'ChngInOpnIntrst,TtlTradgVol,TtlTrfVal,TtlNbOfTxsExctd,SsnId,NewBrdLotQty,'
+                  'Rmks,Rsvd1,Rsvd2,Rsvd3,Rsvd4')
+        row = ('2026-09-17,2026-09-17,FO,NSE,STO,1,,NIFTY,,2026-09-25,2026-09-25,'
+              '24950.00,PE,NIFTY25SEP24950PE,0,0,0,0,0,915.05,389.99,1569.39,0,0,0,0,0,F1,'
+              '3100,,,,,')
+        csv_text = '\n'.join([header, row])
+        nb._cache.clear()
+        with patch.object(nb._reports, 'download_file', return_value=self._mock_download(csv_text)):
+            price = nb.official_option_close('NIFTY', 24950.0, 'PE', dt.date(2026, 9, 17))
+        self.assertEqual(price, 1569.39)
+
+    def test_returns_none_when_symbol_not_in_bhavcopy(self):
+        from unittest.mock import patch
+
+        import traderacker.nse_bhavcopy as nb
+        header = 'TradDt,TckrSymb,XpryDt,StrkPric,OptnTp,ClsPric,SttlmPric'
+        nb._cache.clear()
+        with patch.object(nb._reports, 'download_file', return_value=self._mock_download(header)):
+            price = nb.official_option_close('SENSEX', 82000.0, 'CE', dt.date(2026, 9, 17))
+        self.assertIsNone(price)

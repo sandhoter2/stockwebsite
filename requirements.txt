@@ -5,3 +5,4 @@ requests>=2.34
 beautifulsoup4>=4.15
 pypdf>=5.0
 pyyaml>=6.0
+jugaad-data>=0.35

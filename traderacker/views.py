@@ -62,7 +62,19 @@ class TradeViewSet(viewsets.ModelViewSet):
         # sticks from here on: mark_live/close_eod both refuse to touch a
         # manually_edited row, so the next automated pass can't quietly
         # overwrite a correction a human just made.
-        serializer.save(manually_edited=True)
+        extra = {'manually_edited': True}
+        # Clearing Entry to blank orphans Realized/Exit (P/L computed
+        # against an entry that no longer exists on the row) -- observed
+        # live: a P/L stuck showing a number with no entry to justify it.
+        # Auto-clear them too unless this same edit explicitly sets a new
+        # value for one, which is a deliberate override, not an accident.
+        validated = serializer.validated_data
+        if 'entry' in validated and validated['entry'] is None:
+            if 'realized' not in validated:
+                extra['realized'] = None
+            if 'ltp_exit' not in validated:
+                extra['ltp_exit'] = None
+        serializer.save(**extra)
 
     def get_queryset(self):
         qs = super().get_queryset()

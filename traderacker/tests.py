@@ -2348,6 +2348,29 @@ class TradeInlineEditApiTests(TestCase):
         self.trade.refresh_from_db()
         self.assertTrue(self.trade.manually_edited)
 
+    def test_clearing_entry_also_clears_stale_realized_and_exit(self):
+        self.trade.status = 'Closed'
+        self.trade.realized = 1500.0
+        self.trade.ltp_exit = 0.0
+        self.trade.save(update_fields=['status', 'realized', 'ltp_exit'])
+        self.client.force_login(self.staff)
+        self.client.patch(f'/api/tracker/trades/{self.trade.id}/',
+                          {'entry': None}, content_type='application/json')
+        self.trade.refresh_from_db()
+        self.assertIsNone(self.trade.entry)
+        self.assertIsNone(self.trade.realized)
+        self.assertIsNone(self.trade.ltp_exit)
+
+    def test_clearing_entry_respects_an_explicit_realized_in_the_same_edit(self):
+        self.trade.status = 'Closed'
+        self.trade.realized = 1500.0
+        self.trade.save(update_fields=['status', 'realized'])
+        self.client.force_login(self.staff)
+        self.client.patch(f'/api/tracker/trades/{self.trade.id}/',
+                          {'entry': None, 'realized': 42.0}, content_type='application/json')
+        self.trade.refresh_from_db()
+        self.assertEqual(self.trade.realized, 42.0)
+
     def test_client_cannot_unset_manually_edited_via_payload(self):
         self.trade.manually_edited = True
         self.trade.save(update_fields=['manually_edited'])

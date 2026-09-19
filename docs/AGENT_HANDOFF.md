@@ -55,6 +55,7 @@ sqlite3 -readonly db.sqlite3 "SELECT style_notes FROM traderacker_channel WHERE 
 | 44 | Serezha Calls | crypto | 47 | 15 | 0 | `4a5d6b2` → `408f143` | 2026-09-13 22:55 |
 | 51 | Stock Thunder | options | 50 | 16 | 0 | `61f73aa` → `eecf879` | 2026-09-13 23:05 |
 | 56 | Stockpro Online | mixed | 51 | 19 | 0 | `452678d` → `9b70b85` | 2026-09-13 22:57 (+ circuit-lock close, uncommitted, see §6) |
+| 17 | LIVELONG HARI (SEBI REGIS) | mixed | 19 (live corpus post-cleanup) | 19 | see §6 | this session, see §6 | 2026-09-18 (session, see §6) |
 
 **Attribution caveat, stated honestly:** every commit above is authored as
 `Mamatha P`, and each specialist ran in its own git worktree whose branch was
@@ -252,6 +253,46 @@ Append your §1 row in the same commit. Test naming convention already in use:
 ## 6. Run log — append one line per agent run, newest first
 
 Format: `YYYY-MM-DD HH:MM · <who/worktree> · <channel id> · <command/change> · <result>`
+
+- **2026-09-18 21:00 · Claude Code session, working tree of `main` · 17 LIVELONG HARI
+  (SEBI REGIS) · added "ABV" as an alias for ABOVE/BELOW in the shared
+  `RE_ABOVE_BELOW`.** User reported this channel's option-leg trades (CE/PE) were
+  closing with no entry price at all. Root cause: this channel's cash-order path
+  (`_hari_cash_signal`/`RE_HARI_ENTRY_TRIGGER`) already understood "ABV" as an
+  entry-band keyword, but deliberately bails whenever CE/PE appears earlier in the
+  message, deferring to `RE_OPT`'s own `RE_ABOVE_BELOW` fallback — which only knew
+  the literal words ABOVE/BELOW, not this channel's "BUY abv <price>" abbreviation.
+  So every option order using "abv" silently parsed with `entry=None`.
+  Fix: `RE_ABOVE_BELOW = r'\b(?:ABOVE|BELOW|ABV)\s*:?\s*[->]?\s*(?:ONLY\s+)?' + NUM`.
+  "ABV" was already excluded from ever being misread as a ticker (STOP_WORDS, see
+  `_hari_cash_signal`'s own docstring), so it's safe as a keyword alias too.
+  Known remaining gap, NOT fixed this pass: the "BUY range <price>" phrasing (e.g.
+  HAL 4750 PE) still parses `entry=None` — "RANGE" is too generic an English word to
+  safely add to this shared regex without deeper corpus verification; left as a
+  documented gap rather than rushed.
+  Verified: `traderacker.tests` full suite green (235 tests) before touching the live
+  DB. Fingerprint diff (full corpus, copy not live db): diff spans 18 channels, but
+  only 4 channels (17, 26, 37, 40) contain the literal string "ABV" in their message
+  text at all — the other 14 channels' diff rows are unrelated newly-imported
+  messages catching up to already-parsed state, not caused by this regex change
+  (confirmed by grep: those channels have zero "ABV" occurrences). Spot-checked all
+  4 ABV-containing channels: 17 and 37 gain a correct entry price where they had
+  none before (net improvement); 26 (Nirmal Bang)'s "SL ABV <price>" messages are
+  unaffected because they never reach the `RE_OPT`/`RE_ABOVE_BELOW` code path at all
+  (cash/futures messages, not option-leg); 40's one wrong-looking result
+  ("SENSEX 74600 PE 24 SEP 2026" → entry=24, the date's day-number, not the real
+  "ABV 440") is a **pre-existing bug, unrelated to this change** — verified via
+  `git stash` that the pre-change code produces byte-identical wrong output on the
+  same input, so this pass neither caused nor fixed it; out of scope here.
+  `signals.py` sha256 after this change: `8f4fe12f98a094a7c4752a6d9c2e965731c779d3af93807199a9c8d9c7f0a0de`.
+  Applied live: `parse_signals --channel 17` (after deleting the channel's 27
+  corrupted Trade rows + 8 ProcessedProfitEvent rows — unrelated data corruption
+  from accidental inline-edits, not a parser bug, see this session's chat log) →
+  `3 new · 1 updated`, then a manual dup-cleanup pass deleted 10 stale duplicate
+  rows left over from the entry-less first pass. Final state: 19 Trade rows, all
+  `manually_edited=False`, closed via `close_eod` with real entry prices and
+  intrinsic-value P&L estimates for the options that parsed correctly, `entry=None`
+  preserved honestly (no fabricated P&L) for the remaining "range"-phrasing gap.
 
 - **2026-09-14 00:20 · QwenWork session, working tree of `main` (uncommitted) ·
   56 Stockpro Online · added the circuit-lock close path.** `RE_CIRCUIT_LOCK` +

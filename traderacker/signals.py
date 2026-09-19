@@ -596,7 +596,15 @@ RE_SHARED_RESEARCH = re.compile(
 # across the full 82-channel corpus (2 occurrences), always immediately
 # before a plain positive price, same as the dash case above.
 RE_ABOVE_BELOW = re.compile(
-    r'\b(?:ABOVE|BELOW)\s*:?\s*[->]?\s*(?:ONLY\s+)?' + NUM, re.IGNORECASE)
+    r'\b(?:ABOVE|BELOW|ABV)\s*:?\s*[->]?\s*(?:ONLY\s+)?' + NUM, re.IGNORECASE)
+# "ABV" (LIVELONG HARI's abbreviation of ABOVE, e.g. "BUY abv 135") added
+# above -- already excluded from ever being misread as a ticker (STOP_WORDS,
+# see _hari_cash_signal), so it's safe as a keyword alias here too. Fixes
+# option-leg messages specifically: the cash-order path (RE_HARI_ENTRY_TRIGGER)
+# already understood ABV, but deliberately bails whenever CE/PE appears
+# earlier in the message (deferring to RE_OPT's own ABOVE_BELOW fallback,
+# i.e. this regex) -- which didn't know the abbreviation, so option orders
+# using "BUY abv <price>" silently got no entry at all.
 # "NEAR <price>" entry trigger -- see the narrowly-windowed use site in the
 # RE_OPT loop below for why this is a separate regex from RE_ABOVE_BELOW.
 # Optional "LEVEL" plus a "--" separator tolerates Stock Gainers' (48) own

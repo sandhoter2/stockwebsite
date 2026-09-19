@@ -175,6 +175,21 @@
       return `<span class="sector-badge" style="background:${bg};color:${fg}">${esc(SECTOR_LABEL[ac] || ac)}</span>`;
     }
 
+    // Exchange-set lot sizes for the index options that actually show up in
+    // these channels' calls. Exchanges revise these periodically (BANKNIFTY
+    // alone has changed more than once) -- ponytail: hardcoded snapshot, not
+    // a live lookup; update this table (or wire a real NSE lot-size feed) if
+    // a revision makes a shown lot size stale.
+    const INDEX_LOT_SIZE = {
+      NIFTY: 75, BANKNIFTY: 30, FINNIFTY: 65, MIDCPNIFTY: 140,
+      SENSEX: 20, BANKEX: 30,
+    };
+    function lotSizeFor(trade, assetClass) {
+      const root = (trade || '').trim().split(/\s+/)[0].toUpperCase();
+      if (assetClass === 'option') return INDEX_LOT_SIZE[root] || 1; // stock-option lot varies per stock; unknown -> 1 lot = 1 share until mapped
+      return 100; // stocks/cash: flat default per user request, not per-symbol NSE market-lot data
+    }
+
     // Shared KPI/stat tile -- was reimplemented ~5x with tiny prop drift
     // (SummaryCards, PaperTrading, ChannelPulse, CongressProfile, InvestorProfile).
     function StatCard({ label, value, extra, accent, tint, hint, colClass, center }) {
@@ -1591,8 +1606,12 @@
         render: v => `<div class="text-end">${v ?? '—'}</div>` },
       { data: 'ltp_exit', title: 'LTP/Exit', editable: true,
         render: v => `<div class="text-end">${v ?? '—'}</div>` },
+      { data: 'asset_class', title: 'Lot Size',
+        render: (v, t, row) => `<div class="text-end text-muted">${lotSizeFor(row.trade, v)}</div>` },
       { data: 'realized', title: 'P/L ₹', orderKey: 'realized', editable: true,
-        render: v => `<div class="text-end ${cls(v)}">${v!=null?INR(v):'—'}</div>` },
+        render: v => `<div class="text-end ${cls(v)}">`
+          + (v != null ? `<span class="badge ${v>=0?'text-bg-success':'text-bg-danger'} me-1" style="font-size:.6rem">${v>=0?'PROFIT':'LOSS'}</span>` : '')
+          + `${v!=null?INR(v):'—'}</div>` },
       { data: 'status', title: 'Status', orderKey: 'status',
         render: v => `<span class="badge ${v==='Open'?'badge-open':'badge-closed'}">${esc(v)}</span>` },
       { data: 'note', title: 'Note', editable: true,

@@ -343,6 +343,16 @@ class Trade(models.Model):
             return round(100 * self.realized / self.entry, 2)
         return None
 
+    @property
+    def pl_tag(self):
+        """'PROFIT'/'LOSS' derived from realized -- a property (not a
+        stored column) so it can never drift out of sync with realized
+        itself; served from the backend via TradeSerializer instead of
+        being recomputed in the frontend."""
+        if self.realized is None:
+            return None
+        return 'PROFIT' if self.realized >= 0 else 'LOSS'
+
     # Live-price close is skipped past this entry/price ratio (either
     # direction): guards against comparing the wrong instrument's price --
     # an option's underlying spot vs. its premium (two different scales,

@@ -2452,6 +2452,53 @@ class PaperAutotradeNowApiTests(TestCase):
         self.assertEqual(PaperTrade.objects.filter(user=other).count(), 0)
 
 
+class TradePlTagTests(TestCase):
+    """pl_tag is derived server-side from realized (not computed in the
+    frontend), served read-only via TradeSerializer."""
+
+    def setUp(self):
+        self.user = User.objects.create_user('pltagtester', password='pw12345!')
+        self.client.force_login(self.user)
+        self.ch = Channel.objects.create(peer='-9401', name='Ch', short='Ch')
+
+    def test_profit_tag(self):
+        t = Trade.objects.create(channel=self.ch, trade='X', entry=100.0,
+                                 realized=50.0, status='Closed', asset_class='stock')
+        self.assertEqual(t.pl_tag, 'PROFIT')
+
+    def test_loss_tag(self):
+        t = Trade.objects.create(channel=self.ch, trade='X', entry=100.0,
+                                 realized=-25.0, status='Closed', asset_class='stock')
+        self.assertEqual(t.pl_tag, 'LOSS')
+
+    def test_zero_realized_is_profit_not_loss(self):
+        t = Trade.objects.create(channel=self.ch, trade='X', entry=100.0,
+                                 realized=0.0, status='Closed', asset_class='stock')
+        self.assertEqual(t.pl_tag, 'PROFIT')
+
+    def test_none_realized_has_no_tag(self):
+        t = Trade.objects.create(channel=self.ch, trade='X', entry=100.0,
+                                 status='Open', asset_class='stock')
+        self.assertIsNone(t.pl_tag)
+
+    def test_pl_tag_served_via_api(self):
+        Trade.objects.create(channel=self.ch, trade='X', entry=100.0,
+                             realized=-25.0, status='Closed', asset_class='stock')
+        r = self.client.get('/api/tracker/trades/')
+        row = r.json()['results'][0]
+        self.assertEqual(row['pl_tag'], 'LOSS')
+
+    def test_pl_tag_is_read_only(self):
+        t = Trade.objects.create(channel=self.ch, trade='X', entry=100.0,
+                                 realized=-25.0, status='Closed', asset_class='stock')
+        self.user.is_staff = True
+        self.user.save()
+        self.client.patch(f'/api/tracker/trades/{t.id}/',
+                          {'pl_tag': 'PROFIT'}, content_type='application/json')
+        t.refresh_from_db()
+        self.assertEqual(t.pl_tag, 'LOSS')  # unchanged -- still derived from realized=-25
+
+
 class PicksApiTests(TestCase):
     """Sector filtering + consensus picks endpoints."""
 

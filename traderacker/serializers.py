@@ -28,13 +28,14 @@ class ChannelSerializer(serializers.ModelSerializer):
 
 class TradeSerializer(serializers.ModelSerializer):
     channel_name = serializers.CharField(source='channel.short', read_only=True)
+    pl_tag = serializers.ReadOnlyField()
 
     class Meta:
         model = Trade
         fields = ['id', 'channel', 'channel_name', 'date', 'posted_at',
                   'asset_class', 'trade', 'direction', 'entry', 'target',
                   'stop_loss', 'ltp_exit', 'unrealized', 'realized',
-                  'cumulative', 'status', 'note', 'manually_edited']
+                  'cumulative', 'status', 'note', 'manually_edited', 'pl_tag']
         read_only_fields = ['manually_edited']
 
 

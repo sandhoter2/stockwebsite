@@ -2203,6 +2203,24 @@ class TradeCloseEventTests(TestCase):
         self.assertEqual(t.status, 'Closed')
         self.assertIsNone(t.realized)
 
+    def test_close_eod_treats_mistagged_other_as_option_by_trade_string(self):
+        # Real bug found live: some CE/PE rows arrive tagged asset_class
+        # 'other' instead of 'option' -- must still get intrinsic-value
+        # treatment, not a nonsense spot-vs-premium comparison.
+        t = self._open(asset_class='other', trade='NIFTY 23600 CE',
+                       entry=170.0, target=None, stop_loss=None)
+        self.assertTrue(t.close_eod(23800.0))
+        t.refresh_from_db()
+        self.assertAlmostEqual(t.realized, (23800 - 23600) - 170.0)
+        self.assertIn('estimated intrinsic value', t.note)
+
+    def test_mark_live_skips_mistagged_option_by_trade_string(self):
+        t = self._open(asset_class='other', trade='NIFTY 23600 CE',
+                       entry=170.0, target=23900.0, stop_loss=23300.0)
+        self.assertFalse(t.mark_live(23800.0))
+        t.refresh_from_db()
+        self.assertEqual(t.status, 'Open')
+
     def test_close_eod_estimates_call_intrinsic_value_when_strike_parses(self):
         # AXISBANK 1300 CE bought at 3.4; underlying closes at 1320 ->
         # intrinsic = 1320-1300 = 20, estimated P&L = 20-3.4 = 16.6.

@@ -363,12 +363,16 @@ class Trade(models.Model):
 
         Options are skipped outright: there's no cheap live options-chain
         price source here, and the underlying's spot price is not the
-        option's premium -- comparing them is meaningless, not just noisy."""
+        option's premium -- comparing them is meaningless, not just noisy.
+        Detected by trade-string shape (option_strike()), not just
+        asset_class -- some CE/PE rows are mistagged as 'other' upstream,
+        and asset_class alone would let those through to a nonsense
+        spot-vs-premium comparison."""
         if self.manually_edited:
             return False
         if self.status != 'Open' or price is None or self.entry is None:
             return False
-        if self.asset_class == 'option':
+        if self.asset_class == 'option' or self.option_strike():
             return False
         if price <= 0 or self.entry <= 0:
             return False
@@ -473,7 +477,13 @@ class Trade(models.Model):
         # estimate in the note/event so it's never mistaken for an
         # observed price.
         is_estimate = False
-        if self.asset_class == 'option':
+        # Detected by trade-string shape, not just asset_class == 'option'
+        # -- some CE/PE rows arrive mistagged as 'other' upstream, and
+        # asset_class alone would let those fall through to a meaningless
+        # spot-vs-premium comparison below instead of the intrinsic-value
+        # estimate.
+        looks_like_option = self.asset_class == 'option' or bool(self.option_strike())
+        if looks_like_option:
             parsed = self.option_strike()
             if parsed and price is not None and price > 0:
                 strike, opt_type = parsed

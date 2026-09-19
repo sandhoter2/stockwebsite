@@ -1608,10 +1608,12 @@
         render: v => `<div class="text-end">${v ?? '—'}</div>` },
       { data: 'asset_class', title: 'Lot Size',
         render: (v, t, row) => `<div class="text-end text-muted">${lotSizeFor(row.trade, v)}</div>` },
+      { data: 'realized', title: 'Tag',
+        render: v => v != null
+          ? `<span class="badge ${v>=0?'text-bg-success':'text-bg-danger'}" style="font-size:.65rem">${v>=0?'PROFIT':'LOSS'}</span>`
+          : '—' },
       { data: 'realized', title: 'P/L ₹', orderKey: 'realized', editable: true,
-        render: v => `<div class="text-end ${cls(v)}">`
-          + (v != null ? `<span class="badge ${v>=0?'text-bg-success':'text-bg-danger'} me-1" style="font-size:.6rem">${v>=0?'PROFIT':'LOSS'}</span>` : '')
-          + `${v!=null?INR(v):'—'}</div>` },
+        render: v => `<div class="text-end ${cls(v)}">${v!=null?INR(v):'—'}</div>` },
       { data: 'status', title: 'Status', orderKey: 'status',
         render: v => `<span class="badge ${v==='Open'?'badge-open':'badge-closed'}">${esc(v)}</span>` },
       { data: 'note', title: 'Note', editable: true,

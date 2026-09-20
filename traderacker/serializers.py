@@ -31,15 +31,47 @@ class TradeSerializer(serializers.ModelSerializer):
     pl_tag = serializers.ReadOnlyField()
     lot_size = serializers.ReadOnlyField()
     realized_total = serializers.ReadOnlyField()
+    posted_ist = serializers.SerializerMethodField()
+    sticker = serializers.SerializerMethodField()
+    simple_direction = serializers.SerializerMethodField()
 
     class Meta:
         model = Trade
-        fields = ['id', 'channel', 'channel_name', 'posted_at',
-                  'asset_class', 'strike', 'trade', 'direction', 'entry', 'target',
+        fields = ['id', 'channel', 'channel_name', 'posted_ist',
+                  'asset_class', 'strike', 'sticker', 'simple_direction', 'trade', 'entry', 'target',
                   'stop_loss', 'ltp_exit', 'unrealized', 'realized',
                   'cumulative', 'status', 'note', 'manually_edited', 'pl_tag',
                   'lot_size', 'realized_total']
         read_only_fields = ['manually_edited']
+
+    def get_posted_ist(self, obj):
+        """Return posted_at in IST timezone (UTC+5:30)."""
+        if not obj.posted_at:
+            return None
+        import pytz
+        ist = pytz.timezone('Asia/Kolkata')
+        return obj.posted_at.astimezone(ist).isoformat()
+
+    def get_sticker(self, obj):
+        """Extract base ticker symbol from trade string."""
+        if not obj.trade:
+            return ''
+        return obj.trade.split()[0]
+
+    def get_simple_direction(self, obj):
+        """Simplify direction for UI: BUY/SELL or CALL/PUT."""
+        if not obj.direction:
+            return ''
+        d = obj.direction.upper()
+        if 'CALL' in d:
+            return 'CALL'
+        if 'PUT' in d:
+            return 'PUT'
+        if 'BUY' in d:
+            return 'BUY'
+        if 'SELL' in d:
+            return 'SELL'
+        return obj.direction
 
 
 class QuoteSerializer(serializers.ModelSerializer):

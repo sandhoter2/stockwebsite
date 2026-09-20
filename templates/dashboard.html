@@ -649,7 +649,7 @@
     const PAGE_SIZE = 15;
 
     function Leaderboard({ rows, onSelect }) {
-      const [sortKey, setSortKey] = useState('realized');
+      const [sortKey, setSortKey] = useState('success_rate');
       const [desc, setDesc] = useState(true);
       const [hideEmpty, setHideEmpty] = useState(true);
       const [page, setPage] = useState(1);
@@ -813,12 +813,12 @@
                       </td>
                       <td className="d-none d-md-table-cell"><SectorTag ac={r.asset_class} /></td>
                       <td><strong>{r.trade}</strong></td>
-                      <td>{r.direction}</td>
+                      <td>{r.simple_direction}</td>
                       <td className="text-end">{r.entry ?? '—'}</td>
                       <td className="text-end d-none d-lg-table-cell">{r.target ?? '—'}</td>
                       <td className="text-end d-none d-lg-table-cell">{r.stop_loss ?? '—'}</td>
                       <td><span className={'badge '+(r.status==='Open'?'badge-open':'badge-closed')}>{r.status}</span></td>
-                      <td className="d-none d-md-table-cell text-muted small">{IST(r.posted_at)||'—'}</td>
+                      <td className="d-none d-md-table-cell text-muted small">{IST(r.posted_ist)||'—'}</td>
                     </tr>))}
                 </tbody>
               </table>
@@ -1574,15 +1574,23 @@
     ];
 
     const TRADES_COLUMNS = [
-      { data: 'date', title: 'Date', orderKey: 'date' },
-      { data: 'posted_at', title: 'Posted (IST)', orderKey: 'posted_at',
-        render: v => `<span class="text-muted small">${esc(IST(v) || '—')}</span>` },
+      { data: 'posted_ist', title: 'Posted (IST)', orderKey: 'posted_at',
+        render: v => `<span class="text-muted small">${esc(v || '—')}</span>` },
       { data: 'channel_name', title: 'Channel', orderKey: 'channel__name',
         render: (v, t, row) => `<span title="${esc(v)}">${esc(v)}</span>` },
       { data: 'asset_class', title: 'Sector', orderKey: 'asset_class', render: v => sectorTagHtml(v) },
-      { data: 'trade', title: 'Trade', orderKey: 'trade',
-        render: v => `<strong>${esc(v)}</strong>` },
-      { data: 'direction', title: 'Dir' },
+      { data: 'trade', title: 'Symbol', orderKey: 'trade',
+        render: (v, t, row) => {
+          const symbol = String(v||'').split(/\s+/)[0];
+          return `<strong>${esc(symbol)}</strong>`;
+        } },
+      { data: 'strike', title: 'Strike', orderKey: 'strike',
+        render: (v, t, row) => {
+          const parts = String(row.trade||'').split(/\s+/);
+          const strikeInfo = parts.slice(1).join(' ');
+          return `<span class="text-muted small">${esc(strikeInfo || '—')}</span>`;
+        } },
+      { data: 'simple_direction', title: 'Dir' },
       { data: 'entry', title: 'Entry', orderKey: 'entry', editable: true,
         render: v => `<div class="text-end">${v ?? '—'}</div>` },
       { data: 'target', title: 'Target', editable: true,
@@ -1620,7 +1628,7 @@
       const [picks, setPicks] = useState([]);
       const [active, setActive] = useState(null);
       const [tab, setTab] = useState('trades');
-      const [rangeKey, setRangeKey] = useState('1d');
+      const [rangeKey, setRangeKey] = useState('90d');
       const [custom, setCustom] = useState({from:'',to:''});
       const [sectors, setSectors] = useState([]);
       const [chQuery, setChQuery] = useState('');

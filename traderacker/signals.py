@@ -612,6 +612,27 @@ RE_ABOVE_BELOW = re.compile(
 # channel (22 occurrences; 1 stray unrelated hit at channel 67, harmless
 # since it's still a genuine "near <price>" trigger there too).
 RE_NEAR_ENTRY = re.compile(r'\bNEAR\s*(?:LEVEL)?\s*:?\s*-{0,2}\s*' + NUM, re.IGNORECASE)
+# "LEVEL-<price>" entry trigger, immediately after the strike -- RAJESH
+# PALVIYA's (37) and Stock Gainers' (48) dominant order shape, "BUY SENSEX
+# 73800 PE\n\nLEVEL- 220\n\nTARGET & SL ONLY FOR PREMIUM MEMBERS". Kept in
+# its own tightly-windowed (<40 chars, right after the strike) check
+# mirroring RE_NEAR_ENTRY just above, rather than folded into RE_ABOVE_BELOW
+# (whose OTHER, unwindowed use site would then also pick up "trading near
+# the 15,374 level"/"resistance level of 270.4"-style market commentary
+# elsewhere in the corpus as if it were an entry trigger -- MarketWolf alone
+# has 635 such messages). Verified empirically unique to channels 37/48
+# across the FULL 82-channel corpus within this window: zero other channel
+# has an option-leg match followed by "LEVEL" within 40 chars for any
+# reason. RAJESH PALVIYA was previously style='promo' (its Sep 11-14 sample
+# window looked like pure hype/engagement spam with no tradable symbol --
+# see its style_notes) but resumed posting this exact real entry shape from
+# Sep 21 onward; reclassified to 'options' alongside this fix so it's no
+# longer short-circuited by the style=='promo' check before parsing even
+# starts. Individual promo/spam messages within the channel (join-group
+# offers, "GOOD MORNING TRADERS") still produce no signal either way --
+# is_promo() filters ones with a PROMO keyword, and the rest simply contain
+# no option-leg match for RE_OPT to anchor on.
+RE_LEVEL_PRICE = re.compile(r'\bLEVEL\s*[-:]?\s*' + NUM, re.IGNORECASE)
 # a running price-update recap that restates an already-open option leg
 # rather than posting a fresh order, e.g. "170 TO 199#NIFTY 23650PE" —
 # the option match immediately follows the "#" here, not a BUY/SELL verb.
@@ -2117,6 +2138,13 @@ def parse_message(text, style=None):
             nr = RE_NEAR_ENTRY.search(text[m.end():m.end() + 20])
             if nr:
                 sig['entry'] = _f(nr.group(1))
+        # "LEVEL-<price>" entry trigger -- see RE_LEVEL_PRICE's own comment
+        # above for why this is windowed and channel-agnostic rather than
+        # folded into RE_ABOVE_BELOW.
+        if sig['entry'] is None:
+            lv = RE_LEVEL_PRICE.search(text[m.end():m.end() + 40])
+            if lv:
+                sig['entry'] = _f(lv.group(1))
         # Richie by Chase Alpha's dominant option-order shape: "NIFTY 19500
         # CE CMP 215 add till 210 SL 170 Target 260-280-300", "BANKNIFTY
         # 47600 PE CMP 40 Hero Zero" — bare "CMP <price>" immediately after

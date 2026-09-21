@@ -1789,6 +1789,50 @@ class SignalParserTests(TestCase):
         repost_rev = parse_message('155♥️\n\n\nNIFTY 23550 PE', style='options')
         self.assertEqual(repost_rev, [])
 
+    def test_level_dash_price_entry_trigger(self):
+        # RAJESH PALVIYA (37) / Stock Gainers (48) dominant order shape:
+        # "BUY <SYMBOL> LEVEL-<price>", reclassified from RAJESH PALVIYA's
+        # old style='promo' (see its style_notes -- it resumed posting this
+        # real entry shape after the promo classification's sampling
+        # window).
+        from traderacker.signals import parse_message
+        sigs = parse_message('\U0001F929BUY SENSEX 73800 PE\n\nLEVEL- 220\n\n'
+                             '\U0001F4C8TARGET & SL ONLY FOR PREMIUM MEMBERS', style='options')
+        self.assertEqual(len(sigs), 1)
+        self.assertEqual(sigs[0]['trade'], 'SENSEX 73800 PE')
+        self.assertEqual(sigs[0]['entry'], 220.0)
+
+        sigs2 = parse_message('\U0001F929BUY NIFTY 23200 CE\n\nLEVEL-180\n\n'
+                              '\U0001F4C8TARGET & SL ONLY FOR PREMIUM MEMBERS', style='options')
+        self.assertEqual(sigs2[0]['entry'], 180.0)
+
+    def test_level_dash_price_repost_collapses_not_phantoms(self):
+        # The same leg reposted with the symbol re-stated alongside the
+        # live LTP ("BUY NIFTY 23200 CE\n180") must key to the SAME
+        # (channel, trade, entry) row as the trigger, not a new one; a
+        # bare, symbol-less LTP tick ("182") must produce no signal at all.
+        from traderacker.signals import parse_message
+        repost = parse_message('\U0001F929BUY NIFTY 23200 CE\n180✔️✔️',
+                               style='options')
+        self.assertEqual(len(repost), 1)
+        self.assertEqual(repost[0]['entry'], 180.0)
+
+        bare_tick = parse_message('182✔️✔️', style='options')
+        self.assertEqual(bare_tick, [])
+
+    def test_level_keyword_does_not_leak_into_market_commentary(self):
+        # MarketWolf-style prose ("...resistance level of 270.4 level...")
+        # must never be misread as a LEVEL-<price> entry trigger just
+        # because it also happens to contain an option-shaped token.
+        from traderacker.signals import parse_message
+        sigs = parse_message(
+            'NATURAL GAS UPDATE\n\nNatural Gas breaks above its intraday '
+            'resistance level of 270.4 level as mentioned above. GAS 270 CE '
+            'discussed earlier remains one to watch, but no fresh trigger here.',
+            style='options')
+        for s in sigs:
+            self.assertIsNone(s['entry'])
+
     def test_rochit_singh_emoji_decorated_repost_suppressed(self):
         # ROCHIT SINGH STOCKS (channel 40) reposts an already-open leg as a
         # bare "<symbol>\n<price><emoji>" LTP ticker (unlike channel 66/48's

@@ -56,6 +56,7 @@ sqlite3 -readonly db.sqlite3 "SELECT style_notes FROM traderacker_channel WHERE 
 | 51 | Stock Thunder | options | 50 | 16 | 0 | `61f73aa` → `eecf879` | 2026-09-13 23:05 |
 | 56 | Stockpro Online | mixed | 51 | 19 | 0 | `452678d` → `9b70b85` | 2026-09-13 22:57 (+ circuit-lock close, uncommitted, see §6) |
 | 17 | LIVELONG HARI (SEBI REGIS) | mixed | 19 (live corpus post-cleanup) | 19 | see §6 | this session, see §6 | 2026-09-18 (session, see §6) |
+| 37 | RAJESH PALVIYA | options (was promo) | 2853 | 71 | 0 (all Open, same-day) | this session, see §6 | 2026-09-21 (session, see §6) |
 
 **Attribution caveat, stated honestly:** every commit above is authored as
 `Mamatha P`, and each specialist ran in its own git worktree whose branch was
@@ -253,6 +254,50 @@ Append your §1 row in the same commit. Test naming convention already in use:
 ## 6. Run log — append one line per agent run, newest first
 
 Format: `YYYY-MM-DD HH:MM · <who/worktree> · <channel id> · <command/change> · <result>`
+
+- **2026-09-21 09:50 · Claude Code session, working tree of `main` (no worktree —
+  direct on `main` per this session's own working state) · 37 RAJESH PALVIYA ·
+  reclassified `style='promo'` → `'options'`, added `RE_LEVEL_PRICE`.** User-reported
+  live bug: "RAJESH PALVIYA took a trade that's not recorded" (a same-day "BUY NIFTY
+  23200 CE / LEVEL-180" call posted ~9:16 AM IST). Root cause: this channel's
+  `style_notes` (see §1) had it classified `'promo'` off a Sep 11-14 sample window
+  that happened to catch a dead spell — `style == 'promo'` is a hard short-circuit in
+  `parse_message` (`if style == 'promo' or is_promo(text): return []`), executed
+  *before* any option-leg regex ever runs, so it was silently dropping this channel's
+  genuine "BUY \<SYMBOL\> LEVEL-\<price\>" entries (9 of them Sep 1-11, then a fresh
+  one Sep 21) — the exact same order shape Stock Gainers (48, `style='options'`)
+  already parses correctly, except Stock Gainers' own LEVEL- trades were *also*
+  silently landing with `entry=None` (verified: ids 111001, 123820), because nothing
+  in the codebase recognized "LEVEL" as an entry-trigger keyword at all.
+  Fix: `RE_LEVEL_PRICE = r'\bLEVEL\s*[-:]?\s*' + NUM`, checked in a tightly-windowed
+  (<40 chars right after the strike) fallback, channel-agnostic (no style gate) —
+  modeled directly on the existing `RE_NEAR_ENTRY` precedent rather than folded into
+  the shared, unwindowed `RE_ABOVE_BELOW` (whose other use site would then also
+  misread MarketWolf's market-commentary prose, e.g. "...resistance level of 270.4
+  level...", as an entry trigger: verified empirically that channel alone has 635
+  messages containing the bare word "level"). Verified the windowed match is unique
+  to channels 37/48 across the *full* 82-channel corpus (option-leg match followed by
+  "LEVEL" within 40 chars) — zero collisions elsewhere.
+  Reclassified channel 37 to `style='options'`; its promo/spam content (join-group
+  offers, "GOOD MORNING TRADERS") still produces no signal either way — `is_promo()`
+  is a per-message content filter, not gated by channel style, and messages with
+  no PROMO keyword simply contain no option-leg match for `RE_OPT` to anchor on. The
+  one prior specialist finding (the SUPREMEIND "FROM 75 TO 132+++...POINTS" post-hoc
+  recap must stay unparsed, no separate entry message exists for it) is unaffected —
+  that protection is itself channel-agnostic (recap-number-pair-with-no-SL-anywhere),
+  so it isn't reintroduced by leaving `style='promo'` behind.
+  `signals.py` sha256 after this change: `2b7d913f38d2efa6799a95f17428a5758440c07dc114a8884e955f4a771860b6`.
+  Added 3 tests to `SignalParserTests` (`test_level_dash_price_entry_trigger`,
+  `test_level_dash_price_repost_collapses_not_phantoms`,
+  `test_level_keyword_does_not_leak_into_market_commentary`). Full suite green
+  (350 tests) both before and after the DB reclassification.
+  Applied live: `parse_signals` (unscoped — §7's re-booking defect is RESOLVED, see
+  §7; verified no re-booking symptom via the §5 fingerprint-style duplicate-realized
+  query before and after) → first pass `12219 new · 209 updated · 4 closed` (the
+  freshly re-imported message backlog from this session's Telegram sync), second pass
+  after the channel-37 reclassification → `72 new · 1 updated`, including the
+  user-reported `NIFTY 23200 CE` trade (id 124086, entry=180.0, posted
+  2026-09-21 03:46:12 UTC) and Stock Gainers' two previously-entry-less LEVEL- trades.
 
 - **2026-09-18 21:00 · Claude Code session, working tree of `main` · 17 LIVELONG HARI
   (SEBI REGIS) · added "ABV" as an alias for ABOVE/BELOW in the shared

@@ -115,6 +115,15 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
+        # WAL lets readers (e.g. the live Trades API) proceed while a long
+        # write (import_legacy_data, parse_signals) is in progress, instead
+        # of hitting "database is locked" -- observed live during a data
+        # sync. timeout is the fallback wait for the rarer writer-vs-writer
+        # collision WAL doesn't remove.
+        'OPTIONS': {
+            'init_command': 'PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;',
+            'timeout': 30,
+        },
     }
 }
 

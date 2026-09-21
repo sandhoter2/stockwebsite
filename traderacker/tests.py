@@ -1897,6 +1897,121 @@ class MarketServiceTests(TestCase):
         finally:
             market._curl_json = orig
 
+    def test_closest_close_on_or_before(self):
+        from traderacker import market
+        series = [(dt.date(2026, 1, 1), 100.0), (dt.date(2026, 1, 5), 105.0),
+                  (dt.date(2026, 1, 10), 110.0)]
+        # exact match
+        self.assertEqual(market.closest_close_on_or_before(series, dt.date(2026, 1, 5)), 105.0)
+        # weekend/holiday gap -> falls back to the prior real session
+        self.assertEqual(market.closest_close_on_or_before(series, dt.date(2026, 1, 7)), 105.0)
+        # before the series even starts -> no prior session exists
+        self.assertIsNone(market.closest_close_on_or_before(series, dt.date(2025, 12, 1)))
+
+    def test_yahoo_historical_series_parses_chart_response(self):
+        from traderacker import market
+        orig = market._curl_json
+        try:
+            ts0 = int(dt.datetime(2026, 1, 5, tzinfo=dt.timezone.utc).timestamp())
+            ts1 = int(dt.datetime(2026, 1, 6, tzinfo=dt.timezone.utc).timestamp())
+            market._curl_json = lambda url: {'chart': {'result': [{
+                'timestamp': [ts0, ts1],
+                'indicators': {'quote': [{'close': [105.0, None]}]},
+            }]}}
+            series = market.yahoo_historical_series('RELIANCE', 'stock')
+            # the None close (no trade that session) is dropped, not kept as a bad point
+            self.assertEqual(series, [(dt.date(2026, 1, 5), 105.0)])
+        finally:
+            market._curl_json = orig
+
+    def test_yahoo_historical_series_empty_on_bad_shape(self):
+        from traderacker import market
+        orig = market._curl_json
+        try:
+            market._curl_json = lambda url: {'chart': {'result': None, 'error': {}}}
+            self.assertEqual(market.yahoo_historical_series('X', 'stock'), [])
+        finally:
+            market._curl_json = orig
+
+
+class CloseStaleBacklogTests(TestCase):
+    """close_stale_backlog: real historical price for the trade's OWN date
+    where resolvable, honest unpriced close otherwise -- mocks
+    market.yahoo_historical_series throughout so the suite stays offline."""
+
+    def setUp(self):
+        self.ch = Channel.objects.create(peer='-9600', name='Ch', short='Ch')
+
+    def _open(self, **kw):
+        defaults = dict(channel=self.ch, trade='RELIANCE', direction='BUY',
+                        entry=1200.0, date=dt.date(2024, 3, 1), status='Open',
+                        asset_class='stock', source_mid=1)
+        defaults.update(kw)
+        return Trade.objects.create(**defaults)
+
+    def test_closes_with_real_historical_price(self):
+        from unittest.mock import patch
+        t = self._open()
+        series = [(dt.date(2024, 3, 1), 1210.5)]
+        with patch('traderacker.market.yahoo_historical_series', return_value=series):
+            call_command('close_stale_backlog')
+        t.refresh_from_db()
+        self.assertEqual(t.status, 'Closed')
+        self.assertEqual(t.ltp_exit, 1210.5)
+        self.assertAlmostEqual(t.realized, 10.5)
+
+    def test_closes_unpriced_when_no_historical_data(self):
+        from unittest.mock import patch
+        t = self._open()
+        with patch('traderacker.market.yahoo_historical_series', return_value=[]):
+            call_command('close_stale_backlog')
+        t.refresh_from_db()
+        self.assertEqual(t.status, 'Closed')
+        self.assertIsNone(t.ltp_exit)
+        self.assertIsNone(t.realized)
+
+    def test_bad_entry_rejected_by_sanity_guard_stays_unpriced(self):
+        # A parse-artifact entry (e.g. BANKNIFTY entry=10 when the index was
+        # really ~38,000 that day) must not produce a wildly wrong P&L --
+        # this is Trade.close_eod()'s own existing sanity-ratio guard,
+        # exercised here through the backlog closer's real-price path.
+        from unittest.mock import patch
+        t = self._open(trade='BANKNIFTY', entry=10.0, asset_class='index')
+        series = [(dt.date(2024, 3, 1), 38028.4)]
+        with patch('traderacker.market.yahoo_historical_series', return_value=series):
+            call_command('close_stale_backlog')
+        t.refresh_from_db()
+        self.assertEqual(t.status, 'Closed')
+        self.assertIsNone(t.ltp_exit)
+        self.assertIsNone(t.realized)
+
+    def test_skips_manually_edited_row(self):
+        from unittest.mock import patch
+        t = self._open(manually_edited=True)
+        series = [(dt.date(2024, 3, 1), 1210.5)]
+        with patch('traderacker.market.yahoo_historical_series', return_value=series) as mocked:
+            call_command('close_stale_backlog')
+        t.refresh_from_db()
+        self.assertEqual(t.status, 'Open')
+
+    def test_caches_series_per_symbol_not_per_trade(self):
+        from unittest.mock import patch
+        self._open(trade='RELIANCE', date=dt.date(2024, 3, 1), source_mid=1)
+        self._open(trade='RELIANCE', date=dt.date(2024, 3, 5), source_mid=2)
+        series = [(dt.date(2024, 3, 1), 1210.5), (dt.date(2024, 3, 5), 1225.0)]
+        with patch('traderacker.market.yahoo_historical_series', return_value=series) as mocked:
+            call_command('close_stale_backlog')
+        mocked.assert_called_once()
+
+    def test_dry_run_writes_nothing(self):
+        from unittest.mock import patch
+        t = self._open()
+        series = [(dt.date(2024, 3, 1), 1210.5)]
+        with patch('traderacker.market.yahoo_historical_series', return_value=series):
+            call_command('close_stale_backlog', dry_run=True)
+        t.refresh_from_db()
+        self.assertEqual(t.status, 'Open')
+
 
 class PaperEngineTests(TestCase):
     """Paper-trade open/mark/close engine (fat model)."""

@@ -81,6 +81,61 @@ def yahoo_quote(symbol, asset_class='stock'):
         return None
 
 
+YAHOO_CHART_RANGE = "https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?range={rng}&interval=1d"
+
+
+def yahoo_historical_series(symbol, asset_class, rng='5y'):
+    """(date, close) pairs for the trailing `rng` of real daily bars -- for
+    backlog trades whose own day's close_eod() never ran (see
+    close_stale_backlog). Unlike yahoo_quote() (today's live/last price
+    only), this is meant to be fetched ONCE per symbol and reused for every
+    date lookup against it (closest_close_on_or_before), rather than
+    re-fetched per trade. '5y' covers this project's entire observed
+    backlog (oldest Open trade: 2022-02-08) in one call."""
+    data = _curl_json(YAHOO_CHART_RANGE.format(
+        ticker=yahoo_ticker(symbol, asset_class), rng=rng))
+    try:
+        result = data['chart']['result'][0]
+        timestamps = result['timestamp']
+        closes = result['indicators']['quote'][0]['close']
+    except (KeyError, TypeError, IndexError):
+        return []
+    from datetime import datetime, timezone
+    series = []
+    for ts, close in zip(timestamps, closes):
+        if close is None:
+            continue
+        d = datetime.fromtimestamp(ts, tz=timezone.utc).date()
+        series.append((d, float(close)))
+    series.sort()
+    return series
+
+
+def closest_close_on_or_before(series, target_date):
+    """Last real close at or before target_date from a yahoo_historical_series()
+    result -- so a weekend/holiday target still resolves to the prior real
+    session instead of None. series must be sorted ascending by date."""
+    best = None
+    for d, close in series:
+        if d <= target_date:
+            best = close
+        else:
+            break
+    return best
+
+
+def yahoo_historical_close(symbol, asset_class, target_date):
+    """Single-lookup convenience wrapper around yahoo_historical_series() +
+    closest_close_on_or_before() -- fetches a right-sized range for one
+    (symbol, date) pair. Prefer yahoo_historical_series() directly when
+    looking up many dates for the same symbol (e.g. close_stale_backlog)."""
+    from datetime import date
+    days_back = (date.today() - target_date).days
+    rng = '3mo' if days_back <= 60 else '2y' if days_back <= 400 else '5y'
+    series = yahoo_historical_series(symbol, asset_class, rng=rng)
+    return closest_close_on_or_before(series, target_date)
+
+
 def dhan_quote(symbol, asset_class='stock'):
     """Placeholder seam for the Dhan MCP provider (NSE options etc.).
 

@@ -17,4 +17,5 @@ urlpatterns = [
     path('api/institutional/', include('institutional_reports.urls')),
     path('api/news/', include('market_news.urls')),
     path('api/super-investors/', include('super_investors.urls')),
+    path('api/wealth/', include('wealthai.urls')),
 ]

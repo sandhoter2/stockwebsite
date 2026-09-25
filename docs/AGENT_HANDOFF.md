@@ -57,6 +57,7 @@ sqlite3 -readonly db.sqlite3 "SELECT style_notes FROM traderacker_channel WHERE 
 | 56 | Stockpro Online | mixed | 51 | 19 | 0 | `452678d` → `9b70b85` | 2026-09-13 22:57 (+ circuit-lock close, uncommitted, see §6) |
 | 17 | LIVELONG HARI (SEBI REGIS) | mixed | 19 (live corpus post-cleanup) | 19 | see §6 | this session, see §6 | 2026-09-18 (session, see §6) |
 | 37 | RAJESH PALVIYA | options (was promo) | 2853 | 71 | 0 (all Open, same-day) | this session, see §6 | 2026-09-21 (session, see §6) |
+| 85 | Day Trader తెలుగు | auto | 197 | 12 | see §6 | `c98a543` | 2026-09-25 (session, see §6) |
 
 **Attribution caveat, stated honestly:** every commit above is authored as
 `Mamatha P`, and each specialist ran in its own git worktree whose branch was
@@ -254,6 +255,38 @@ Append your §1 row in the same commit. Test naming convention already in use:
 ## 6. Run log — append one line per agent run, newest first
 
 Format: `YYYY-MM-DD HH:MM · <who/worktree> · <channel id> · <command/change> · <result>`
+
+- **2026-09-25 · Claude Code session, working tree of `main` (no worktree) ·
+  85 Day Trader తెలుగు · widened `RE_TARGET`/`RE_SUPPORT`'s separator
+  `[:\-]?` → `[:\-]*`.** User-reported: this channel's trades were missing
+  target/stop_loss entirely, and a "trade closed" bare-number repost wasn't
+  being recognized at all. Root cause for the first part: this channel's
+  dominant shape doubles the separator dash — "𝗧𝗔𝗥𝗚𝗘𝗧--240" — where every
+  other channel using TARGET/SUPPORT/SL writes zero or one ("TARGET-240",
+  "TARGET:240", "TARGET 240"). The old `[:\-]?` (at most one separator char)
+  consumed the first dash and then had nothing that could skip the second
+  before the number match, which requires starting on a digit — so
+  target/stop_loss silently stayed `None` despite the message stating a real
+  number. `?` → `*` is strictly more permissive of the SAME keyword+
+  separator+number shape (not a new keyword), so it can't introduce a new
+  false match anywhere it didn't already match. Verified: the doubled-dash
+  shape itself is unique to channel 85 (9 occurrences) across the full
+  82-channel corpus, and the pre-existing numbered-target-list regression
+  guard ("TGT 1)3575" → target=3575, not the rank digit) still holds.
+  `signals.py` sha256 after this change:
+  `6de7b2aae273926b4974801ebd91b5c19922fa1b6f0fc44024a5370166263fa0`.
+  2 new tests in `SignalParserTests`. Full suite green (390 tests, includes
+  an unrelated same-session LLM-triage addition — see git log `c98a543`).
+  Second part (the bare-number "trade closed" repost) was NOT a regex gap —
+  it genuinely states no recognizable close keyword or price the parser
+  could act on ("266🔥🔥💪💯✅💯" alone) — addressed instead by a new
+  `llm_triage` management command (see `traderacker/llm_triage.py`'s module
+  docstring) that asks an LLM to interpret such messages against the
+  channel's open positions, but only ever trusts a close price that is
+  LITERALLY present in the source text (enforced by string containment, not
+  prompt instruction alone) — this is a new capability, not a `signals.py`
+  regex, so it is channel-agnostic by construction rather than requiring
+  the usual per-channel corpus-collision check.
 
 - **2026-09-21 09:50 · Claude Code session, working tree of `main` (no worktree —
   direct on `main` per this session's own working state) · 37 RAJESH PALVIYA ·

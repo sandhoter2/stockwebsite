@@ -432,9 +432,23 @@
       return <span className={'tier-badge tier-'+tier} title={TIER_HINT[tier]}>{label||TIER_LABEL[tier]||tier}</span>;
     }
 
-    async function api(url) {
-      const r = await fetch(url, { credentials: 'same-origin' });
+    // A single 401/403 hard-redirects to /login/ -- but a transient blip (a
+    // request racing a heavy backend write, a momentary session-lookup
+    // hiccup) can produce one too, and an instant redirect on that first
+    // response threw away a perfectly good session, showing "logged out"
+    // when the user wasn't. One retry after a short pause tells a real
+    // logout (still 401/403 on retry) apart from a transient one (succeeds).
+    async function fetchWithAuthRetry(url, opts) {
+      let r = await fetch(url, opts);
+      if (r.status === 401 || r.status === 403) {
+        await new Promise(res => setTimeout(res, 800));
+        r = await fetch(url, opts);
+      }
       if (r.status === 401 || r.status === 403) { window.location.href = '/login/'; throw new Error('auth'); }
+      return r;
+    }
+    async function api(url) {
+      const r = await fetchWithAuthRetry(url, { credentials: 'same-origin' });
       if (!r.ok) { const b = await r.json().catch(() => ({})); throw new Error(b.detail || JSON.stringify(b) || (url + ' → ' + r.status)); }
       return r.json();
     }
@@ -451,8 +465,10 @@
         opts.headers['Content-Type'] = 'application/json';
         opts.body = JSON.stringify(body);
       }
-      const r = await fetch(url, opts);
-      if (r.status === 401 || r.status === 403) { window.location.href = '/login/'; throw new Error('auth'); }
+      // Safe to retry here too: a 401/403 means the permission check
+      // rejected the request before any write happened, so a retry can
+      // never double-submit the mutation.
+      const r = await fetchWithAuthRetry(url, opts);
       if (r.status === 204) return null;
       if (!r.ok) { const b = await r.json().catch(() => ({})); throw new Error(b.detail || JSON.stringify(b) || (r.status + ' ' + url)); }
       return r.json();

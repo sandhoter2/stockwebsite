@@ -671,7 +671,8 @@ class ProcessedProfitEvent(models.Model):
     channel = models.ForeignKey(Channel, on_delete=models.CASCADE, related_name='+')
     mid = models.BigIntegerField(help_text="Telegram message id")
     kind = models.CharField(max_length=16, choices=[('profit', 'Profit'),
-                                                     ('exit_price', 'Exit price')])
+                                                     ('exit_price', 'Exit price'),
+                                                     ('llm_triage', 'LLM triage')])
 
     class Meta:
         constraints = [

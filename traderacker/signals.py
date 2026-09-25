@@ -487,8 +487,19 @@ RE_PREMIUM = re.compile(r'(?:@\s*|ENTRY\s+|ENTER\s+(?:AT|IN)\s+)' + NUM, re.IGNO
 # excludes 73 stray matches across the full 82-channel history, 45 of
 # them in Mystocks.in alone, and creates none).
 NUM_NOT_PCT = NUM + r'(?!\s*%|\s*-\s*\d[\d,.]*\s*%)'
+# Day Trader తెలుగు (85) doubles up its separator dash -- "TARGET--240",
+# "SUPPORT--" -- where every other channel using this keyword writes zero or
+# one ("TARGET-240", "TARGET:240", "TARGET 240"). The old `[:\-]?` (at most
+# one separator char) consumed the first dash and then had nothing that
+# could skip the second one before NUM_NOT_PCT, which requires starting on a
+# digit -- so target/stop_loss silently stayed None despite the message
+# stating a real number. Widened `?` -> `*` (any number of separator chars,
+# including zero) is strictly more permissive, not a new keyword, so it
+# can't introduce a false match anywhere this didn't already match; verified
+# empirically the doubled-dash shape itself is unique to channel 85 (9
+# occurrences) across the full 82-channel corpus.
 RE_SUPPORT = re.compile(
-    r'\b(?:SUPPORT|S/L|S/T|SL\b|STOP[\s\-]?LOSS|STOP|STCP)\s*(?:PRICE)?\s*[:\-]?\s*'
+    r'\b(?:SUPPORT|S/L|S/T|SL\b|STOP[\s\-]?LOSS|STOP|STCP)\s*(?:PRICE)?\s*[:\-]*\s*'
     r'(?:AT\s+|BELOW\s+|ABOVE\s+|NEAR\s+|ON\s+)?' + NUM_NOT_PCT, re.IGNORECASE)
 RE_TARGET = re.compile(
     # "TRG" is Stock Thunder's abbreviation for TARGET (verified empirically
@@ -512,7 +523,7 @@ RE_TARGET = re.compile(
     # "View", not a trade target; that message has no trade signal for
     # this fallback to attach a target to either way, so the change is a
     # no-op there).
-    r'\b(?:VIEW|VIEWS|TARGETS?|TGT|TRG|SHT)\s*(?:PRICES?)?\s*[:\-]?\s*'
+    r'\b(?:VIEW|VIEWS|TARGETS?|TGT|TRG|SHT)\s*(?:PRICES?)?\s*[:\-]*\s*'
     r'(?:AT\s+|ON\s+|NEAR\s+)?(?:\d\)\s*)?' + NUM_NOT_PCT, re.IGNORECASE)
 # Nirmal Bang Official abbreviates STOP LOSS as "SL ABV <price>" (ABV =
 # above) and TARGET as "TG <price>" — kept as separate style-gated patterns

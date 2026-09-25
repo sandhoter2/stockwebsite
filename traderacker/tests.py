@@ -5,7 +5,8 @@ from django.core.management import call_command
 from django.test import TestCase
 from django.utils import timezone
 
-from traderacker.models import (Channel, Event, PaperTrade, Trade, UserPreference,
+from traderacker.models import (Channel, Event, PaperTrade, ProcessedProfitEvent,
+                                TelegramMessage, Trade, UserPreference,
                                 Watchlist, trust_tier, wilson_lower_bound)
 
 
@@ -1833,6 +1834,33 @@ class SignalParserTests(TestCase):
         for s in sigs:
             self.assertIsNone(s['entry'])
 
+    def test_double_dash_target_and_stoploss_separator(self):
+        # Day Trader తెలుగు (85): "TARGET--240" / "SUPPORT--" -- a doubled
+        # separator dash every other channel using these keywords writes as
+        # zero or one ("TARGET-240", "TARGET:240"). The old `[:\-]?` (at
+        # most one separator char) consumed the first dash and then had
+        # nothing that could skip the second before the number match, which
+        # requires starting on a digit -- so target/stop_loss silently
+        # stayed None despite the message stating a real number.
+        from traderacker.signals import parse_message
+        sigs = parse_message(
+            'NIFTY 23300 PE\n\n𝗔𝗕𝗢𝗩E-191\n\n𝗧𝗔𝗥𝗚𝗘𝗧--240\n\n'
+            'STOP LOSS-PAID-\n\nBUYING THIS TRADE',
+            style='auto')
+        self.assertEqual(len(sigs), 1)
+        self.assertEqual(sigs[0]['entry'], 191.0)
+        self.assertEqual(sigs[0]['target'], 240.0)
+
+    def test_numbered_target_list_still_skips_the_rank_prefix(self):
+        # Regression guard for the doubled-separator widening above: a
+        # ranked list like "TGT 1)3575" must still read target=3575, not
+        # the rank digit "1" -- this is the exact bug the original
+        # `(?:\d\)\s*)?` rank-skip was added to fix; the `[:\-]?` -> `[:\-]*`
+        # change must not reopen it.
+        from traderacker.signals import RE_TARGET
+        m = RE_TARGET.search('TGT 1)3575\n2)3470')
+        self.assertEqual(m.group(1), '3575')
+
     def test_rochit_singh_emoji_decorated_repost_suppressed(self):
         # ROCHIT SINGH STOCKS (channel 40) reposts an already-open leg as a
         # bare "<symbol>\n<price><emoji>" LTP ticker (unlike channel 66/48's
@@ -3029,6 +3057,193 @@ class MarketHoursTests(TestCase):
         else:
             with self.assertRaises(SystemExit):
                 cc('premarket_status', stdout=out)
+
+
+class LlmTriageInterpretCloseTests(TestCase):
+    """interpret_close()'s safety design: a price is only ever trusted if it
+    is literally present in the source message text, regardless of what the
+    LLM claims -- mocks llm_triage._chat throughout, never touches the
+    network."""
+
+    def _open_trades(self):
+        return [{'trade': 'NIFTY 23300 PE', 'entry': 191.0, 'target': 240.0, 'stop_loss': None}]
+
+    def test_closes_when_llm_price_matches_text(self):
+        from unittest.mock import patch
+        from traderacker import llm_triage
+        raw = '{"action": "close", "trade": "NIFTY 23300 PE", "price": 266, "confidence": "high", "reasoning": "target hit"}'
+        with patch('traderacker.llm_triage._chat', return_value=raw):
+            result = llm_triage.interpret_close('266\U0001F525\U0001F525\U0001F4AA\U0001F4AF\U0001F4AF', self._open_trades())
+        self.assertEqual(result, {'trade': 'NIFTY 23300 PE', 'price': 266.0, 'reasoning': 'target hit'})
+
+    def test_rejects_when_claimed_price_not_literally_in_text(self):
+        # The core safety check: even a well-formed, high-confidence LLM
+        # response is discarded if the number it claims doesn't actually
+        # appear in the source message -- this is what stops a hallucinated
+        # price from ever reaching the database, independent of prompting.
+        from unittest.mock import patch
+        from traderacker import llm_triage
+        raw = '{"action": "close", "trade": "NIFTY 23300 PE", "price": 999, "confidence": "high", "reasoning": "made up"}'
+        with patch('traderacker.llm_triage._chat', return_value=raw):
+            result = llm_triage.interpret_close('266 target done', self._open_trades())
+        self.assertIsNone(result)
+
+    def test_rejects_low_confidence(self):
+        from unittest.mock import patch
+        from traderacker import llm_triage
+        raw = '{"action": "close", "trade": "NIFTY 23300 PE", "price": 266, "confidence": "low", "reasoning": "maybe"}'
+        with patch('traderacker.llm_triage._chat', return_value=raw):
+            result = llm_triage.interpret_close('266 something', self._open_trades())
+        self.assertIsNone(result)
+
+    def test_rejects_action_none(self):
+        from unittest.mock import patch
+        from traderacker import llm_triage
+        raw = '{"action": "none", "trade": null, "price": null, "confidence": "high", "reasoning": "just chatter"}'
+        with patch('traderacker.llm_triage._chat', return_value=raw):
+            result = llm_triage.interpret_close('good morning traders', self._open_trades())
+        self.assertIsNone(result)
+
+    def test_rejects_trade_not_in_open_positions(self):
+        from unittest.mock import patch
+        from traderacker import llm_triage
+        raw = '{"action": "close", "trade": "SENSEX 74000 CE", "price": 266, "confidence": "high", "reasoning": "x"}'
+        with patch('traderacker.llm_triage._chat', return_value=raw):
+            result = llm_triage.interpret_close('266 done', self._open_trades())
+        self.assertIsNone(result)
+
+    def test_handles_code_fenced_json(self):
+        from unittest.mock import patch
+        from traderacker import llm_triage
+        raw = '```json\n{"action": "close", "trade": "NIFTY 23300 PE", "price": 266, "confidence": "high", "reasoning": "ok"}\n```'
+        with patch('traderacker.llm_triage._chat', return_value=raw):
+            result = llm_triage.interpret_close('266 done', self._open_trades())
+        self.assertEqual(result['price'], 266.0)
+
+    def test_returns_none_when_unconfigured_or_malformed(self):
+        from unittest.mock import patch
+        from traderacker import llm_triage
+        with patch('traderacker.llm_triage._chat', return_value=None):
+            self.assertIsNone(llm_triage.interpret_close('266 done', self._open_trades()))
+        with patch('traderacker.llm_triage._chat', return_value='not json at all'):
+            self.assertIsNone(llm_triage.interpret_close('266 done', self._open_trades()))
+
+    def test_no_open_trades_short_circuits_without_calling_llm(self):
+        from unittest.mock import patch
+        from traderacker import llm_triage
+        with patch('traderacker.llm_triage._chat') as mocked:
+            result = llm_triage.interpret_close('266 done', [])
+        mocked.assert_not_called()
+        self.assertIsNone(result)
+
+    def test_integer_and_float_price_forms_both_match(self):
+        from unittest.mock import patch
+        from traderacker import llm_triage
+        raw = '{"action": "close", "trade": "NIFTY 23300 PE", "price": 266.0, "confidence": "high", "reasoning": "x"}'
+        with patch('traderacker.llm_triage._chat', return_value=raw):
+            result = llm_triage.interpret_close('Booked at 266 points', self._open_trades())
+        self.assertEqual(result['price'], 266.0)
+
+    def test_number_must_not_match_a_larger_number_substring(self):
+        # 266 must not "match" inside 2660 or 1266 -- word-boundary-style
+        # check, not a naive substring search.
+        from unittest.mock import patch
+        from traderacker import llm_triage
+        raw = '{"action": "close", "trade": "NIFTY 23300 PE", "price": 266, "confidence": "high", "reasoning": "x"}'
+        with patch('traderacker.llm_triage._chat', return_value=raw):
+            result = llm_triage.interpret_close('2660 was the high today', self._open_trades())
+        self.assertIsNone(result)
+
+
+class LlmTriageCommandTests(TestCase):
+    """llm_triage management command: candidate selection, durable
+    per-message tracking (never re-asks the LLM about the same message),
+    and the actual Trade close it applies -- mocks
+    llm_triage.interpret_close and is_configured throughout."""
+
+    def setUp(self):
+        self.ch = Channel.objects.create(peer='-9700', name='Ch', short='Ch', style='auto')
+
+    def test_noop_when_unconfigured(self):
+        from io import StringIO
+        from unittest.mock import patch
+        with patch('traderacker.llm_triage.is_configured', return_value=False):
+            out = StringIO()
+            call_command('llm_triage', stdout=out)
+        self.assertIn('not set', out.getvalue())
+
+    def test_closes_trade_from_bare_number_message(self):
+        from unittest.mock import patch
+        t = Trade.objects.create(channel=self.ch, trade='NIFTY 23300 PE', direction='PUT',
+                                 entry=191.0, target=240.0, status='Open', asset_class='option',
+                                 date=dt.date(2026, 9, 20), source_mid=1)
+        TelegramMessage.objects.create(channel=self.ch, mid=2, text='NIFTY 266 done',
+                                       ts=timezone.now(), day_label='x')
+        with patch('traderacker.llm_triage.is_configured', return_value=True), \
+             patch('traderacker.llm_triage.interpret_close',
+                   return_value={'trade': 'NIFTY 23300 PE', 'price': 266.0, 'reasoning': 'target hit'}):
+            call_command('llm_triage')
+        t.refresh_from_db()
+        self.assertEqual(t.status, 'Closed')
+        self.assertEqual(t.ltp_exit, 266.0)
+        self.assertAlmostEqual(t.realized, 75.0)
+        self.assertIn('[llm-closed@266.0', t.note)
+
+    def test_skips_message_already_handled_by_regex(self):
+        from unittest.mock import patch
+        Trade.objects.create(channel=self.ch, trade='NIFTY 23300 PE', direction='PUT',
+                             entry=191.0, status='Open', asset_class='option',
+                             date=dt.date(2026, 9, 20), source_mid=1)
+        # a real, regex-parseable NIFTY signal -- must never reach the LLM
+        TelegramMessage.objects.create(
+            channel=self.ch, mid=2, text='BUY NIFTY 23400 CE @150', ts=timezone.now(), day_label='x')
+        with patch('traderacker.llm_triage.is_configured', return_value=True), \
+             patch('traderacker.llm_triage.interpret_close') as mocked:
+            call_command('llm_triage')
+        mocked.assert_not_called()
+
+    def test_never_re_triages_the_same_message_twice(self):
+        from unittest.mock import patch
+        Trade.objects.create(channel=self.ch, trade='NIFTY 23300 PE', direction='PUT',
+                             entry=191.0, status='Open', asset_class='option',
+                             date=dt.date(2026, 9, 20), source_mid=1)
+        TelegramMessage.objects.create(channel=self.ch, mid=2, text='NIFTY chatter',
+                                       ts=timezone.now(), day_label='x')
+        with patch('traderacker.llm_triage.is_configured', return_value=True), \
+             patch('traderacker.llm_triage.interpret_close', return_value=None) as mocked:
+            call_command('llm_triage')
+            call_command('llm_triage')
+        self.assertEqual(mocked.call_count, 1)
+
+    def test_dry_run_does_not_close_or_record(self):
+        from unittest.mock import patch
+        t = Trade.objects.create(channel=self.ch, trade='NIFTY 23300 PE', direction='PUT',
+                                 entry=191.0, status='Open', asset_class='option',
+                                 date=dt.date(2026, 9, 20), source_mid=1)
+        TelegramMessage.objects.create(channel=self.ch, mid=2, text='NIFTY 266 done',
+                                       ts=timezone.now(), day_label='x')
+        with patch('traderacker.llm_triage.is_configured', return_value=True), \
+             patch('traderacker.llm_triage.interpret_close',
+                   return_value={'trade': 'NIFTY 23300 PE', 'price': 266.0, 'reasoning': 'x'}) as mocked:
+            call_command('llm_triage', dry_run=True)
+        t.refresh_from_db()
+        self.assertEqual(t.status, 'Open')
+        self.assertEqual(ProcessedProfitEvent.objects.filter(kind='llm_triage').count(), 0)
+        mocked.assert_not_called()
+
+    def test_skips_manually_edited_trade(self):
+        from unittest.mock import patch
+        t = Trade.objects.create(channel=self.ch, trade='NIFTY 23300 PE', direction='PUT',
+                                 entry=191.0, status='Open', asset_class='option',
+                                 date=dt.date(2026, 9, 20), source_mid=1, manually_edited=True)
+        TelegramMessage.objects.create(channel=self.ch, mid=2, text='NIFTY 266 done',
+                                       ts=timezone.now(), day_label='x')
+        with patch('traderacker.llm_triage.is_configured', return_value=True), \
+             patch('traderacker.llm_triage.interpret_close',
+                   return_value={'trade': 'NIFTY 23300 PE', 'price': 266.0, 'reasoning': 'x'}):
+            call_command('llm_triage')
+        t.refresh_from_db()
+        self.assertEqual(t.status, 'Open')
 
 
 class ReconcileEodSettlementTests(TestCase):

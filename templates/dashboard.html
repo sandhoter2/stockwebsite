@@ -134,8 +134,22 @@
     .navbar-tt .nav-tabs .nav-link .badge { font-weight:600; }
     .navbar-tt .nav-tabs .nav-link.intel-tab:not(.active) { background:rgba(255,255,255,.06); }
     .navbar-tt .nav-divider { width:1px; align-self:stretch; margin:.4rem .35rem; background:rgba(255,255,255,.25); }
-    @media (max-width: 991.98px) { .navbar-tt .nav-divider { display:none; } }
-  </style>
+     @media (max-width: 991.98px) { .navbar-tt .nav-divider { display:none; } }
+     .task-log { font-family:var(--tt-font-mono); font-size:.78rem; background:#0f172a; color:#e2e8f0;
+                 border-radius:.55rem; padding:.75rem .9rem; max-height:260px; overflow-y:auto; }
+     .task-log .log-row { display:flex; gap:.6rem; padding:.22rem 0; border-bottom:1px solid rgba(255,255,255,.06); }
+     .task-log .log-row:last-child { border-bottom:0; }
+     .task-log .step { color:#38bdf8; font-weight:700; min-width:4.2rem; text-transform:uppercase; }
+     .task-log .step-done { color:#34d399; }
+     .task-log .step-error { color:#f87171; }
+     .task-log .step-ai { color:#fbbf24; }
+     .report-md { white-space:pre-wrap; font-size:.9rem; line-height:1.55; color:#1e293b; }
+     .hold-row input { min-width:0; }
+     .status-queued { background:#e0f2fe; color:#075985; }
+     .status-running { background:#fef3c7; color:#92400e; }
+     .status-succeeded { background:#dcfce7; color:#166534; }
+     .status-failed { background:#fee2e2; color:#991b1b; }
+   </style>
 </head>
 <body>
   <div id="root"></div>
@@ -1535,7 +1549,259 @@
         </div>);
     }
 
+    function statusBadge(st) {
+      return <span className={'tier-badge status-'+(st||'queued')}>{st||'queued'}</span>;
+    }
+
+    function WealthAITab() {
+      const [portfolios, setPortfolios] = useState(null);
+      const [selectedId, setSelectedId] = useState(null);
+      const [tasks, setTasks] = useState([]);
+      const [activeTask, setActiveTask] = useState(null);
+      const [form, setForm] = useState({ name:'', description:'' });
+      const [holdDraft, setHoldDraft] = useState([{ symbol:'', shares:'', cost_basis:'' }]);
+      const [provider, setProvider] = useState('auto');
+      const [busy, setBusy] = useState(false);
+      const [err, setErr] = useState('');
+      const [history, setHistory] = useState(null);
+      const pollRef = useRef(null);
+
+      const loadPortfolios = useCallback(async () => {
+        const d = await api('/api/wealth/portfolios/');
+        setPortfolios(d.results || d);
+      }, []);
+      const loadTasks = useCallback(async () => {
+        const d = await api('/api/wealth/tasks/');
+        setTasks(d.results || []);
+      }, []);
+      useEffect(() => { loadPortfolios().catch(e=>setErr(e.message)); loadTasks().catch(()=>{}); }, [loadPortfolios, loadTasks]);
+
+      const selected = (portfolios || []).find(p => p.id === selectedId) || null;
+
+      useEffect(() => {
+        if (!selectedId) { setHistory(null); return; }
+        api('/api/wealth/portfolios/' + selectedId + '/history/?days=30')
+          .then(setHistory).catch(()=>setHistory(null));
+        const p = (portfolios || []).find(x => x.id === selectedId);
+        if (p) {
+          setHoldDraft(p.holdings && p.holdings.length
+            ? p.holdings.map(h => ({ symbol:h.symbol, shares:String(h.shares), cost_basis:String(h.cost_basis) }))
+            : [{ symbol:'', shares:'', cost_basis:'' }]);
+        }
+      }, [selectedId]);
+
+      useEffect(() => {
+        const running = tasks.some(t => t.status === 'queued' || t.status === 'running');
+        if (!running) return;
+        pollRef.current = setInterval(async () => {
+          try {
+            const d = await api('/api/wealth/tasks/');
+            const list = d.results || [];
+            setTasks(list);
+            if (activeTask) {
+              const fresh = list.find(t => t.id === activeTask.id);
+              if (fresh) setActiveTask(fresh);
+            }
+          } catch (e) { /* ignore poll errors */ }
+        }, 1500);
+        return () => clearInterval(pollRef.current);
+      }, [tasks, activeTask]);
+
+      async function createPortfolio(e) {
+        e.preventDefault();
+        setBusy(true); setErr('');
+        try {
+          const created = await apiMutate('POST', '/api/wealth/portfolios/', form);
+          setForm({ name:'', description:'' });
+          await loadPortfolios();
+          setSelectedId(created.id);
+        } catch (e) { setErr(e.message); }
+        finally { setBusy(false); }
+      }
+      async function saveHoldings() {
+        if (!selectedId) return;
+        const holdings = holdDraft.filter(h => h.symbol.trim()).map(h => ({
+          symbol: h.symbol.trim().toUpperCase(),
+          shares: Number(h.shares),
+          cost_basis: Number(h.cost_basis),
+        }));
+        if (!holdings.length) { setErr('Add at least one holding.'); return; }
+        setBusy(true); setErr('');
+        try {
+          await apiMutate('PATCH', '/api/wealth/portfolios/' + selectedId + '/holdings/', { holdings });
+          await loadPortfolios();
+        } catch (e) { setErr(e.message); }
+        finally { setBusy(false); }
+      }
+      async function removePortfolio() {
+        if (!selectedId) return;
+        if (!window.confirm('Delete this portfolio and its reports?')) return;
+        setBusy(true); setErr('');
+        try {
+          await apiMutate('DELETE', '/api/wealth/portfolios/' + selectedId + '/');
+          setSelectedId(null); setActiveTask(null);
+          await loadPortfolios(); await loadTasks();
+        } catch (e) { setErr(e.message); }
+        finally { setBusy(false); }
+      }
+      async function generateReport() {
+        if (!selectedId) return;
+        setBusy(true); setErr('');
+        try {
+          const queued = await apiMutate('POST', '/api/wealth/portfolios/' + selectedId + '/report/', {
+            provider, format: 'markdown',
+          });
+          setActiveTask(queued);
+          await loadTasks();
+          const done = await apiMutate('POST', '/api/wealth/tasks/' + queued.id + '/run/', {});
+          setActiveTask(done);
+          await loadTasks();
+        } catch (e) { setErr(e.message); }
+        finally { setBusy(false); }
+      }
+      async function openTask(id) {
+        try {
+          const t = await api('/api/wealth/tasks/' + id + '/');
+          setActiveTask(t);
+        } catch (e) { setErr(e.message); }
+      }
+
+      const metrics = activeTask && activeTask.metrics;
+      return (
+        <div>
+          {err && <div className="alert alert-danger py-2">{err}</div>}
+          <div className="row g-3">
+            <div className="col-lg-4">
+              <div className="card p-3 mb-3">
+                <div className="label text-uppercase small fw-bold text-muted mb-2">New portfolio</div>
+                <form onSubmit={createPortfolio}>
+                  <label className="form-label small mb-1" htmlFor="pf-name">Name</label>
+                  <input id="pf-name" className="form-control form-control-sm mb-2" required
+                         value={form.name} onChange={e=>setForm({...form, name:e.target.value})} />
+                  <label className="form-label small mb-1" htmlFor="pf-desc">Description</label>
+                  <input id="pf-desc" className="form-control form-control-sm mb-2"
+                         value={form.description} onChange={e=>setForm({...form, description:e.target.value})} />
+                  <button className="btn btn-sm btn-primary" disabled={busy} type="submit">Create</button>
+                </form>
+              </div>
+              <div className="list-group shadow-sm">
+                {portfolios === null && <div className="text-muted p-2 small">Loading portfolios…</div>}
+                {portfolios && portfolios.length === 0 &&
+                  <div className="text-muted p-2 small">No portfolios yet — create one to generate an AI report.</div>}
+                {(portfolios || []).map(p => (
+                  <button key={p.id} type="button"
+                          className={'list-group-item list-group-item-action '+(selectedId===p.id?'active':'')}
+                          onClick={()=>setSelectedId(p.id)}>
+                    <div className="d-flex justify-content-between">
+                      <strong>{p.name}</strong>
+                      <span className="badge text-bg-light">{p.holdings_count} pos</span>
+                    </div>
+                    {p.description && <div className="small opacity-75">{p.description}</div>}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="col-lg-8">
+              {!selected && <div className="text-muted p-3">Select or create a portfolio.</div>}
+              {selected &&
+                <div>
+                  <div className="d-flex flex-wrap gap-2 align-items-center mb-2">
+                    <h6 className="mb-0">{selected.name}</h6>
+                    <button className="btn btn-sm btn-outline-danger ms-auto" disabled={busy} onClick={removePortfolio}>Delete</button>
+                  </div>
+                  {history && history.points &&
+                    <div className="small text-muted mb-2">30-day value {history.points[0].value} → {history.current}</div>}
+                  <div className="card p-3 mb-3">
+                    <div className="label text-uppercase small fw-bold text-muted mb-2">Holdings</div>
+                    {holdDraft.map((h, i) => (
+                      <div className="row g-1 mb-1 hold-row" key={i}>
+                        <div className="col-4">
+                          <label className="visually-hidden" htmlFor={'sym'+i}>Symbol</label>
+                          <input id={'sym'+i} className="form-control form-control-sm" placeholder="AAPL"
+                                 value={h.symbol} onChange={e=>{
+                                   const n=[...holdDraft]; n[i]={...n[i], symbol:e.target.value}; setHoldDraft(n);
+                                 }} />
+                        </div>
+                        <div className="col-4">
+                          <label className="visually-hidden" htmlFor={'sh'+i}>Shares</label>
+                          <input id={'sh'+i} className="form-control form-control-sm" type="number" step="any" placeholder="Shares"
+                                 value={h.shares} onChange={e=>{
+                                   const n=[...holdDraft]; n[i]={...n[i], shares:e.target.value}; setHoldDraft(n);
+                                 }} />
+                        </div>
+                        <div className="col-4">
+                          <label className="visually-hidden" htmlFor={'cb'+i}>Cost basis</label>
+                          <input id={'cb'+i} className="form-control form-control-sm" type="number" step="any" placeholder="Cost / share"
+                                 value={h.cost_basis} onChange={e=>{
+                                   const n=[...holdDraft]; n[i]={...n[i], cost_basis:e.target.value}; setHoldDraft(n);
+                                 }} />
+                        </div>
+                      </div>
+                    ))}
+                    <div className="d-flex gap-2 mt-2">
+                      <button type="button" className="btn btn-sm btn-outline-secondary"
+                              onClick={()=>setHoldDraft([...holdDraft, {symbol:'', shares:'', cost_basis:''}])}>Add row</button>
+                      <button type="button" className="btn btn-sm btn-outline-primary" disabled={busy} onClick={saveHoldings}>Save holdings</button>
+                    </div>
+                  </div>
+                  <div className="d-flex flex-wrap gap-2 align-items-end mb-3">
+                    <div>
+                      <label className="form-label small mb-1" htmlFor="ai-provider">AI provider</label>
+                      <select id="ai-provider" className="form-select form-select-sm" value={provider}
+                              onChange={e=>setProvider(e.target.value)}>
+                        <option value="auto">Auto (Groq short / OpenAI rich)</option>
+                        <option value="groq">Groq via OmniRoute</option>
+                        <option value="openai">OpenAI via OmniRoute</option>
+                      </select>
+                    </div>
+                    <button className="btn btn-sm btn-primary" disabled={busy} onClick={generateReport}>
+                      {busy ? 'Running…' : 'Generate AI report'}
+                    </button>
+                  </div>
+                  {activeTask &&
+                    <div className="card p-3 mb-3">
+                      <div className="d-flex justify-content-between align-items-center mb-2">
+                        <strong>Task {String(activeTask.id).slice(0,8)}</strong>
+                        {statusBadge(activeTask.status)}
+                      </div>
+                      <div className="small text-muted mb-2">
+                        {activeTask.provider}{activeTask.model ? ' / '+activeTask.model : ''}
+                        {metrics ? ' · MV '+metrics.market_value+' · P/L '+metrics.pnl : ''}
+                      </div>
+                      <div className="task-log mb-3" aria-live="polite">
+                        {(activeTask.log || []).length === 0 && <div className="text-muted">Waiting for steps…</div>}
+                        {(activeTask.log || []).map((row, i) => (
+                          <div className="log-row" key={i}>
+                            <span className={'step step-'+row.step}>{row.step}</span>
+                            <span>{row.message}</span>
+                          </div>
+                        ))}
+                      </div>
+                      {activeTask.markdown &&
+                        <div className="report-md bg-white border rounded p-3">{activeTask.markdown}</div>}
+                      {activeTask.error && <div className="text-danger small">{activeTask.error}</div>}
+                    </div>}
+                  <div className="card p-3">
+                    <div className="label text-uppercase small fw-bold text-muted mb-2">All tasks</div>
+                    {tasks.length === 0 && <div className="text-muted small">No reports yet.</div>}
+                    {tasks.map(t => (
+                      <button type="button" key={t.id}
+                              className="d-flex justify-content-between align-items-center w-100 border-0 bg-transparent py-1 px-0"
+                              onClick={()=>openTask(t.id)}>
+                        <span className="small">{t.portfolio_name} · {String(t.id).slice(0,8)}</span>
+                        {statusBadge(t.status)}
+                      </button>
+                    ))}
+                  </div>
+                </div>}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     const MARKET_INTEL_TABS = [
+      ['wealth', 'WealthAI'],
       ['congress', 'Congress Trades'], ['institutional', 'Institutional Reports'],
       ['news', 'Market News'], ['superinvestors', 'Super Investors'],
     ];
@@ -1837,6 +2103,7 @@
                                  : [['trades','Overview'],['picks','Favorite picks'],['paper','Paper trading']];
       const effTab = ((tab==='board' || tab==='calls') && active!==null) ? 'trades' : tab;
       const MARKET_INTEL_TITLE = {
+        wealth: 'WealthAI · portfolios, live tasks, OmniRoute reports',
         congress: 'Congress Trades · largest disclosed House trades',
         institutional: 'Institutional Reports · BlackRock & JPMorgan outlook',
         news: 'Market News · terse, causal one-liners',
@@ -1909,6 +2176,10 @@
               {effTab==='paper' &&
                 <Section title={'Paper trading · '+(user?user.username:'you')} open={true}>
                   <PaperTrading channels={channels} /></Section>}
+
+              {effTab==='wealth' &&
+                <Section title={MARKET_INTEL_TITLE.wealth} open={true}>
+                  <WealthAITab /></Section>}
 
               {effTab==='congress' &&
                 <Section title={MARKET_INTEL_TITLE.congress} open={true}>

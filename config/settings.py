@@ -16,6 +16,15 @@ from pathlib import Path
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+_env_file = BASE_DIR / '.env'
+if _env_file.exists():
+    for _line in _env_file.read_text().splitlines():
+        _line = _line.strip()
+        if not _line or _line.startswith('#') or '=' not in _line:
+            continue
+        _k, _, _v = _line.partition('=')
+        os.environ.setdefault(_k.strip(), _v.strip().strip('"').strip("'"))
+
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.1/howto/deployment/checklist/
@@ -52,6 +61,7 @@ CSRF_TRUSTED_ORIGINS = [
     'https://*.ngrok-free.dev',
     'https://*.ngrok.io',
     'https://*.ngrok.app',
+    'https://*.monkeycode-ai.live',
     'http://127.0.0.1:8000',
     'http://localhost:8000',
 ]
@@ -76,6 +86,7 @@ INSTALLED_APPS = [
     'institutional_reports',
     'market_news',
     'super_investors',
+    'wealthai',
 ]
 
 MIDDLEWARE = [
@@ -201,3 +212,6 @@ MAILERS = {
         'BACKEND': 'django.core.mail.backends.console.EmailBackend',
     },
 }
+
+OMNIROUTE_API_KEY = os.environ.get('USER_OMNIROUTE_API_KEY', '')
+OMNIROUTE_BASE_URL = os.environ.get('USER_OMNIROUTE_BASE_URL', 'https://api.omniroute.ai/v1')

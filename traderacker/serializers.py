@@ -4,6 +4,15 @@ from .models import (Channel, PaperTrade, QuantityRule, Quote, TelegramMessage,
                      Trade, UserPreference, Watchlist)
 
 
+def _now_ist():
+    from django.utils import timezone as tz
+    return tz.localtime(tz.now())
+
+
+def _today_ist():
+    return _now_ist().date()
+
+
 class ChannelSerializer(serializers.ModelSerializer):
     trades_count = serializers.IntegerField(read_only=True)
     open_count = serializers.IntegerField(read_only=True)
@@ -34,6 +43,22 @@ class TradeSerializer(serializers.ModelSerializer):
     posted_ist = serializers.SerializerMethodField()
     sticker = serializers.SerializerMethodField()
     simple_direction = serializers.SerializerMethodField()
+    # A missing date is invisible under any date-range filter (see
+    # perform_create's fuller comment) -- these need a real DEFAULT AT THE
+    # FIELD LEVEL, not just filled in later in perform_create(), because
+    # Meta.validators' UniqueTogetherValidator (channel, date, trade, entry,
+    # status) runs during is_valid(), BEFORE perform_create ever executes.
+    # With date defaulting only in perform_create, the validator checked
+    # uniqueness against date=None (never a real collision) while the
+    # later actual INSERT used today's real date -- so two identical POSTs
+    # both "validated" fine and the second crashed with an unhandled
+    # IntegrityError (500) instead of the clean 400 the validator exists to
+    # give. Live bug, reproduced via a real duplicate Postman POST.
+    # `default=` (not `initial=`) only fires when the field is OMITTED from
+    # a full create; DRF skips defaults entirely on a partial PATCH, so
+    # perform_update's inline edits are unaffected.
+    date = serializers.DateField(default=_today_ist, allow_null=True, required=False)
+    posted_at = serializers.DateTimeField(default=_now_ist, allow_null=True, required=False)
 
     class Meta:
         model = Trade

@@ -58,25 +58,16 @@ class TradeViewSet(viewsets.ModelViewSet):
     permission_classes = [IsStaffOrReadOnly]
 
     def perform_create(self, serializer):
-        # A Trade with no `date` is permanently invisible under any
-        # date-range filter -- SQL `date__gte=X` (see in_range() on
-        # TradeQuerySet) evaluates NULL >= X as NULL/false, never matching,
-        # and the dashboard applies a date range by default. parse_signals
-        # always sets date from the source message's timestamp; a trade
-        # created directly via this API (no message to derive one from)
-        # needs the same default so it isn't silently unfindable. Also
-        # stamped manually_edited so the automated pipeline (parse_signals'
-        # own upsert, mark_live, close_eod) never mutates a row it didn't
-        # create.
-        extra = {'manually_edited': True}
-        validated = serializer.validated_data
-        if not validated.get('date'):
-            from django.utils import timezone as tz
-            now = tz.localtime(tz.now())
-            extra['date'] = now.date()
-            if not validated.get('posted_at'):
-                extra['posted_at'] = now
-        serializer.save(**extra)
+        # date/posted_at default to now at the FIELD level (TradeSerializer)
+        # when omitted -- see that field's own comment for why it can't be
+        # done here instead (the uniqueness validator runs before
+        # perform_create, so a default applied only here lets two identical
+        # requests both pass validation and crash the second on IntegrityError
+        # instead of getting a clean 400). Only manually_edited is set here:
+        # a row created directly via this API has no source Telegram message
+        # for the automated pipeline to reconcile against, so mark_live/
+        # close_eod/parse_signals' own upsert must never touch it.
+        serializer.save(manually_edited=True)
 
     def perform_update(self, serializer):
         # Any inline admin edit (via the Trades table's edit-in-place UI)

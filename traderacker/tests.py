@@ -2586,6 +2586,23 @@ class TradeInlineEditApiTests(TestCase):
         created = Trade.objects.get(id=r.json()['id'])
         self.assertTrue(created.manually_edited)
 
+    def test_duplicate_post_gets_clean_400_not_500(self):
+        # Live bug: a duplicate POST (same channel/trade/entry, no explicit
+        # date) crashed with an unhandled IntegrityError (500) instead of
+        # the clean 400 UniqueTogetherValidator exists to give -- caused by
+        # date defaulting to today only in perform_create(), AFTER the
+        # validator had already checked uniqueness against date=None on
+        # both requests. Now that date defaults at the field level (so the
+        # validator sees the real value both times), the second identical
+        # POST must be caught cleanly.
+        self.client.force_login(self.staff)
+        payload = {'channel': self.ch.id, 'trade': 'NIFTY 23400 PE',
+                  'direction': 'PUT', 'entry': 200}
+        r1 = self.client.post('/api/tracker/trades/', payload, content_type='application/json')
+        self.assertEqual(r1.status_code, 201)
+        r2 = self.client.post('/api/tracker/trades/', payload, content_type='application/json')
+        self.assertEqual(r2.status_code, 400)
+
     def test_clearing_entry_also_clears_stale_realized_and_exit(self):
         self.trade.status = 'Closed'
         self.trade.realized = 1500.0

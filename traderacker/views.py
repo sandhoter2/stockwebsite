@@ -57,6 +57,27 @@ class TradeViewSet(viewsets.ModelViewSet):
     ordering = ['-date']
     permission_classes = [IsStaffOrReadOnly]
 
+    def perform_create(self, serializer):
+        # A Trade with no `date` is permanently invisible under any
+        # date-range filter -- SQL `date__gte=X` (see in_range() on
+        # TradeQuerySet) evaluates NULL >= X as NULL/false, never matching,
+        # and the dashboard applies a date range by default. parse_signals
+        # always sets date from the source message's timestamp; a trade
+        # created directly via this API (no message to derive one from)
+        # needs the same default so it isn't silently unfindable. Also
+        # stamped manually_edited so the automated pipeline (parse_signals'
+        # own upsert, mark_live, close_eod) never mutates a row it didn't
+        # create.
+        extra = {'manually_edited': True}
+        validated = serializer.validated_data
+        if not validated.get('date'):
+            from django.utils import timezone as tz
+            now = tz.localtime(tz.now())
+            extra['date'] = now.date()
+            if not validated.get('posted_at'):
+                extra['posted_at'] = now
+        serializer.save(**extra)
+
     def perform_update(self, serializer):
         # Any inline admin edit (via the Trades table's edit-in-place UI)
         # sticks from here on: mark_live/close_eod both refuse to touch a

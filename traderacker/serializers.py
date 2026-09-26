@@ -37,7 +37,7 @@ class TradeSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Trade
-        fields = ['id', 'channel', 'channel_name', 'posted_ist',
+        fields = ['id', 'channel', 'channel_name', 'date', 'posted_at', 'posted_ist',
                   'asset_class', 'strike', 'sticker', 'direction', 'simple_direction',
                   'trade', 'entry', 'target',
                   'stop_loss', 'ltp_exit', 'unrealized', 'realized',

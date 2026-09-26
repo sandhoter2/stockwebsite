@@ -2544,6 +2544,48 @@ class TradeInlineEditApiTests(TestCase):
         self.trade.refresh_from_db()
         self.assertTrue(self.trade.manually_edited)
 
+    def test_post_without_date_defaults_to_today_not_null(self):
+        # A Trade with date=None is invisible under ANY date-range filter --
+        # SQL `date__gte=X` evaluates NULL >= X as NULL/false, never
+        # matching -- so a row created via this API with no explicit date
+        # (unlike parse_signals, which always derives one from the source
+        # message) would silently vanish from the dashboard's default
+        # (date-filtered) view despite existing in the DB. Live bug: a user
+        # POSTed a trade via Postman, got 201, then couldn't find it.
+        from django.utils import timezone as tz
+        self.client.force_login(self.staff)
+        r = self.client.post('/api/tracker/trades/', {
+            'channel': self.ch.id, 'trade': 'NIFTY 23400 PE', 'direction': 'PUT',
+            'asset_class': 'option', 'entry': 200, 'target': 240, 'stop_loss': 170,
+        }, content_type='application/json')
+        self.assertEqual(r.status_code, 201)
+        created = Trade.objects.get(id=r.json()['id'])
+        self.assertEqual(created.date, tz.localtime(tz.now()).date())
+        self.assertIsNotNone(created.posted_at)
+        # must actually be findable under the same date filter the
+        # dashboard applies by default
+        found = self.client.get(
+            f'/api/tracker/trades/?date_from={created.date}').json()
+        self.assertIn(created.id, [t['id'] for t in found['results']])
+
+    def test_post_with_explicit_date_is_not_overridden(self):
+        self.client.force_login(self.staff)
+        r = self.client.post('/api/tracker/trades/', {
+            'channel': self.ch.id, 'trade': 'NIFTY 23400 PE', 'direction': 'PUT',
+            'asset_class': 'option', 'entry': 200, 'date': '2026-01-15',
+        }, content_type='application/json')
+        self.assertEqual(r.status_code, 201)
+        created = Trade.objects.get(id=r.json()['id'])
+        self.assertEqual(str(created.date), '2026-01-15')
+
+    def test_post_stamps_manually_edited(self):
+        self.client.force_login(self.staff)
+        r = self.client.post('/api/tracker/trades/', {
+            'channel': self.ch.id, 'trade': 'NIFTY 23400 PE', 'entry': 200,
+        }, content_type='application/json')
+        created = Trade.objects.get(id=r.json()['id'])
+        self.assertTrue(created.manually_edited)
+
     def test_clearing_entry_also_clears_stale_realized_and_exit(self):
         self.trade.status = 'Closed'
         self.trade.realized = 1500.0
